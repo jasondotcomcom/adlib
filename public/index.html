@@ -2229,6 +2229,27 @@ function audioPath(mode,slug,variant){
   return 'audio/'+mode+'/'+slug+'_'+variant+'.mp3';
 }
 
+// WEB-AUDIO VOICE PATH — iOS pauses/ducks the Web Audio beat whenever an
+// <audio> element starts while the mic is hot (audio session re-negotiation).
+// Playing voices as decoded buffers through hypeBus keeps everything on ONE
+// output path — nothing for iOS to juggle. Encoded MP3s are tiny and served
+// immutable, so fetch hits browser cache; decoded buffers are kept in a
+// small FIFO cache.
+var voiceBufCache={},voiceBufOrder=[];
+function voiceBufferFor(url){
+  if(voiceBufCache[url])return voiceBufCache[url];
+  var p=fetch(url).then(function(r){
+    if(!r.ok)throw new Error('http '+r.status);
+    return r.arrayBuffer();
+  }).then(function(ab){
+    return new Promise(function(res,rej){getAC().decodeAudioData(ab,res,rej)});
+  });
+  voiceBufCache[url]=p;voiceBufOrder.push(url);
+  if(voiceBufOrder.length>60)delete voiceBufCache[voiceBufOrder.shift()];
+  p.catch(function(){delete voiceBufCache[url]});
+  return p;
+}
+
 // Probe for available variants the first time a slug is requested
 function loadVariantsForSlug(mode,slug){
   var key=mode+'/'+slug;
@@ -2299,19 +2320,30 @@ function playVoice(slug,preferV){
   playVoice._lastPick=pick;
   // Play the primed audio element directly (no clone — iOS Safari blocks cloned audio).
   // If the same variant fires twice quickly, the second call resets currentTime and replays.
-  try{
-    pick.volume=voiceBaseVol*getHypeVolumeScale();
-    pick.currentTime=0;
-    var p=pick.play();
-    if(p&&p.then){
-      p.catch(function(err){dbgLog('miss','voice play rejected: '+err.name+' — '+err.message)});
+  // Play through Web Audio (single output path — see voiceBufferFor).
+  // The primed <audio> element is kept only as a fallback if decode fails.
+  var url=pick.currentSrc||pick.src;
+  var vol=voiceBaseVol*getHypeVolumeScale();
+  voiceBufferFor(url).then(function(buf){
+    var c=getAC(),s=c.createBufferSource();s.buffer=buf;
+    var g=c.createGain();g.gain.value=vol;
+    s.connect(g).connect(getHypeOut());
+    s.start();
+  }).catch(function(err){
+    dbgLog('miss','voice buffer failed ('+(err&&err.message||err)+') — falling back to <audio>');
+    try{
+      pick.volume=vol;
+      pick.currentTime=0;
+      var p=pick.play();
+      if(p&&p.then){
+        p.catch(function(e2){dbgLog('miss','voice play rejected: '+e2.name+' — '+e2.message)});
+      }
+    }catch(e){
+      dbgLog('miss','voice play failed: '+e);
     }
-    dbgLog('fire','voice: '+mode+'/'+slug);
-    return true;
-  }catch(e){
-    dbgLog('miss','voice play failed: '+e);
-    return false;
-  }
+  });
+  dbgLog('fire','voice: '+mode+'/'+slug);
+  return true;
 }
 
 // ============================================================
