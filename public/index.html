@@ -1699,7 +1699,12 @@ var MAX_SUB_WORDS=10; // how many words visible at once
 var lastInterimSet=[]; // current interim words (replaced as recognizer updates)
 
 function startMic(){
-  navigator.mediaDevices.getUserMedia({audio:true}).then(function(stream){
+  // Raw capture: default constraints (echoCancellation on) push iOS into
+  // voice-chat session mode, which DUCKS our own beat output around voice
+  // activity — drums vanish, sustained pad survives. Raw mode keeps the
+  // session in normal playback. Tradeoff: on phone speaker the analyser
+  // hears some beat bleed, so RMS reads slightly hotter on iOS.
+  navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}}).then(function(stream){
     micStr=stream;
     var ctx=getAC(),src=ctx.createMediaStreamSource(stream);
     micAn=ctx.createAnalyser();micAn.fftSize=2048;micAn.smoothingTimeConstant=0.8;
