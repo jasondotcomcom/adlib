@@ -1,0 +1,17 @@
+{
+  "name": "adlib-live",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AD-LIB — the AI hype man. The greatest hype man of all time. Live at adlib.live",
+  "scripts": {
+    "generate": "node scripts/generate-audio.js",
+    "generate:hype": "node scripts/generate-audio.js --mode hype",
+    "generate:boom": "node scripts/generate-audio.js --mode boom",
+    "generate:force": "node scripts/generate-audio.js --force",
+    "dev": "npx serve public -l 3000",
+    "deploy": "vercel --prod"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

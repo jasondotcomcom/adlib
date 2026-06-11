@@ -1,0 +1,95 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <defs>
+    <linearGradient id="textGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#FF3B30"/>
+      <stop offset="35%" stop-color="#FF9500"/>
+      <stop offset="65%" stop-color="#FFCC00"/>
+      <stop offset="100%" stop-color="#FF3B30"/>
+    </linearGradient>
+    <radialGradient id="bgGrad" cx="50%" cy="50%" r="70%">
+      <stop offset="0%" stop-color="#F0EBE3"/>
+      <stop offset="100%" stop-color="#D8D2C8"/>
+    </radialGradient>
+    <filter id="noise">
+      <feTurbulence baseFrequency="0.7" numOctaves="3" type="fractalNoise" seed="42"/>
+      <feColorMatrix values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.18 0"/>
+      <feComposite in2="SourceGraphic" operator="in"/>
+    </filter>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#bgGrad)"/>
+  <rect width="1200" height="630" fill="white" filter="url(#noise)" opacity="0.5"/>
+
+  <g opacity="0.55">
+    <circle cx="120" cy="100" r="6" fill="#FF3B30"/>
+    <circle cx="180" cy="170" r="3" fill="#FF9500"/>
+    <circle cx="90" cy="230" r="4" fill="#FFCC00"/>
+    <circle cx="200" cy="290" r="2.5" fill="#FF3B30"/>
+    <circle cx="60" cy="380" r="5" fill="#FF9500"/>
+    <circle cx="170" cy="450" r="3" fill="#FFCC00"/>
+    <circle cx="110" cy="540" r="4" fill="#FF3B30"/>
+    <circle cx="220" cy="540" r="2" fill="#FF9500"/>
+
+    <circle cx="1080" cy="80" r="4" fill="#FF9500"/>
+    <circle cx="1010" cy="140" r="6" fill="#FF3B30"/>
+    <circle cx="1140" cy="200" r="3" fill="#FFCC00"/>
+    <circle cx="1080" cy="290" r="5" fill="#FF9500"/>
+    <circle cx="1020" cy="380" r="3" fill="#FF3B30"/>
+    <circle cx="1130" cy="460" r="4" fill="#FFCC00"/>
+    <circle cx="1090" cy="540" r="6" fill="#FF9500"/>
+    <circle cx="990" cy="520" r="2.5" fill="#FF3B30"/>
+
+    <circle cx="540" cy="70" r="3" fill="#FF3B30"/>
+    <circle cx="700" cy="90" r="2.5" fill="#FF9500"/>
+    <circle cx="640" cy="40" r="4" fill="#FFCC00"/>
+    <circle cx="380" cy="50" r="2" fill="#FF3B30"/>
+    <circle cx="850" cy="55" r="3" fill="#FFCC00"/>
+
+    <circle cx="350" cy="540" r="2.5" fill="#FF9500"/>
+    <circle cx="600" cy="565" r="3" fill="#FF3B30"/>
+    <circle cx="900" cy="555" r="2" fill="#FFCC00"/>
+  </g>
+
+  <g transform="translate(600 295)">
+    <text x="10" y="10" text-anchor="middle"
+          font-family="Impact, Haettenschweiler, 'Arial Black', sans-serif"
+          font-size="240" font-weight="900" font-style="italic"
+          fill="rgba(0,0,0,0.22)" letter-spacing="-4"
+          transform="skewX(-9)">AD-LIB</text>
+    <text x="0" y="0" text-anchor="middle"
+          font-family="Impact, Haettenschweiler, 'Arial Black', sans-serif"
+          font-size="240" font-weight="900" font-style="italic"
+          fill="none" stroke="#1A1A1A" stroke-width="14" stroke-linejoin="round"
+          letter-spacing="-4"
+          transform="skewX(-9)">AD-LIB</text>
+    <text x="0" y="0" text-anchor="middle"
+          font-family="Impact, Haettenschweiler, 'Arial Black', sans-serif"
+          font-size="240" font-weight="900" font-style="italic"
+          fill="url(#textGrad)" letter-spacing="-4"
+          transform="skewX(-9)">AD-LIB</text>
+    <text x="-3" y="-18" text-anchor="middle"
+          font-family="Impact, Haettenschweiler, 'Arial Black', sans-serif"
+          font-size="240" font-weight="900" font-style="italic"
+          fill="rgba(255,255,255,0.18)" letter-spacing="-4"
+          transform="skewX(-9)" clip-path="inset(0 0 65% 0)">AD-LIB</text>
+  </g>
+
+  <g transform="translate(600 425)">
+    <text x="0" y="0" text-anchor="middle"
+          font-family="Helvetica Neue, Helvetica, Arial, sans-serif"
+          font-size="40" font-weight="800"
+          fill="#1A1A1A" letter-spacing="4">YOUR AI HYPE MAN</text>
+    <text x="0" y="46" text-anchor="middle"
+          font-family="Helvetica Neue, Helvetica, Arial, sans-serif"
+          font-size="20" font-weight="500"
+          fill="rgba(26,26,26,0.55)" letter-spacing="2">DROP THE BEAT · SPIT YOUR BARS · GET HYPED</text>
+  </g>
+
+  <g transform="translate(1060 580)">
+    <rect x="-100" y="-22" width="200" height="44" rx="22" fill="#1A1A1A"/>
+    <text x="0" y="7" text-anchor="middle"
+          font-family="ui-monospace, Menlo, Consolas, monospace"
+          font-size="17" font-weight="700"
+          fill="#FFCC00" letter-spacing="2.5">ADLIB.LIVE</text>
+  </g>
+</svg>

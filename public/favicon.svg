@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#FF3B30"/>
+      <stop offset="50%" stop-color="#FF9500"/>
+      <stop offset="100%" stop-color="#FFCC00"/>
+    </linearGradient>
+  </defs>
+  <!-- Background tile -->
+  <rect width="32" height="32" rx="6" fill="#1A1A1A"/>
+  <!-- "A" graffiti monogram with subtle italic -->
+  <text x="16" y="24" text-anchor="middle"
+        font-family="Impact, Haettenschweiler, sans-serif"
+        font-size="28" font-weight="900" font-style="italic"
+        fill="url(#g)" stroke="#1A1A1A" stroke-width="0.5"
+        transform="skewX(-8 16 16)">A</text>
+  <!-- Splatter dot -->
+  <circle cx="25" cy="9" r="1.5" fill="#FF3B30" opacity="0.85"/>
+</svg>

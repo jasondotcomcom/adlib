@@ -1,0 +1,2444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+<!-- SEO -->
+<title>AD-LIB — Your AI Hype Man. Rap. Get hyped. Live.</title>
+<meta name="description" content="AD-LIB is the AI hype man for your freestyle. Drop a beat across 16 genres, then rap. AD-LIB listens to every word and reacts in real time with graffiti-fueled hype. Live at adlib.live.">
+<meta name="keywords" content="AI hype man, rap, freestyle, beat maker, hip hop, AI music, hype man, freestyle rap, beat drop, ad lib">
+<meta name="author" content="Jason Pickar">
+<meta name="theme-color" content="#FF3B30">
+
+<!-- Open Graph / Facebook -->
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://adlib.live/">
+<meta property="og:title" content="AD-LIB — Your AI Hype Man">
+<meta property="og:description" content="Drop the beat. Spit your bars. AD-LIB hypes you up in real time.">
+<meta property="og:image" content="https://adlib.live/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:site_name" content="AD-LIB">
+
+<!-- Twitter / X -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:url" content="https://adlib.live/">
+<meta name="twitter:title" content="AD-LIB — Your AI Hype Man">
+<meta name="twitter:description" content="Drop the beat. Spit your bars. AD-LIB hypes you up in real time.">
+<meta name="twitter:image" content="https://adlib.live/og.png">
+
+<!-- Favicons -->
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="alternate icon" href="favicon.ico">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,sans-serif;
+  background:#FAFAF8;color:#1A1A1A;
+  min-height:100vh;min-height:100dvh;overflow:hidden;
+  -webkit-user-select:none;user-select:none;touch-action:none;
+}
+#tap{position:fixed;inset:0;z-index:2}
+canvas#viz{position:fixed;inset:0;z-index:1;pointer-events:none}
+
+.ripple{position:fixed;width:40px;height:40px;border-radius:50%;transform:translate(-50%,-50%) scale(0);pointer-events:none;z-index:3;animation:rip 0.5s ease-out forwards}
+@keyframes rip{0%{transform:translate(-50%,-50%) scale(0);opacity:0.5}100%{transform:translate(-50%,-50%) scale(4);opacity:0}}
+.rdot{position:fixed;width:8px;height:8px;border-radius:50%;transform:translate(-50%,-50%);pointer-events:none;z-index:3;animation:dotf 0.3s ease-out forwards}
+@keyframes dotf{0%{opacity:0.7;transform:translate(-50%,-50%) scale(1)}100%{opacity:0;transform:translate(-50%,-50%) scale(0)}}
+
+/* User-hit ghost markers */
+.uhit{position:fixed;width:14px;height:14px;border-radius:50%;transform:translate(-50%,-50%);pointer-events:none;z-index:4;opacity:0.35;transition:all 0.2s;mix-blend-mode:multiply}
+.uhit.warn{opacity:0.95;transform:translate(-50%,-50%) scale(1.6);box-shadow:0 0 24px rgba(255,59,48,0.9);background:#FF3B30 !important}
+
+.wm{position:fixed;bottom:60px;left:50%;transform:translateX(-50%);font-family:monospace;font-size:11px;font-weight:500;letter-spacing:4px;color:#CCC;opacity:0.4;pointer-events:none;z-index:10}
+
+/* Start screen — graffiti wall */
+.start-wall{
+  position:fixed;inset:0;z-index:50;
+  background:#E8E4DE;
+  cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  transition:opacity 0.4s,transform 0.4s;
+  overflow:hidden;
+}
+.start-wall::before{
+  content:'';position:absolute;inset:0;
+  opacity:0.15;
+  background-image:url("data:image/svg+xml,%3Csvg width='200' height='200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='0.7' numOctaves='4' type='fractalNoise'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+.start-wall.gone{opacity:0;transform:scale(1.1);pointer-events:none}
+
+.graf-container{
+  position:relative;
+  width:min(90vw,420px);
+  aspect-ratio:2.2;
+}
+.graf-text{width:100%;height:100%;filter:drop-shadow(4px 4px 0 rgba(0,0,0,0.15))}
+.start-sub{
+  font-size:14px;color:rgba(0,0,0,0.35);letter-spacing:3px;
+  margin-top:20px;font-weight:500;
+  animation:breathe 2s ease-in-out infinite;
+  position:relative;z-index:1;
+}
+@keyframes breathe{0%,100%{opacity:0.35}50%{opacity:0.7}}
+.speckle{
+  position:absolute;inset:0;opacity:0.3;
+  background-image:radial-gradient(circle,rgba(0,0,0,0.3) 1px,transparent 1px);
+  background-size:8px 8px;pointer-events:none;
+}
+
+/* Genre strip */
+.gstrip{
+  position:fixed;bottom:0;left:0;right:0;z-index:20;
+  height:48px;display:flex;align-items:center;
+  overflow-x:auto;overflow-y:hidden;
+  -webkit-overflow-scrolling:touch;
+  scrollbar-width:none;
+  padding:0 16px;gap:6px;
+  background:linear-gradient(to top,rgba(250,250,248,0.95),rgba(250,250,248,0.7));
+  backdrop-filter:blur(8px);
+}
+.gstrip::-webkit-scrollbar{display:none}
+.gp{
+  padding:7px 14px;border-radius:20px;border:1.5px solid #E0DDD8;background:white;
+  font-size:11px;font-weight:600;color:#999;cursor:pointer;transition:all 0.2s;
+  white-space:nowrap;flex-shrink:0;min-height:32px;
+}
+.gp:active{transform:scale(0.95)}
+.gp.on{border-color:#FF6B35;color:#FF6B35;background:rgba(255,107,53,0.04)}
+
+/* HYPE MAN — center-screen graffiti reaction text */
+.hype-stage{position:fixed;inset:0;z-index:14;pointer-events:none;overflow:hidden}
+.hype-burst{
+  position:absolute;
+  font-family:Impact,Haettenschweiler,'Arial Black',sans-serif;
+  font-weight:900;
+  font-style:italic;
+  letter-spacing:-2px;
+  white-space:nowrap;
+  transform:translate(-50%,-50%);
+  pointer-events:none;
+  filter:drop-shadow(4px 4px 0 rgba(0,0,0,0.45)) drop-shadow(0 0 30px rgba(255,107,53,0.4));
+  animation:hburst 1.4s cubic-bezier(0.16,1.2,0.3,1) forwards;
+}
+@keyframes hburst{
+  0%{opacity:0;transform:translate(-50%,-50%) scale(0.2) rotate(var(--rot,-3deg))}
+  18%{opacity:1;transform:translate(-50%,-50%) scale(1.3) rotate(var(--rot,-3deg))}
+  35%{transform:translate(-50%,-50%) scale(1) rotate(var(--rot,-3deg))}
+  85%{opacity:1;transform:translate(-50%,-50%) scale(1) rotate(var(--rot,-3deg))}
+  100%{opacity:0;transform:translate(-50%,-50%) scale(1.05) rotate(var(--rot,-3deg))}
+}
+.hype-splatter{
+  position:absolute;width:6px;height:6px;border-radius:50%;
+  pointer-events:none;
+  animation:hsplat 1.2s ease-out forwards;
+}
+@keyframes hsplat{
+  0%{opacity:0.8;transform:translate(0,0) scale(0)}
+  20%{opacity:0.7;transform:translate(var(--dx,0),var(--dy,0)) scale(1)}
+  100%{opacity:0;transform:translate(calc(var(--dx,0) * 1.4),calc(var(--dy,0) * 1.4)) scale(0.6)}
+}
+
+/* SIGNATURE — the brand drop. Bigger, longer, with gradient fill via background-clip */
+.hype-burst.signature{
+  font-size:clamp(80px,20vw,200px) !important;
+  letter-spacing:-4px;
+  background:linear-gradient(135deg,#FF3B30 0%,#FF9500 35%,#FFCC00 65%,#FF3B30 100%);
+  -webkit-background-clip:text;background-clip:text;
+  -webkit-text-fill-color:transparent;
+  -webkit-text-stroke:4px #1A1A1A !important;
+  filter:drop-shadow(6px 6px 0 rgba(0,0,0,0.55)) drop-shadow(0 0 60px rgba(255,107,53,0.7));
+  animation:sigburst 1.9s cubic-bezier(0.16,1.4,0.3,1) forwards !important;
+}
+@keyframes sigburst{
+  0%{opacity:0;transform:translate(-50%,-50%) scale(0.1) rotate(var(--rot,-5deg))}
+  10%{opacity:1;transform:translate(-50%,-50%) scale(1.5) rotate(var(--rot,-5deg))}
+  22%{transform:translate(-50%,-50%) scale(0.95) rotate(var(--rot,-5deg))}
+  32%{transform:translate(-50%,-50%) scale(1.05) rotate(var(--rot,-5deg))}
+  85%{opacity:1;transform:translate(-50%,-50%) scale(1) rotate(var(--rot,-5deg))}
+  100%{opacity:0;transform:translate(-50%,-50%) scale(1.08) rotate(var(--rot,-5deg))}
+}
+
+/* Hide DBG button by default — Konami unlocks it */
+.tb#dbgBtn{display:none}
+.tb#dbgBtn.unlocked{display:inline-block}
+
+/* Subtitles — flowing live transcript, big and proud */
+.subs{
+  position:fixed;left:0;right:0;bottom:64px;z-index:13;
+  display:flex;align-items:center;justify-content:center;
+  font-family:Impact,Haettenschweiler,'Arial Black',sans-serif;
+  font-weight:900;font-style:italic;letter-spacing:-1px;
+  padding:0 24px;
+  pointer-events:none;
+  opacity:0;transition:opacity 0.3s,filter 0.25s;
+  height:64px;
+  text-align:center;
+  overflow:hidden;
+}
+.subs.on{opacity:1}
+.subs.dim{opacity:0.25;filter:blur(0.5px)}
+.subs-flow{
+  display:flex;flex-wrap:nowrap;align-items:baseline;justify-content:flex-end;gap:0.4em;
+  max-width:100%;overflow:hidden;
+  font-size:clamp(22px,5.5vw,36px);
+}
+.sw{
+  display:inline-block;
+  color:#1A1A1A;
+  text-shadow:2px 2px 0 rgba(255,255,255,0.6);
+  animation:swin 0.32s cubic-bezier(0.16,1.3,0.3,1) forwards;
+  white-space:nowrap;
+  flex-shrink:0;
+}
+.sw.interim{color:rgba(26,26,26,0.5);font-style:italic}
+.sw.hit{color:#FF3B30;animation:swhit 0.6s ease-out forwards}
+@keyframes swin{
+  0%{opacity:0;transform:translateY(8px) scale(0.85)}
+  100%{opacity:1;transform:translateY(0) scale(1)}
+}
+@keyframes swhit{
+  0%{transform:scale(1)}
+  30%{transform:scale(1.25);color:#FF3B30}
+  100%{transform:scale(1);color:rgba(26,26,26,0.6)}
+}
+
+/* Top-right buttons */
+.topbtns{position:fixed;top:12px;right:12px;z-index:22;display:flex;gap:8px}
+.tb{
+  padding:7px 12px;border-radius:18px;border:1.5px solid #E0DDD8;background:rgba(255,255,255,0.9);
+  font-size:11px;font-weight:600;color:#666;cursor:pointer;transition:all 0.15s;
+  letter-spacing:0.5px;
+}
+.tb:active{transform:scale(0.95)}
+.tb.on{border-color:#FF6B35;color:#FF6B35;background:rgba(255,107,53,0.06)}
+.tb.warn{border-color:#FF3B30;color:#FF3B30}
+/* Mode toggle button — slightly bolder than other top buttons */
+.tb.modebtn{font-weight:800;letter-spacing:1px;border-color:#FF3B30;color:#FF3B30;background:rgba(255,59,48,0.08)}
+.tb.modebtn.boom{border-color:#FF9500;color:#FF9500;background:rgba(255,149,0,0.08)}
+
+/* Share toast */
+.share-toast{
+  position:fixed;top:60px;right:14px;z-index:60;
+  padding:10px 16px;border-radius:18px;
+  background:#1A1A1A;color:#FFCC00;
+  font-family:ui-monospace,Menlo,Consolas,monospace;
+  font-size:12px;font-weight:700;letter-spacing:1.5px;
+  opacity:0;transform:translateY(-8px);
+  pointer-events:none;
+  transition:opacity 0.25s,transform 0.25s;
+  box-shadow:0 4px 14px rgba(0,0,0,0.18);
+}
+.share-toast.show{opacity:1;transform:translateY(0)}
+
+/* DEBUG HUD */
+.dbg{
+  position:fixed;top:54px;left:12px;z-index:40;
+  width:min(420px,calc(100vw - 24px));
+  max-height:60vh;
+  background:rgba(15,15,15,0.92);color:#0F0;
+  font-family:ui-monospace,Menlo,Consolas,monospace;font-size:10px;
+  padding:10px 12px;border-radius:8px;
+  overflow-y:auto;overflow-x:hidden;
+  display:none;backdrop-filter:blur(8px);
+  border:1px solid rgba(0,255,0,0.2);
+  pointer-events:auto;
+}
+.dbg.show{display:block}
+.dbg-row{padding:2px 0;border-bottom:1px solid rgba(0,255,0,0.08);white-space:pre-wrap;word-break:break-word;line-height:1.35}
+.dbg-row.interim{color:#888}
+.dbg-row.final{color:#0F0}
+.dbg-row.fire{color:#FF9500;font-weight:700}
+.dbg-row.miss{color:#FF3B30}
+.dbg-row.silent{color:#5AC8FA}
+.dbg-row.system{color:#AF52DE}
+.dbg-meta{display:inline-block;width:56px;color:#444;flex-shrink:0}
+.dbg-clear-btn{position:sticky;top:0;float:right;background:rgba(255,59,48,0.2);color:#FF6B6B;border:1px solid rgba(255,59,48,0.4);font-family:inherit;font-size:9px;padding:2px 6px;border-radius:3px;cursor:pointer;margin-bottom:4px}
+
+/* Mic prompt */
+.micp{
+  position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(0.9);
+  display:flex;flex-direction:column;align-items:center;gap:14px;
+  z-index:30;opacity:0;pointer-events:none;transition:all 0.4s cubic-bezier(0.34,1.56,0.64,1);
+  background:rgba(255,255,255,0.96);padding:24px 32px;border-radius:20px;
+  box-shadow:0 8px 30px rgba(0,0,0,0.18);
+  backdrop-filter:blur(10px);
+}
+.micp.show{opacity:1;pointer-events:auto;transform:translate(-50%,-50%) scale(1)}
+.micb{width:64px;height:64px;border-radius:50%;border:none;background:#1A1A1A;color:white;font-size:28px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(0,0,0,0.2);transition:transform 0.15s}
+.micb:active{transform:scale(0.93)}
+.mictxt{font-size:13px;color:#444;letter-spacing:0.5px;font-weight:500;text-align:center}
+.micsub{font-size:11px;color:#999;letter-spacing:0.5px;text-align:center;max-width:220px;line-height:1.5}
+
+/* Tempo indicator */
+.tempo-ind{
+  position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);
+  z-index:25;font-family:Impact,sans-serif;font-size:80px;font-weight:900;font-style:italic;
+  color:#1A1A1A;opacity:0;pointer-events:none;transition:opacity 0.2s;
+  letter-spacing:-3px;
+}
+.tempo-ind.show{opacity:0.85}
+.tempo-ind .bpm-label{font-size:18px;font-weight:600;font-style:normal;letter-spacing:2px;display:block;text-align:center;opacity:0.5}
+
+/* Volume pinch indicator */
+.vol-ind{
+  position:fixed;top:50%;right:30px;transform:translateY(-50%);
+  width:6px;height:200px;background:rgba(0,0,0,0.1);border-radius:3px;
+  z-index:25;opacity:0;transition:opacity 0.3s;pointer-events:none;
+}
+.vol-ind.show{opacity:1}
+.vol-fill{position:absolute;bottom:0;left:0;right:0;background:#FF6B35;border-radius:3px;transition:height 0.05s linear}
+
+/* Scratch indicator */
+.scratch-ind{
+  position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);
+  z-index:25;font-family:Impact,sans-serif;font-size:48px;font-weight:900;font-style:italic;
+  color:#FF6B35;opacity:0;pointer-events:none;transition:opacity 0.15s;
+  letter-spacing:-2px;text-shadow:3px 3px 0 rgba(0,0,0,0.2);
+}
+.scratch-ind.show{opacity:0.95}
+
+</style>
+</head>
+<body>
+
+<div id="tap"></div>
+<canvas id="viz"></canvas>
+
+<!-- Start Wall -->
+<div class="start-wall" id="startWall" onclick="dropBeat()">
+  <div class="graf-container">
+    <svg class="graf-text" viewBox="0 0 440 160" xmlns="http://www.w3.org/2000/svg">
+      <text x="224" y="128" text-anchor="middle" font-family="Impact,Haettenschweiler,sans-serif" font-size="130" font-weight="900" font-style="italic" fill="rgba(0,0,0,0.1)" transform="skewX(-5)">AD-LIB</text>
+      <text x="220" y="125" text-anchor="middle" font-family="Impact,Haettenschweiler,sans-serif" font-size="130" font-weight="900" font-style="italic" fill="none" stroke="#1A1A1A" stroke-width="6" stroke-linejoin="round" transform="skewX(-5)">AD-LIB</text>
+      <defs>
+        <linearGradient id="gfill" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#FF3B30"/>
+          <stop offset="35%" stop-color="#FF9500"/>
+          <stop offset="65%" stop-color="#FFCC00"/>
+          <stop offset="100%" stop-color="#FF3B30"/>
+        </linearGradient>
+      </defs>
+      <text x="220" y="125" text-anchor="middle" font-family="Impact,Haettenschweiler,sans-serif" font-size="130" font-weight="900" font-style="italic" fill="url(#gfill)" transform="skewX(-5)">AD-LIB</text>
+      <text x="218" y="115" text-anchor="middle" font-family="Impact,Haettenschweiler,sans-serif" font-size="130" font-weight="900" font-style="italic" fill="rgba(255,255,255,0.15)" transform="skewX(-5)" clip-path="inset(0 0 60% 0)">AD-LIB</text>
+      <line x1="85" y1="125" x2="85" y2="155" stroke="#FF3B30" stroke-width="4" stroke-linecap="round" opacity="0.6"/>
+      <line x1="155" y1="125" x2="155" y2="148" stroke="#FF9500" stroke-width="3" stroke-linecap="round" opacity="0.5"/>
+      <line x1="310" y1="125" x2="310" y2="158" stroke="#FFCC00" stroke-width="4" stroke-linecap="round" opacity="0.5"/>
+      <line x1="370" y1="125" x2="370" y2="145" stroke="#FF3B30" stroke-width="3" stroke-linecap="round" opacity="0.4"/>
+      <circle cx="60" cy="80" r="3" fill="#FF3B30" opacity="0.3"/>
+      <circle cx="380" cy="95" r="4" fill="#FF9500" opacity="0.25"/>
+      <circle cx="200" cy="140" r="2.5" fill="#FFCC00" opacity="0.35"/>
+      <circle cx="130" cy="60" r="2" fill="#FF3B30" opacity="0.2"/>
+      <circle cx="340" cy="55" r="3" fill="#FF9500" opacity="0.2"/>
+    </svg>
+    <div class="speckle"></div>
+  </div>
+  <div class="start-sub">tap to drop</div>
+</div>
+<div class="wm">ADLIB</div>
+
+<!-- Hype reactions stage -->
+<div class="hype-stage" id="hypeStage"></div>
+
+<!-- Subtitles -->
+<div class="subs on" id="subs"><div class="subs-flow" id="subsFlow"></div></div>
+
+<!-- Status pill -->
+<!-- Status pill removed — mode button in topbtns shows current mode -->
+
+<!-- Top-right buttons -->
+<div class="topbtns">
+  <button class="tb" id="dbgBtn" onclick="toggleDbg()">DBG</button>
+  <button class="tb modebtn" id="modeBtn" onclick="toggleMode()" title="Switch voice mode (M)">HYPE</button>
+  <button class="tb on" id="subsBtn" onclick="toggleSubs()">CC</button>
+  <button class="tb" id="shareBtn" onclick="shareApp()" title="Share AD-LIB">SHARE</button>
+  <button class="tb" id="resetBtn" onclick="resetUserHits()" style="display:none">↩</button>
+</div>
+
+<!-- Share toast -->
+<div class="share-toast" id="shareToast">link copied</div>
+
+<!-- Debug HUD -->
+<div class="dbg" id="dbg">
+  <button class="dbg-clear-btn" onclick="clearDbg()">CLEAR</button>
+  <div id="dbgLog"></div>
+</div>
+
+<!-- Mic prompt overlay -->
+<div class="micp" id="micp">
+  <button class="micb" id="micb" onclick="startMic()">🎤</button>
+  <div class="mictxt">tap to let AD-LIB hear you</div>
+  <div class="micsub">spit some bars and watch the hype man react in real time</div>
+</div>
+
+<!-- Tempo / scratch / volume indicators -->
+<div class="tempo-ind" id="tempoInd"><span id="bpmVal">90</span><span class="bpm-label">BPM</span></div>
+<div class="scratch-ind" id="scratchInd">WICKY-WICKY</div>
+<div class="vol-ind" id="volInd"><div class="vol-fill" id="volFill" style="height:100%"></div></div>
+
+<!-- Genre strip -->
+<div class="gstrip" id="gstrip">
+  <button class="gp on" data-g="boombap" onclick="pickGenre(this)">Boom Bap</button>
+  <button class="gp" data-g="golden" onclick="pickGenre(this)">Golden Age</button>
+  <button class="gp" data-g="lofi" onclick="pickGenre(this)">Lo-Fi</button>
+  <button class="gp" data-g="soul" onclick="pickGenre(this)">Neo Soul</button>
+  <button class="gp" data-g="rnb" onclick="pickGenre(this)">R&B</button>
+  <button class="gp" data-g="funk" onclick="pickGenre(this)">Funk</button>
+  <button class="gp" data-g="disco" onclick="pickGenre(this)">Disco</button>
+  <button class="gp" data-g="pop" onclick="pickGenre(this)">Pop</button>
+  <button class="gp" data-g="afro" onclick="pickGenre(this)">Afrobeats</button>
+  <button class="gp" data-g="reggaeton" onclick="pickGenre(this)">Reggaeton</button>
+  <button class="gp" data-g="gfunk" onclick="pickGenre(this)">G-Funk</button>
+  <button class="gp" data-g="hyphy" onclick="pickGenre(this)">Hyphy</button>
+  <button class="gp" data-g="jersey" onclick="pickGenre(this)">Jersey Club</button>
+  <button class="gp" data-g="ukgarage" onclick="pickGenre(this)">UK Garage</button>
+  <button class="gp" data-g="trap" onclick="pickGenre(this)">Trap</button>
+  <button class="gp" data-g="drill" onclick="pickGenre(this)">Drill</button>
+</div>
+
+<script>
+// ============================================================
+// AUDIO CORE
+// ============================================================
+var ac=null,master=null,beatAn=null,padGain=null,subGain=null,beatBus=null,hypeBus=null;
+var audioUnlocked=false;
+var COLORS=['#FF3B30','#FF9500','#FFCC00','#34C759','#5AC8FA','#007AFF','#AF52DE','#FF2D55'];
+var W=window.innerWidth,H=window.innerHeight;
+window.addEventListener('resize',function(){W=window.innerWidth;H=window.innerHeight});
+
+function getAC(){
+  try{if(!ac)ac=new(window.AudioContext||window.webkitAudioContext)();
+  if(ac.state==='suspended')ac.resume();}catch(e){}
+  return ac;
+}
+function getM(){
+  var c=getAC();if(!c)return null;
+  if(!master){
+    var comp=c.createDynamicsCompressor();comp.threshold.value=-10;comp.knee.value=8;comp.ratio.value=4;comp.attack.value=0.003;comp.release.value=0.15;
+    beatAn=c.createAnalyser();beatAn.fftSize=256;beatAn.smoothingTimeConstant=0.8;
+    master=c.createGain();master.gain.value=0.7;
+    // beatBus is the main beat output (drums+bass+pad+vinyl) — what pinch-volume controls
+    beatBus=c.createGain();beatBus.gain.value=1.0;
+    // GLUE: dedicated compressor on the beat bus only. Drums, 808, and pad
+    // pump together like a mixed record; the hype voice rides on top
+    // untouched. Slight makeup gain to restore level.
+    var glue=c.createDynamicsCompressor();glue.threshold.value=-16;glue.knee.value=6;glue.ratio.value=3;glue.attack.value=0.004;glue.release.value=0.12;
+    var makeup=c.createGain();makeup.gain.value=1.18;
+    // hypeBus is the hype FX output — scaled by RMS-based volume matching
+    hypeBus=c.createGain();hypeBus.gain.value=1.0;
+    padGain=c.createGain();padGain.gain.value=0.5;padGain.connect(beatBus);
+    subGain=c.createGain();subGain.gain.value=0.6;subGain.connect(beatBus);
+    beatBus.connect(glue).connect(makeup).connect(master);
+    hypeBus.connect(master);
+    master.connect(beatAn).connect(comp).connect(c.destination);
+    loadKit(); // fetch drum samples in the background — synth covers until they land
+  }
+  return beatBus; // most beat sounds connect to beatBus
+}
+function getHypeOut(){
+  // Hype voice + sound effects route through hypeBus so volume matching can scale them
+  getM();
+  return hypeBus;
+}
+function duckPad(){if(!padGain)return;var c=getAC(),t=c.currentTime;padGain.gain.cancelScheduledValues(t);padGain.gain.setValueAtTime(0.1,t);padGain.gain.linearRampToValueAtTime(0.5,t+0.15)}
+
+// ============================================================
+// 16 GENRES
+// ============================================================
+var GEN={
+  boombap:{prog:[0,0,3,4],lead:'pluck',sw:0.58,t:90,key:55,sc:[0,2,3,5,7,8,10],pad:'fifth',bass:'saw',vinyl:false,
+    p:[[1,0,0,0,0,0,0,0,1,0,0,0,0,0,1,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0],[0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]]},
+  golden:{prog:[0,5,3,4],lead:'pluck',sw:0.6,t:93,key:55,sc:[0,2,3,5,7,8,10],pad:'fifth',bass:'saw',vinyl:true,
+    p:[[1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]]},
+  lofi:{prog:[0,3,5,4],lead:'pluck',sw:0.62,t:75,key:51,sc:[0,2,4,5,7,9,11],pad:'maj7',bass:'saw',vinyl:true,
+    p:[[1,0,0,0,0,0,0,1,0,0,1,0,0,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0],[0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0],[0,0,1,0,0,0,0,0,0,1,0,0,0,0,0,0]]},
+  soul:{prog:[0,5,3,4],lead:'pluck',sw:0.58,t:82,key:51,sc:[0,2,3,5,7,8,10],pad:'min7',bass:'saw',vinyl:false,
+    p:[[1,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0],[0,0,1,0,0,0,0,0,0,0,0,0,0,0,1,0],[0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0]]},
+  rnb:{prog:[0,2,5,4],lead:'pluck',sw:0.56,t:70,key:53,sc:[0,2,3,5,7,8,10],pad:'min7',bass:'saw',vinyl:false,
+    p:[[1,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[0,0,0,0,1,0,0,0,0,0,0,0,0,0,1,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],[0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]]},
+  funk:{prog:[0,0,0,4],lead:'square',sw:0.56,t:100,key:56,sc:[0,2,4,5,7,9,10],pad:'dom7',bass:'saw',vinyl:false,
+    p:[[1,0,0,1,0,0,0,0,1,0,0,0,0,1,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0],[0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,1],[1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0],[0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0],[0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0]]},
+  disco:{prog:[0,5,3,4],lead:'square',sw:0.52,t:115,key:53,sc:[0,2,4,5,7,9,11],pad:'dom7',bass:'saw',vinyl:false,
+    p:[[1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0],[0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]]},
+  pop:{prog:[0,5,3,4],lead:'square',sw:0.5,t:120,key:60,sc:[0,2,4,5,7,9,11],pad:'minor',bass:'808',vinyl:false,
+    p:[[1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0],[0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0],[0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0],[1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0]]},
+  afro:{prog:[0,3,4,3],lead:'pluck',sw:0.54,t:108,key:55,sc:[0,2,4,5,7,9,11],pad:'minor',bass:'saw',vinyl:false,
+    p:[[1,0,0,1,0,0,1,0,0,0,1,0,0,1,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0],[0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0],[0,0,1,0,0,0,0,0,0,0,0,1,0,0,0,0]]},
+  reggaeton:{prog:[0,5,3,4],lead:'square',sw:0.5,t:95,key:50,sc:[0,2,3,5,7,8,10],pad:'minor',bass:'808',vinyl:false,
+    p:[[1,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0],[0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0],[0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]]},
+  gfunk:{prog:[0,0,5,4],lead:'whistle',sw:0.57,t:96,key:56,sc:[0,2,3,5,7,8,10],pad:'fifth',bass:'saw',vinyl:false,
+    p:[[1,0,0,0,0,0,0,0,1,0,0,1,0,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,1],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0],[0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0],[0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0]]},
+  hyphy:{prog:[0,0,0,0],lead:'square',sw:0.5,t:130,key:56,sc:[0,2,4,5,7,9,11],pad:'fifth',bass:'808',vinyl:false,
+    p:[[1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0],[1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0],[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],[0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0],[0,0,1,0,0,0,0,0,0,0,1,0,0,0,0,0],[0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0]]},
+  jersey:{prog:[0,3,0,4],lead:'square',sw:0.5,t:130,key:50,sc:[0,2,3,5,7,8,10],pad:'minor',bass:'808',vinyl:false,
+    p:[[1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0],[0,0,0,0,1,0,0,1,0,0,0,0,1,0,0,1],[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],[0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0],[0,1,0,0,0,0,0,0,0,1,0,0,0,0,0,0]]},
+  ukgarage:{prog:[0,2,5,4],lead:'pluck',sw:0.61,t:130,key:53,sc:[0,2,3,5,7,8,10],pad:'min7',bass:'saw',vinyl:false,
+    p:[[1,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[0,0,0,0,1,0,0,0,0,0,0,0,0,0,1,0],[0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0],[1,0,1,0,0,1,1,0,1,0,1,0,0,1,1,0],[0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]]},
+  trap:{prog:[0,0,5,4],lead:'pluck',sw:0.5,t:140,key:50,sc:[0,2,3,5,7,8,10],pad:'minor',bass:'808',vinyl:false,
+    p:[[1,0,0,0,0,0,0,0,1,0,1,0,0,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0],[0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0],[1,0,1,0,1,0,1,1,1,0,1,0,1,1,1,1],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0]]},
+  drill:{prog:[0,4,5,4],lead:'pluck',sw:0.5,t:140,key:47,sc:[0,2,3,5,7,8,10],pad:'sus',bass:'808',vinyl:false,
+    p:[[1,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[0,0,0,0,1,0,0,0,0,0,0,0,0,0,1,0],[0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0],[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],[0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]]}
+};
+var genre='boombap';
+function G(){return GEN[genre]}
+function getRoot(){return GEN[genre].key+keyOffset} // applied root with per-session transposition
+function mf(m){return 440*Math.pow(2,(m-69)/12)}
+function hVol(){return 0.85+Math.random()*0.3}
+function hPitch(){return 1+((Math.random()-0.5)*0.02)}
+
+// ============================================================
+// SAMPLE KIT — real drum one-shots, synth fallback
+// ============================================================
+// Drop royalty-free WAVs into public/audio/kit/ with these names:
+//   kick.wav  deep.wav  snare.wav  clap.wav  hat.wav  ohat.wav  rim.wav
+// Any file that exists replaces its synthesized counterpart; any file
+// missing falls back to synthesis. Nothing blocks, nothing breaks —
+// ship with zero samples or all seven. The 808 bass stays synthesized
+// on purpose: it follows the bassline through key transposition, and
+// pitching one sample across ±12 semitones sounds worse than synthesis.
+var KIT={};
+var KIT_NAMES=['kick','deep','snare','clap','hat','ohat','rim','keys_48','keys_60','keys_72'];
+var kitLoadStarted=false;
+function loadKit(){
+  if(kitLoadStarted)return;kitLoadStarted=true;
+  var c=getAC();if(!c||!window.fetch)return;
+  KIT_NAMES.forEach(function(n){
+    fetch('audio/kit/'+n+'.wav').then(function(r){
+      if(!r.ok)throw new Error('404');
+      return r.arrayBuffer();
+    }).then(function(ab){
+      return c.decodeAudioData(ab);
+    }).then(function(buf){
+      KIT[n]=buf;
+      dbgLog('system','kit: '+n+'.wav loaded ('+buf.duration.toFixed(2)+'s)');
+    }).catch(function(){/* no sample — synth covers it */});
+  });
+}
+// Play a kit sample at exact time with velocity + micro pitch variation.
+// Returns true if a sample existed and was scheduled.
+function playSample(name,t,vol,rate){
+  if(!KIT[name])return false;
+  var c=getAC(),m=getM();if(!c||!m)return false;
+  var s=c.createBufferSource();s.buffer=KIT[name];
+  s.playbackRate.value=rate||1;
+  var g=c.createGain();g.gain.value=vol;
+  s.connect(g).connect(m);
+  s.start(t);
+  return true;
+}
+
+// ============================================================
+// SOUNDS — playZ returns {type, color}
+// ============================================================
+function playZ(zx,zy,when,vel){
+  var c=getAC();if(!c||!audioUnlocked)return{type:'kick',color:'#FF3B30'};
+  // Sample-accurate: sequenced hits pass their exact grid time; live taps
+  // (no `when`) fire immediately. Never schedule in the past.
+  var t=(when&&when>c.currentTime)?when:c.currentTime+0.01;
+  var m=getM();if(!m)return{type:'kick',color:'#FF3B30'};
+  var hv=hVol()*(vel||1),hp=hPitch();
+  if(zy>0.7){
+    var deep=zx>=0.5;
+    if(playSample(deep?'deep':'kick',t,0.9*hv,hp)){
+      // Sample carries the body; keep the 42Hz sub layer for chest weight
+      var sub=c.createOscillator();sub.type='sine';sub.frequency.value=42;var sg=c.createGain();sg.gain.setValueAtTime(0.35*hv,t);sg.gain.exponentialRampToValueAtTime(0.01,t+0.25);sub.connect(sg).connect(subGain);sub.start(t);sub.stop(t+0.3);
+      duckPad();return{type:deep?'deep':'kick',color:deep?'#FF9500':'#FF3B30'};
+    }
+    var o=c.createOscillator();o.type='sine';var bf=deep?80:140;
+    o.frequency.setValueAtTime((bf+60)*hp,t);o.frequency.exponentialRampToValueAtTime(bf*0.25*hp,t+0.15);o.frequency.exponentialRampToValueAtTime(20,t+(deep?0.6:0.3));
+    var g=c.createGain();g.gain.setValueAtTime(0.9*hv,t);g.gain.exponentialRampToValueAtTime(0.01,t+(deep?0.6:0.35));
+    var o2=c.createOscillator();o2.type='square';o2.frequency.setValueAtTime(300*hp,t);o2.frequency.exponentialRampToValueAtTime(30,t+0.02);
+    var g2=c.createGain();g2.gain.setValueAtTime(0.25*hv,t);g2.gain.exponentialRampToValueAtTime(0.001,t+0.03);
+    o.connect(g).connect(m);o2.connect(g2).connect(m);o.start(t);o.stop(t+0.7);o2.start(t);o2.stop(t+0.04);
+    var sub=c.createOscillator();sub.type='sine';sub.frequency.value=42;var sg=c.createGain();sg.gain.setValueAtTime(0.4*hv,t);sg.gain.exponentialRampToValueAtTime(0.01,t+0.25);sub.connect(sg).connect(subGain);sub.start(t);sub.stop(t+0.3);
+    duckPad();return{type:deep?'deep':'kick',color:deep?'#FF9500':'#FF3B30'};
+  }else if(zy>0.45){
+    if(zx<0.5){if(playSample('snare',t,0.55*hv,hp))return{type:'snare',color:'#FFCC00'};var o=c.createOscillator();o.type='triangle';o.frequency.setValueAtTime(220*hp,t);o.frequency.exponentialRampToValueAtTime(120*hp,t+0.08);var g=c.createGain();g.gain.setValueAtTime(0.5*hv,t);g.gain.exponentialRampToValueAtTime(0.01,t+0.12);var buf=c.createBuffer(1,c.sampleRate*0.12,c.sampleRate),d=buf.getChannelData(0);for(var i=0;i<d.length;i++)d[i]=Math.random()*2-1;var s=c.createBufferSource();s.buffer=buf;var bp=c.createBiquadFilter();bp.type='bandpass';bp.frequency.value=3500*hp;bp.Q.value=1;var gn=c.createGain();gn.gain.setValueAtTime(0.3*hv,t);gn.gain.exponentialRampToValueAtTime(0.01,t+0.12);o.connect(g).connect(m);s.connect(bp).connect(gn).connect(m);o.start(t);o.stop(t+0.15);s.start(t);s.stop(t+0.13);return{type:'snare',color:'#FFCC00'}}
+    else{if(playSample('clap',t,0.5*hv,hp))return{type:'clap',color:'#FF9500'};[0,0.01,0.022].forEach(function(off){var buf=c.createBuffer(1,c.sampleRate*0.04,c.sampleRate),d=buf.getChannelData(0);for(var i=0;i<d.length;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/d.length,2);var s=c.createBufferSource();s.buffer=buf;var bp=c.createBiquadFilter();bp.type='bandpass';bp.frequency.value=(1400+Math.random()*200)*hp;bp.Q.value=0.8;var g=c.createGain();g.gain.setValueAtTime(0.3*hv,t+off);s.connect(bp).connect(g).connect(m);s.start(t+off);s.stop(t+off+0.05)});return{type:'clap',color:'#FF9500'}}
+  }else if(zy>0.2){
+    if(zx<0.5){if(playSample('rim',t,0.45*hv,hp))return{type:'rim',color:'#AF52DE'};var o=c.createOscillator();o.type='triangle';o.frequency.setValueAtTime(800*hp,t);o.frequency.exponentialRampToValueAtTime(400*hp,t+0.02);var g=c.createGain();g.gain.setValueAtTime(0.4*hv,t);g.gain.exponentialRampToValueAtTime(0.01,t+0.04);o.connect(g).connect(m);o.start(t);o.stop(t+0.05);return{type:'rim',color:'#AF52DE'}}
+    else{var vows=[[570,840],[730,1090],[300,870],[270,2290]];var vi=Math.min(Math.floor((zy-0.2)/0.25*vows.length),vows.length-1);var vow=vows[vi];var gn2=G();var ni=Math.max(0,Math.min(Math.floor((zx-0.5)*2*gn2.sc.length),gn2.sc.length-1));var freq=mf(getRoot()+gn2.sc[ni]);var o=c.createOscillator();o.type='sawtooth';o.frequency.value=freq*hp;var f1=c.createBiquadFilter();f1.type='bandpass';f1.frequency.value=vow[0]*hp;f1.Q.value=5;var f2=c.createBiquadFilter();f2.type='bandpass';f2.frequency.value=vow[1]*hp;f2.Q.value=5;var g1=c.createGain();g1.gain.value=0.15*hv;var g22=c.createGain();g22.gain.value=0.12*hv;var env=c.createGain();env.gain.setValueAtTime(0.01,t);env.gain.linearRampToValueAtTime(1,t+0.02);env.gain.setValueAtTime(1,t+0.08);env.gain.exponentialRampToValueAtTime(0.01,t+0.2);o.connect(f1).connect(g1).connect(env).connect(m);o.connect(f2).connect(g22).connect(env);o.start(t);o.stop(t+0.25);return{type:'vox',color:'#007AFF'}}
+  }else{
+    var isO=zx>=0.5;
+    if(playSample(isO?'ohat':'hat',t,0.4*hv,hp))return{type:isO?'ohat':'chihat',color:isO?'#34C759':'#5AC8FA'};
+    var dur=isO?0.2:0.04;var buf=c.createBuffer(1,c.sampleRate*dur,c.sampleRate),d=buf.getChannelData(0);for(var i=0;i<d.length;i++)d[i]=Math.random()*2-1;var s=c.createBufferSource();s.buffer=buf;var hp2=c.createBiquadFilter();hp2.type='highpass';hp2.frequency.value=(6000+zx*3000)*hp;var g=c.createGain();g.gain.setValueAtTime(0.2*hv,t);g.gain.exponentialRampToValueAtTime(0.01,t+dur);s.connect(hp2).connect(g).connect(m);s.start(t);s.stop(t+dur+0.01);return{type:isO?'ohat':'chihat',color:isO?'#34C759':'#5AC8FA'}
+  }
+}
+
+// PAD
+var padOscs=[],padOn=false;
+var curChordOff=0; // semitone offset of the current chord root vs genre root (bass follows)
+// Build the genre's chord shape on any root — used by startPad and setChord
+function chordNotes(root){
+  var gn=G(),notes=[];
+  if(gn.pad==='fifth')notes=[root,root+7];else if(gn.pad==='minor')notes=[root,root+3,root+7];else if(gn.pad==='maj7')notes=[root,root+4,root+7,root+11];else if(gn.pad==='min7')notes=[root,root+3,root+7,root+10];else if(gn.pad==='dom7')notes=[root,root+4,root+7,root+10];else if(gn.pad==='sus')notes=[root,root+5,root+7];else notes=[root,root+7];
+  if(padInversion===1&&notes.length>1){notes=notes.slice();notes[0]=notes[0]+12}
+  return notes;
+}
+function startPad(){if(padOn||!audioUnlocked)return;padOn=true;var c=getAC(),t=c.currentTime;
+  var notes=chordNotes(getRoot()+curChordOff);
+  notes.forEach(function(n,ni){[0,5,-5].forEach(function(det){var o=c.createOscillator();o.type='sawtooth';o.frequency.value=mf(n);o.detune.value=det;var g=c.createGain();g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(0.03,t+3);var lp=c.createBiquadFilter();lp.type='lowpass';lp.frequency.value=800;lp.Q.value=0.5;o.connect(lp).connect(g).connect(padGain);o.start(t);padOscs.push({osc:o,gain:g,lp:lp,ni:ni})})});
+}
+// HARMONIC MOVEMENT — the progression engine. Each bar, glide the pad to
+// the next chord in the genre's progression and shift the bass root with
+// it. One droning chord was the #1 reason beats felt static; four bars
+// of changes is half the emotional engine of any record that knocks.
+function setChord(bar){
+  if(!padOn||!padOscs.length)return;
+  var gn=G(),prog=gn.prog||[0];
+  var deg=prog[bar%prog.length];
+  curChordOff=gn.sc[deg%gn.sc.length];
+  var notes=chordNotes(getRoot()+curChordOff);
+  var c=getAC(),t=c.currentTime;
+  // HEAT opens the pad filter — cold is murky and held back, peak is bright
+  var cutoff=750+heat*8;
+  for(var i=0;i<padOscs.length;i++){
+    var p=padOscs[i];
+    if(p.ni<notes.length){
+      p.osc.frequency.cancelScheduledValues(t);
+      p.osc.frequency.setValueAtTime(p.osc.frequency.value,t);
+      p.osc.frequency.linearRampToValueAtTime(mf(notes[p.ni]),t+0.12);
+    }
+    p.lp.frequency.setTargetAtTime(cutoff,t,0.3);
+  }
+}
+function stopPad(){var c=getAC(),t=c.currentTime;padOscs.forEach(function(p){p.gain.gain.linearRampToValueAtTime(0,t+0.5);setTimeout(function(){try{p.osc.stop()}catch(e){}},600)});padOscs=[];padOn=false}
+function changePad(){stopPad();setTimeout(startPad,300)}
+
+var vinylNode=null;
+function startVinyl(){if(vinylNode||!audioUnlocked)return;var c=getAC();var buf=c.createBuffer(1,c.sampleRate*2,c.sampleRate),d=buf.getChannelData(0);for(var i=0;i<d.length;i++)d[i]=(Math.random()*2-1)*0.015;vinylNode=c.createBufferSource();vinylNode.buffer=buf;vinylNode.loop=true;var bp=c.createBiquadFilter();bp.type='bandpass';bp.frequency.value=3000;bp.Q.value=0.3;var vg=c.createGain();vg.gain.value=0.8;vinylNode.connect(bp).connect(vg).connect(beatBus);vinylNode.start()}
+function stopVinyl(){if(!vinylNode)return;try{vinylNode.stop()}catch(e){}vinylNode=null}
+
+// MELODY
+var melP=[],bassP=[],melActive=true;
+function genMel(){melP=[];bassP=[];var gn=G(),root=getRoot(),sc=gn.sc;var br=[0,0,3,4];for(var s=0;s<16;s++){if(s%4===0||Math.random()<0.15){var deg=br[Math.floor(Math.random()*br.length)];bassP.push({s:s,m:root-12+sc[deg]})}}var last=3;for(var s=0;s<16;s++){var inP=(s<8),prob=inP?0.4:0.2;if(Math.random()<prob){var dir=inP?1:-1,step=Math.floor(Math.random()*3)*dir;last=Math.max(0,Math.min(sc.length-1,last+step));melP.push({s:s,m:root+12+sc[last],d:Math.random()<0.3?2:1})}}}
+function pBass(midi,t){var c=getAC(),gn=G();if(gn.bass==='808'){
+  // 808 with the signature moves: pitch GLIDE from the previous note
+  // (~35% of jumps), a click transient for attack, and a longer tail.
+  var o=c.createOscillator();o.type='sine';
+  var f=mf(midi)*hPitch();
+  var lastM=pBass._last;
+  if(lastM!==undefined&&lastM!==midi&&Math.random()<0.35){
+    o.frequency.setValueAtTime(mf(lastM),t);
+    o.frequency.exponentialRampToValueAtTime(f,t+0.09);
+  }else{
+    o.frequency.setValueAtTime(f,t);
+  }
+  pBass._last=midi;
+  var g=c.createGain();g.gain.setValueAtTime(0.38*hVol(),t);g.gain.setValueAtTime(0.32,t+0.12);g.gain.exponentialRampToValueAtTime(0.01,t+0.7);
+  var ws=c.createWaveShaper();var curve=new Float32Array(256);for(var i=0;i<256;i++){var x=i/128-1;curve[i]=Math.tanh(x*2.2)}ws.curve=curve;
+  o.connect(ws).connect(g).connect(subGain);o.start(t);o.stop(t+0.75);
+  // Click transient — gives the 808 a front edge so it cuts on phone speakers
+  var ck=c.createOscillator();ck.type='square';ck.frequency.setValueAtTime(900,t);ck.frequency.exponentialRampToValueAtTime(100,t+0.015);
+  var cg=c.createGain();cg.gain.setValueAtTime(0.12,t);cg.gain.exponentialRampToValueAtTime(0.001,t+0.02);
+  ck.connect(cg).connect(subGain);ck.start(t);ck.stop(t+0.025);
+}else{var o=c.createOscillator();o.type='sawtooth';o.frequency.value=mf(midi)*hPitch();var g=c.createGain();g.gain.setValueAtTime(0.18*hVol(),t);g.gain.exponentialRampToValueAtTime(0.01,t+0.3);var lp=c.createBiquadFilter();lp.type='lowpass';lp.frequency.setValueAtTime(800,t);lp.frequency.exponentialRampToValueAtTime(200,t+0.3);o.connect(lp).connect(g).connect(subGain);o.start(t);o.stop(t+0.35)}}
+// LEAD VOICES — pMel dispatches per genre (or to sampled keys when loaded):
+//   'pluck'   = Karplus-Strong string — soulful lanes (lofi, trap, rnb, drill...)
+//   'square'  = the original chiptune — funk/disco/pop where it belongs
+//   'whistle' = portamento sine with vibrato — the G-funk lead
+// If keys multisamples are loaded (keys_48/keys_60/keys_72.wav), they win.
+function pMel(midi,t,dur){
+  var c=getAC(),sd=60/tempo/4,dd=sd*(dur||1)*0.9,freq=mf(midi)*hPitch();
+  // SAMPLED KEYS: pick the nearest root, repitch — small ratios stay natural
+  var roots=[48,60,72],best=null,bestDist=99;
+  for(var i=0;i<roots.length;i++){
+    if(KIT['keys_'+roots[i]]&&Math.abs(midi-roots[i])<bestDist){best=roots[i];bestDist=Math.abs(midi-roots[i])}
+  }
+  if(best!==null){
+    var s=c.createBufferSource();s.buffer=KIT['keys_'+best];
+    s.playbackRate.value=freq/mf(best);
+    var g=c.createGain();g.gain.setValueAtTime(0.32*hVol(),t);g.gain.setValueAtTime(0.3,t+dd*0.6);g.gain.exponentialRampToValueAtTime(0.001,t+dd*1.4);
+    s.connect(g).connect(padGain);s.start(t);s.stop(t+dd*1.4+0.05);
+    return;
+  }
+  var lead=G().lead||'square';
+  if(lead==='pluck'){
+    // Karplus-Strong: noise burst into a tuned feedback delay.
+    // Tamed: high notes drop an octave into string range, damping sits
+    // low enough to bleed energy, feedback scales DOWN with pitch, and
+    // the loop gets muted at note-end — no ring, no feedback squeal.
+    var pf=freq;while(pf>660)pf/=2;
+    var nb=c.createBuffer(1,Math.max(8,Math.round(c.sampleRate*0.01)),c.sampleRate),nd=nb.getChannelData(0);
+    for(var i=0;i<nd.length;i++)nd[i]=Math.random()*2-1;
+    var ns=c.createBufferSource();ns.buffer=nb;
+    var dl=c.createDelay(0.05);dl.delayTime.value=1/pf;
+    var fbv=Math.max(0.82,0.93-(pf/660)*0.08);
+    var fb=c.createGain();fb.gain.setValueAtTime(fbv,t);
+    fb.gain.setValueAtTime(fbv,t+dd*1.1);
+    fb.gain.linearRampToValueAtTime(0.2,t+dd*1.4); // palm-mute the string
+    var damp=c.createBiquadFilter();damp.type='lowpass';damp.frequency.value=Math.min(2400,pf*4);
+    var out=c.createGain();out.gain.setValueAtTime(0.16*hVol(),t);out.gain.exponentialRampToValueAtTime(0.001,t+dd*1.6);
+    ns.connect(dl);dl.connect(damp);damp.connect(fb);fb.connect(dl);
+    dl.connect(out);out.connect(padGain);
+    ns.start(t);ns.stop(t+0.012);
+    // Break the feedback loop after the note fully decays so nodes can GC
+    setTimeout(function(){try{fb.disconnect();dl.disconnect();out.disconnect()}catch(e){}},(t-c.currentTime+dd*1.6+0.5)*1000);
+  }else if(lead==='whistle'){
+    // G-funk whistle: sine with portamento from the previous note + vibrato
+    var o=c.createOscillator();o.type='sine';
+    if(pMel._lastF){o.frequency.setValueAtTime(pMel._lastF,t);o.frequency.exponentialRampToValueAtTime(freq*2,t+0.06)}
+    else o.frequency.setValueAtTime(freq*2,t);
+    pMel._lastF=freq*2;
+    var vib=c.createOscillator();vib.frequency.value=5.5;
+    var vg=c.createGain();vg.gain.value=freq*2*0.006;
+    vib.connect(vg).connect(o.frequency);
+    var g=c.createGain();g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(0.09*hVol(),t+0.03);g.gain.setValueAtTime(0.08,t+dd*0.7);g.gain.exponentialRampToValueAtTime(0.001,t+dd*1.2);
+    o.connect(g).connect(padGain);
+    o.start(t);o.stop(t+dd*1.2+0.05);vib.start(t);vib.stop(t+dd*1.2+0.05);
+  }else{
+    var o=c.createOscillator();o.type='square';o.frequency.value=freq;var o2=c.createOscillator();o2.type='square';o2.frequency.value=freq*1.005;var g=c.createGain();g.gain.setValueAtTime(0.07*hVol(),t);g.gain.setValueAtTime(0.06,t+dd*0.7);g.gain.exponentialRampToValueAtTime(0.001,t+dd);var lp=c.createBiquadFilter();lp.type='lowpass';lp.frequency.value=1800;var mx=c.createGain();mx.gain.value=0.5;o.connect(g);o2.connect(mx).connect(g);g.connect(lp).connect(padGain);o.start(t);o.stop(t+dd+0.01);o2.start(t);o2.stop(t+dd+0.01);
+  }
+}
+
+// ============================================================
+// HYPE SOUND EFFECTS — fire on keyword match (route to master, bypass beatBus)
+// ============================================================
+function fxFire(){var c=getAC(),t=c.currentTime,m=getHypeOut();var b=c.createBuffer(1,c.sampleRate*0.5,c.sampleRate),d=b.getChannelData(0);for(var i=0;i<d.length;i++){var dec=1-i/d.length;d[i]=(Math.random()*2-1)*dec*dec}var s=c.createBufferSource();s.buffer=b;var hp=c.createBiquadFilter();hp.type='highpass';hp.frequency.value=2000;var g=c.createGain();g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(0.18,t+0.05);g.gain.exponentialRampToValueAtTime(0.001,t+0.5);s.connect(hp).connect(g).connect(m);s.start(t);s.stop(t+0.55)}
+function fxCash(){var c=getAC(),t=c.currentTime,m=getHypeOut();[1200,1800,2400].forEach(function(fr,i){var o=c.createOscillator();o.type='sine';o.frequency.value=fr;var g=c.createGain();var st=t+i*0.06;g.gain.setValueAtTime(0,st);g.gain.linearRampToValueAtTime(0.12,st+0.005);g.gain.exponentialRampToValueAtTime(0.001,st+0.18);o.connect(g).connect(m);o.start(st);o.stop(st+0.2)})}
+function fxGun(){var c=getAC(),t=c.currentTime,m=getHypeOut();[0,0.08,0.16].forEach(function(off){var b=c.createBuffer(1,c.sampleRate*0.08,c.sampleRate),d=b.getChannelData(0);for(var i=0;i<d.length;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/d.length,1.5);var s=c.createBufferSource();s.buffer=b;var lp=c.createBiquadFilter();lp.type='lowpass';lp.frequency.value=400;var g=c.createGain();g.gain.setValueAtTime(0.5,t+off);g.gain.exponentialRampToValueAtTime(0.001,t+off+0.08);s.connect(lp).connect(g).connect(m);s.start(t+off);s.stop(t+off+0.1)})}
+function fxHorn(){var c=getAC(),t=c.currentTime,m=getHypeOut();[490,500,510,620].forEach(function(fr){var o=c.createOscillator();o.type='square';o.frequency.setValueAtTime(fr*0.7,t);o.frequency.exponentialRampToValueAtTime(fr,t+0.06);var g=c.createGain();g.gain.setValueAtTime(0.05,t);g.gain.setValueAtTime(0.05,t+0.4);g.gain.exponentialRampToValueAtTime(0.001,t+0.6);o.connect(g).connect(m);o.start(t);o.stop(t+0.65)})}
+function fxChoir(){var c=getAC(),t=c.currentTime,m=getHypeOut();var notes=[60,64,67,72];notes.forEach(function(n){var o=c.createOscillator();o.type='sawtooth';o.frequency.value=mf(n);var g=c.createGain();g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(0.04,t+0.15);g.gain.setValueAtTime(0.04,t+0.6);g.gain.exponentialRampToValueAtTime(0.001,t+1.1);var lp=c.createBiquadFilter();lp.type='lowpass';lp.frequency.value=1200;var f=c.createBiquadFilter();f.type='bandpass';f.frequency.value=600;f.Q.value=2;o.connect(lp).connect(f).connect(g).connect(m);o.start(t);o.stop(t+1.2)})}
+function fxStab(){var c=getAC(),t=c.currentTime,m=getHypeOut();var o=c.createOscillator();o.type='sawtooth';o.frequency.setValueAtTime(660,t);o.frequency.exponentialRampToValueAtTime(880,t+0.08);var g=c.createGain();g.gain.setValueAtTime(0.15,t);g.gain.exponentialRampToValueAtTime(0.001,t+0.18);var f=c.createBiquadFilter();f.type='bandpass';f.frequency.value=1500;f.Q.value=4;o.connect(f).connect(g).connect(m);o.start(t);o.stop(t+0.2)}
+function fxAirhorn(){var c=getAC(),t=c.currentTime,m=getHypeOut();[180,360,540].forEach(function(fr){var o=c.createOscillator();o.type='sawtooth';o.frequency.value=fr;var g=c.createGain();g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(0.12,t+0.05);g.gain.setValueAtTime(0.12,t+0.5);g.gain.exponentialRampToValueAtTime(0.001,t+0.8);o.connect(g).connect(m);o.start(t);o.stop(t+0.85)})}
+function fxAyy(){var c=getAC(),t=c.currentTime,m=getHypeOut();var o=c.createOscillator();o.type='sawtooth';o.frequency.setValueAtTime(200,t);o.frequency.exponentialRampToValueAtTime(550,t+0.15);o.frequency.exponentialRampToValueAtTime(450,t+0.35);var g=c.createGain();g.gain.setValueAtTime(0.18,t);g.gain.exponentialRampToValueAtTime(0.01,t+0.35);var f=c.createBiquadFilter();f.type='bandpass';f.frequency.value=900;f.Q.value=3;o.connect(f).connect(g).connect(m);o.start(t);o.stop(t+0.4)}
+function fxTick(){var c=getAC(),t=c.currentTime,m=getHypeOut();var o=c.createOscillator();o.type='square';o.frequency.value=2400;var g=c.createGain();g.gain.setValueAtTime(0.06,t);g.gain.exponentialRampToValueAtTime(0.001,t+0.04);o.connect(g).connect(m);o.start(t);o.stop(t+0.05)}
+function fxBell(){var c=getAC(),t=c.currentTime,m=getHypeOut();var o=c.createOscillator();o.type='triangle';o.frequency.setValueAtTime(880,t);o.frequency.exponentialRampToValueAtTime(440,t+0.4);var g=c.createGain();g.gain.setValueAtTime(0.15,t);g.gain.exponentialRampToValueAtTime(0.001,t+0.6);o.connect(g).connect(m);o.start(t);o.stop(t+0.65)}
+function fxScratch(){var c=getAC(),t=c.currentTime,m=getHypeOut();var o=c.createOscillator();o.type='sawtooth';o.frequency.setValueAtTime(800,t);o.frequency.exponentialRampToValueAtTime(120,t+0.18);var g=c.createGain();g.gain.setValueAtTime(0.18,t);g.gain.exponentialRampToValueAtTime(0.001,t+0.2);var bp=c.createBiquadFilter();bp.type='bandpass';bp.frequency.value=1200;bp.Q.value=8;o.connect(bp).connect(g).connect(m);o.start(t);o.stop(t+0.22)}
+function fxSweep(){var c=getAC(),t=c.currentTime,m=getHypeOut();var o=c.createOscillator();o.type='triangle';o.frequency.setValueAtTime(800,t);o.frequency.exponentialRampToValueAtTime(2400,t+0.3);var g=c.createGain();g.gain.setValueAtTime(0.08,t);g.gain.exponentialRampToValueAtTime(0.001,t+0.35);o.connect(g).connect(m);o.start(t);o.stop(t+0.4)}
+
+// SIGNATURE FX — the big one. Stacked horns + stab + scratch tail. Triumphant moment.
+function fxSignature(){
+  var c=getAC(),t=c.currentTime,m=getHypeOut();
+  // Triple-stacked airhorn fanfare
+  [180,360,540,720].forEach(function(fr,i){
+    var o=c.createOscillator();o.type='sawtooth';o.frequency.value=fr;
+    var g=c.createGain();g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(0.13,t+0.04);g.gain.setValueAtTime(0.13,t+0.55);g.gain.exponentialRampToValueAtTime(0.001,t+0.95);
+    o.connect(g).connect(m);o.start(t);o.stop(t+1);
+  });
+  // Punchy stab on top
+  var o2=c.createOscillator();o2.type='square';o2.frequency.setValueAtTime(880,t);o2.frequency.exponentialRampToValueAtTime(1320,t+0.06);
+  var g2=c.createGain();g2.gain.setValueAtTime(0.18,t);g2.gain.exponentialRampToValueAtTime(0.001,t+0.22);
+  var bp=c.createBiquadFilter();bp.type='bandpass';bp.frequency.value=1600;bp.Q.value=4;
+  o2.connect(bp).connect(g2).connect(m);o2.start(t);o2.stop(t+0.25);
+  // Scratch tail at the end
+  setTimeout(function(){
+    var t2=c.currentTime;
+    var o3=c.createOscillator();o3.type='sawtooth';o3.frequency.setValueAtTime(1100,t2);o3.frequency.exponentialRampToValueAtTime(280,t2+0.18);
+    var g3=c.createGain();g3.gain.setValueAtTime(0.18,t2);g3.gain.exponentialRampToValueAtTime(0.001,t2+0.2);
+    var bp2=c.createBiquadFilter();bp2.type='bandpass';bp2.frequency.value=1400;bp2.Q.value=7;
+    o3.connect(bp2).connect(g3).connect(m);o3.start(t2);o3.stop(t2+0.22);
+  },650);
+  // Sub thump for weight
+  var sub=c.createOscillator();sub.type='sine';sub.frequency.setValueAtTime(60,t);sub.frequency.exponentialRampToValueAtTime(35,t+0.3);
+  var sg=c.createGain();sg.gain.setValueAtTime(0.5,t);sg.gain.exponentialRampToValueAtTime(0.001,t+0.4);
+  sub.connect(sg).connect(m);sub.start(t);sub.stop(t+0.45);
+}
+
+// RIFF FX — jazzy, improvisational. Two-note saxophone-ish stab. For "RIFF!" reactions.
+function fxRiff(){
+  var c=getAC(),t=c.currentTime,m=getHypeOut();
+  var notes=[mf(67),mf(70),mf(74)]; // G, Bb, D — minor third + perfect fifth, jazzy
+  notes.forEach(function(f,i){
+    var st=t+i*0.09;
+    var o=c.createOscillator();o.type='sawtooth';o.frequency.value=f;
+    var g=c.createGain();g.gain.setValueAtTime(0,st);g.gain.linearRampToValueAtTime(0.1,st+0.02);g.gain.exponentialRampToValueAtTime(0.001,st+0.25);
+    var bp=c.createBiquadFilter();bp.type='bandpass';bp.frequency.value=900;bp.Q.value=3;
+    o.connect(bp).connect(g).connect(m);o.start(st);o.stop(st+0.28);
+  });
+}
+
+// ============================================================
+// KEYWORD MAP — text + voice line + sound effect + visual color
+// ============================================================
+var KEYWORDS=[
+  // — Heat / energy
+  {audio:'fire',words:['fire','flame','flames','lit','hot','burn','burning','blaze','blazing','heat','heater','fya','fyre'],text:'🔥🔥🔥',color:'#FF3B30',fx:fxFire,weight:'heavy'},
+  {audio:'wooo',words:['hard','raw','mean','sick','crazy','insane','nuts','wild','dumb','stupid','bonkers','unreal'],text:'WOOO',color:'#FF2D55',fx:fxHorn,weight:'heavy'},
+
+  // — Money / wealth
+  {audio:'chaching',words:['money','cash','racks','bands','rich','wealth','stacks','million','millions','wealthy','fortune'],text:'CHA-CHING',color:'#34C759',fx:fxCash,weight:'heavy'},
+
+  // — Flex / drip / boast
+  {audio:'drip',words:['flex','flexin','flexing','stuntin','stunting','drip','drippin','dripping','swag','swagger','iced','jewelry','chain','chains','watch','rolex'],text:'DRIP!',color:'#5AC8FA',fx:fxStab,weight:'heavy'},
+  {audio:'allhail',words:['crown','throne','reign','royal','royalty'],text:'ALL HAIL',color:'#FFCC00',fx:fxChoir,weight:'heavy'},
+  {audio:'periodt',words:['goat','king','queen','legend','best','undefeated','unmatched','greatest','elite','top'],text:'PERIODT!',color:'#FFCC00',fx:fxStab,weight:'heavy'},
+
+  // — Negation / disrespect
+  {audio:'bums',words:['lame','weak','trash','broke','fake','clown','clowns','flop','mid','corny','wack'],text:'BUMS!',color:'#FF3B30',fx:fxScratch,weight:'medium'},
+  {audio:'nocap',words:['cap','capping','cappin','lying','lyin','lies'],text:'NO CAP',color:'#FFCC00',fx:fxStab,weight:'medium'},
+
+  // — Truth / affirmation
+  {audio:'facts',words:['real','truth','facts','fact','periodt','period','deadass','frfr','straight','honest','honestly'],text:'FACTS!',color:'#FF9500',fx:fxStab,weight:'heavy'},
+
+  // — Faith / spirit
+  {audio:'amen',words:['god','pray','blessed','amen','lord','jesus','faith','heaven','holy','soul'],text:'AMEN',color:'#FFCC00',fx:fxChoir,weight:'heavy'},
+
+  // — Violence / hardcore
+  {audio:'blat',words:['gun','guns','shoot','shooting','blat','pop','bang','glock','drac','bust','bustin','choppa','strap'],text:'BLAT BLAT',color:'#1A1A1A',fx:fxGun,weight:'heavy'},
+  {audio:'hegone',words:['kill','killed','murder','body','bodied','dead','finish','finished','done','over','smoke','smoked'],text:'HE GONE!',color:'#1A1A1A',fx:fxBell,weight:'heavy'},
+
+  // — Romance / sex
+  {audio:'ayy',words:['love','baby','girl','queen','shorty','bae','wifey','honey'],text:'AYY',color:'#FF2D55',fx:fxAyy,weight:'medium'},
+  {audio:'ohhh',words:['sexy','fine','bad','badass','hottie','dimepiece','beautiful','gorgeous','stunning'],text:'OHHHH',color:'#FF2D55',fx:fxSweep,weight:'medium'},
+  {audio:'oooh',words:['kiss','lips','body','curves','touch'],text:'OOOH',color:'#FF6B35',fx:fxBell,weight:'light'},
+
+  // — Cold / chill
+  {audio:'brrr',words:['cold','ice','freeze','frozen','chill','chillin','frost','arctic'],text:'BRRR',color:'#5AC8FA',fx:fxSweep,weight:'medium'},
+
+  // — Grind / hustle
+  {audio:'gogetit',words:['grind','hustle','work','workin','working','trap','trappin','move','movin','moving','grindin','grinding'],text:'GO GET IT',color:'#FF9500',fx:fxStab,weight:'heavy'},
+  {audio:'nosleep',words:['woke','early','sunrise','morning','noon'],text:'NO SLEEP',color:'#FF9500',fx:fxBell,weight:'medium'},
+  {audio:'nightshift',words:['midnight','late','tonight','overnight'],text:'NIGHT SHIFT',color:'#AF52DE',fx:fxTick,weight:'medium'},
+
+  // — Geography / represent
+  {audio:'represent',words:['block','hood','streets','city','town','coast','side','homefront'],text:'REPRESENT!',color:'#34C759',fx:fxAirhorn,weight:'heavy'},
+  {audio:'ownit',words:['west','east','north','south','cali','california','york','newyork','atl','atlanta','chicago','chi','detroit','texas','houston','miami'],text:'OWN IT',color:'#FF6B35',fx:fxAirhorn,weight:'heavy'},
+
+  // — Time / forever
+  {audio:'rightnow',words:['time','now','today','clock'],text:'RIGHT NOW',color:'#AF52DE',fx:fxTick,weight:'medium'},
+  {audio:'forlife',words:['forever','always','eternal','infinite','endless'],text:'FOR LIFE',color:'#FF9500',fx:fxHorn,weight:'medium'},
+  {audio:'respect',words:['young','dayone','since','original','og','vintage','classic','throwback'],text:'RESPECT',color:'#FFCC00',fx:fxChoir,weight:'medium'},
+
+  // — Family / loyalty
+  {audio:'weoutside',words:['fam','bro','dawg','gang','crew','squad','team','homies','homie','brothers','sisters'],text:'WE OUTSIDE',color:'#34C759',fx:fxAyy,weight:'medium'},
+
+  // — Self-aware / hip-hop meta
+  {audio:'sheesh',words:['sheesh','swear','word','damn'],text:'SHEESH!',color:'#FF6B35',fx:fxAyy,weight:'medium'},
+  {audio:'bars',words:['bars','rhyme','rhymes','flow','spit','spittin','spitting','rap','rapper'],text:'BARS!',color:'#FF6B35',fx:fxAirhorn,weight:'heavy'},
+
+  // — Affirm / deny
+  {audio:'yeah',words:['yeah','yes','yup','yea','yessir'],text:'YEAH!',color:'#FF9500',fx:fxAyy,weight:'light'},
+  {audio:'nahfr',words:['no','nah','never'],text:'NAH FR',color:'#FF3B30',fx:fxScratch,weight:'medium'},
+
+  // — Movement / vehicles
+  {audio:'skrrt',words:['ride','riding','whip','car','drive','driving','speed','speeding'],text:'SKRRT',color:'#1A1A1A',fx:fxScratch,weight:'medium'},
+
+  // — Vertical / position
+  {audio:'wayup',words:['high','sky','clouds','elevated','soaring'],text:'WAY UP',color:'#5AC8FA',fx:fxSweep,weight:'medium'},
+
+  // — Energy down
+  {audio:'easy',words:['slow','easy','calm','soft','quiet','smooth'],text:'EASYYY',color:'#5AC8FA',fx:fxSweep,weight:'light'},
+
+  // — Attention markers
+  {audio:'gooff',words:['watch','listen','check','peep','yo'],text:'GO OFF',color:'#FF6B35',fx:fxAirhorn,weight:'medium'}
+];
+
+// Generic fallback hype (when no keyword fires)
+var GENERIC_HYPE=[
+  {audio:'ayy',text:'AYY!',fx:fxAyy,color:'#FF6B35'},
+  {audio:'sheesh',text:'SHEESH!',fx:fxAyy,color:'#FF9500'},
+  {audio:'bars',text:'BARS!',fx:fxAirhorn,color:'#FF3B30'},
+  {audio:'whooo',text:'WHOOO!',fx:fxHorn,color:'#FFCC00'},
+  {audio:'talktoem',text:'TALK TO EM!',fx:fxStab,color:'#FF2D55'},
+  {audio:'riff',text:'RIFF!',fx:fxRiff,color:'#AF52DE'}
+];
+
+// Signature reactions — fired on streaks, multi-keyword runs, or the over-the-top words
+var SIGNATURE_REACTIONS=[
+  {audio:'adlib',text:'AD-LIB!',fx:fxSignature,color:'#FF3B30',signature:true},
+  {audio:'adlib',text:'AD-LIB!',fx:fxSignature,color:'#FF9500',signature:true},
+  {audio:'riff',text:'RIFF!',fx:fxRiff,color:'#AF52DE',signature:true}
+];
+
+// ============================================================
+// PHRASE MAP — mirrors scripts/phrases.js exactly. This is what the
+// ElevenLabs voice ACTUALLY SAYS per slug/mode/variant. Voice-led
+// visuals: we pick the voice variant first, then paint that exact
+// line on screen, so AD-LIB's mouth and spray can always agree.
+var PHRASES={"adlib":{"hype":["Ad lib!","Yeah! Ad lib!","Ad lib, go off!"],"boom":["Ad lib.","Mm. Ad lib.","Ad lib... go off."]},"riff":{"hype":["RIFF!","RIFF that!","Yeah! RIFF!"],"boom":["Riff.","Riff it.","Mm. Riff."]},"fire":{"hype":["FIRE!","He on FIRE!","Lit! Lit!"],"boom":["Fire.","That's fire.","Hot."]},"wooo":{"hype":["WOOO!","WHOOO!","Yeah WOO!"],"boom":["Wooo.","Mmm.","Damn."]},"chaching":{"hype":["Cha-ching!","Get the bag!","MONEY!"],"boom":["Cha-ching.","Get it.","Money."]},"drip":{"hype":["DRIP!","He drippin'!","Wet!"],"boom":["Drip.","Drippin'.","Soaked."]},"allhail":{"hype":["All HAIL!","Bow down!","Royalty!"],"boom":["All hail.","The king.","Bow."]},"periodt":{"hype":["PERIODT!","Period!","Said what he said!"],"boom":["Periodt.","Period.","Said it."]},"bums":{"hype":["BUMS!","Trash!","Get 'em outta here!"],"boom":["Bums.","Weak.","Trash."]},"nocap":{"hype":["NO CAP!","No cap!","Real talk!"],"boom":["No cap.","Truth.","No lies."]},"facts":{"hype":["FACTS!","Facts only!","On God!"],"boom":["Facts.","On God.","Truth."]},"amen":{"hype":["AMEN!","Preach!","Hallelujah!"],"boom":["Amen.","Preach.","Word."]},"blat":{"hype":["BLAT BLAT!","Bah bah!","Pop pop!"],"boom":["Blat blat.","Pop.","Boom."]},"hegone":{"hype":["HE GONE!","Bodied!","Lights out!"],"boom":["He gone.","Done.","Over."]},"ayy":{"hype":["AYY!","Ayy ayy!","Yeah ayy!"],"boom":["Ayy.","Mm.","Right."]},"ohhh":{"hype":["OHHH!","Ooh she fine!","Mama!"],"boom":["Ohh.","Damn.","Mhm."]},"oooh":{"hype":["OOOH!","Smooth!","Easy now!"],"boom":["Oooh.","Smooth.","Yeah."]},"brrr":{"hype":["BRRR!","Cold!","Iced out!"],"boom":["Brrr.","Cold.","Frozen."]},"gogetit":{"hype":["Go get it!","Go off!","Hustle!"],"boom":["Get it.","Grind.","Move."]},"nosleep":{"hype":["NO SLEEP!","Up early!","Rise!"],"boom":["No sleep.","Up.","Awake."]},"nightshift":{"hype":["Night shift!","Late nights!","Up late!"],"boom":["Night shift.","Late.","Owls."]},"represent":{"hype":["REPRESENT!","Rep that!","Hood!"],"boom":["Represent.","Rep it.","The block."]},"ownit":{"hype":["OWN IT!","Claim it!","That's yours!"],"boom":["Own it.","Yours.","Claim it."]},"rightnow":{"hype":["Right now!","RIGHT NOW!","Today!"],"boom":["Right now.","Now.","Today."]},"forlife":{"hype":["For LIFE!","Forever!","Always!"],"boom":["For life.","Forever.","Always."]},"respect":{"hype":["RESPECT!","Salute!","OG!"],"boom":["Respect.","Salute.","OG."]},"weoutside":{"hype":["We OUTSIDE!","Squad!","The gang!"],"boom":["We outside.","The squad.","Family."]},"sheesh":{"hype":["SHEESH!","Sheeesh!","Damn!"],"boom":["Sheesh.","Damn.","Mm."]},"bars":{"hype":["BARS!","Bars on bars!","BARS!"],"boom":["Bars.","Heavy.","Real bars."]},"yeah":{"hype":["YEAH!","Yeah yeah!","Yessir!"],"boom":["Yeah.","Mhm.","Yes."]},"nahfr":{"hype":["NAH FR!","Nah for real!","Nope!"],"boom":["Nah.","For real.","No."]},"skrrt":{"hype":["SKRRT!","Skrrt skrrt!","Pull up!"],"boom":["Skrrt.","Pulled up.","Speed."]},"wayup":{"hype":["Way UP!","We up!","Sky high!"],"boom":["Way up.","Up there.","Sky."]},"easy":{"hype":["Easyyy!","Smooth!","Take it easy!"],"boom":["Easy.","Smooth.","Slow."]},"gooff":{"hype":["GO OFF!","Go in!","Cook!"],"boom":["Go off.","Cook.","Listen."]},"whooo":{"hype":["WHOOO!","Yeah whooo!","WOOO!"],"boom":["Whooo.","Yeah.","Mm."]},"talktoem":{"hype":["Talk to 'em!","Tell 'em!","Speak!"],"boom":["Talk to 'em.","Tell 'em.","Speak."]}};
+
+// Words that have a chance to upgrade to signature instead of normal reaction
+var SIGNATURE_UPGRADE_WORDS=['lit','fire','crazy','insane','wild','sheesh'];
+
+// ============================================================
+// STATE
+// ============================================================
+var tapCount=0;
+var recPat=[],userHits=[];
+var userHitMarkers=[]; // {row, step, x, y, el}
+var playing=false,curStep=-1,tempo=90,nextT=0,loopSt=0,tmrID=null;
+var typeMap={kick:0,deep:1,snare:2,clap:3,chihat:4,ohat:5,rim:6,vox:7};
+var subsVisible=true;
+var hypeMode='hype'; // 'hype' or 'boom'
+var beatVolume=1.0; // 0..1.5, controlled by pinch
+var lastUndoableRemoval=null; // {row, step, x, y, ts}
+
+function initPat(){var p=[];for(var i=0;i<8;i++){p.push([]);for(var j=0;j<16;j++)p[i].push(false)}return p}
+recPat=initPat();userHits=initPat();
+
+function loadGenre(){
+  var d=G().p;
+  recPat=initPat();
+  for(var r=0;r<d.length;r++)for(var s=0;s<16;s++)recPat[r][s]=!!d[r][s];
+  // SESSION MUTATION: kick/snare/clap backbone (rows 0-3) is the genre's
+  // identity — untouched. Hats and perc (rows 4-7) get a fresh roll of
+  // ghost hits every load so the same genre never plays the same twice.
+  for(var r=4;r<8&&r<recPat.length;r++){
+    for(var s=0;s<16;s++){
+      if(recPat[r][s]){
+        if(s%4!==0&&Math.random()<0.12)recPat[r][s]=false; // thin an off-beat
+      }else{
+        if(Math.random()<0.08)recPat[r][s]=true; // sprinkle a ghost
+      }
+    }
+  }
+  for(var r=0;r<7;r++)for(var s=0;s<16;s++){if(userHits[r][s])recPat[r][s]=true}
+  tempo=G().t;
+}
+
+// ============================================================
+// RIPPLES + USER HIT MARKERS
+// ============================================================
+function addRip(x,y,color){
+  var r=document.createElement('div');r.className='ripple';r.style.left=x+'px';r.style.top=y+'px';r.style.border='2px solid '+color;
+  document.body.appendChild(r);setTimeout(function(){r.remove()},500);
+  var d=document.createElement('div');d.className='rdot';d.style.left=x+'px';d.style.top=y+'px';d.style.background=color;
+  document.body.appendChild(d);setTimeout(function(){d.remove()},300);
+}
+function addUserMarker(row,step,x,y,color){
+  // Remove any existing marker for the same row+step
+  for(var i=userHitMarkers.length-1;i>=0;i--){
+    if(userHitMarkers[i].row===row&&userHitMarkers[i].step===step){
+      try{userHitMarkers[i].el.remove()}catch(e){}
+      userHitMarkers.splice(i,1);
+    }
+  }
+  var el=document.createElement('div');el.className='uhit';el.style.left=x+'px';el.style.top=y+'px';el.style.background=color;
+  document.body.appendChild(el);
+  userHitMarkers.push({row:row,step:step,x:x,y:y,color:color,el:el});
+  document.getElementById('resetBtn').style.display='block';
+}
+function removeUserMarker(marker){
+  try{marker.el.remove()}catch(e){}
+  var idx=userHitMarkers.indexOf(marker);
+  if(idx>=0)userHitMarkers.splice(idx,1);
+  userHits[marker.row][marker.step]=false;
+  recPat[marker.row][marker.step]=!!G().p[marker.row][marker.step];
+  if(userHitMarkers.length===0)document.getElementById('resetBtn').style.display='none';
+}
+function findNearestUserMarker(x,y,maxDist){
+  var best=null,bestD=maxDist*maxDist;
+  for(var i=0;i<userHitMarkers.length;i++){
+    var m=userHitMarkers[i];
+    var dx=m.x-x,dy=m.y-y;var d=dx*dx+dy*dy;
+    if(d<bestD){bestD=d;best=m}
+  }
+  return best;
+}
+
+// ============================================================
+// DEBUG HUD
+// ============================================================
+var dbgVisible=false;
+var dbgLogs=[];
+var dbgStartTs=0;
+var dbgMaxLogs=200;
+function toggleDbg(){
+  dbgVisible=!dbgVisible;
+  document.getElementById('dbg').classList.toggle('show',dbgVisible);
+  document.getElementById('dbgBtn').classList.toggle('on',dbgVisible);
+  if(dbgVisible&&dbgStartTs===0)dbgStartTs=Date.now();
+}
+function clearDbg(){
+  dbgLogs=[];
+  document.getElementById('dbgLog').innerHTML='';
+  dbgStartTs=Date.now();
+  dbgLog('system','--- LOG CLEARED ---');
+}
+function dbgLog(kind,msg){
+  if(dbgStartTs===0)dbgStartTs=Date.now();
+  var t=((Date.now()-dbgStartTs)/1000).toFixed(2);
+  dbgLogs.push({t:t,kind:kind,msg:msg});
+  if(dbgLogs.length>dbgMaxLogs)dbgLogs.shift();
+  if(!dbgVisible)return;
+  var log=document.getElementById('dbgLog');
+  var row=document.createElement('div');
+  row.className='dbg-row '+kind;
+  row.innerHTML='<span class="dbg-meta">+'+t+'s</span>'+escapeHtml(msg);
+  log.appendChild(row);
+  // Trim DOM
+  while(log.children.length>dbgMaxLogs){log.removeChild(log.firstChild)}
+  // Scroll to bottom
+  var dbgEl=document.getElementById('dbg');
+  dbgEl.scrollTop=dbgEl.scrollHeight;
+}
+function escapeHtml(s){return String(s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+
+// ============================================================
+// INIT — viz only, no audio until tap
+// ============================================================
+// ============================================================
+// TIME-OF-DAY GENRE PICKER + variation
+// ============================================================
+// Each window's genre bucket. Falls through to BACKUP_BUCKET if window is empty.
+var TOD_BUCKETS=[
+  {start:6, end:12, genres:['lofi','soul','rnb']},          // morning coffee
+  {start:12,end:17, genres:['boombap','golden','funk','gfunk']}, // workday classic
+  {start:17,end:21, genres:['pop','afro','disco','reggaeton']}, // going-out energy
+  {start:21,end:26, genres:['hyphy','trap','drill','jersey']},  // late-night chaos (21-26 = 9pm-2am)
+  {start:2, end:6,  genres:['lofi','ukgarage','trap']}       // after-hours
+];
+var BACKUP_BUCKET=['boombap','lofi','soul','rnb','funk','gfunk','pop','afro'];
+
+function pickGenreForTimeOfDay(){
+  var hr=new Date().getHours();
+  // WILDCARD: 25% of sessions ignore the clock entirely — time-of-day sets
+  // the vibe, but the same hour shouldn't guarantee the same lane.
+  if(Math.random()<0.25){
+    var all=Object.keys(GEN);
+    return all[Math.floor(Math.random()*all.length)];
+  }
+  // Normalize hour for buckets that wrap past midnight (21-26 means 21-25 + 0-1)
+  for(var i=0;i<TOD_BUCKETS.length;i++){
+    var b=TOD_BUCKETS[i];
+    var h=hr;
+    var inWindow=false;
+    if(b.end>24){
+      // Wraps midnight
+      if(hr>=b.start||hr<(b.end-24))inWindow=true;
+    }else{
+      if(hr>=b.start&&hr<b.end)inWindow=true;
+    }
+    if(inWindow&&b.genres.length>0){
+      return b.genres[Math.floor(Math.random()*b.genres.length)];
+    }
+  }
+  return BACKUP_BUCKET[Math.floor(Math.random()*BACKUP_BUCKET.length)];
+}
+
+// Track per-session randomization so genre switches mid-session also get fresh character
+var keyOffset=0;       // semitones to transpose root from genre default
+var padInversion=0;    // 0 = normal, 1 = inverted
+
+// Re-randomize key offset and pad inversion. Called on initial load AND every genre change.
+function randomizeCharacter(){
+  // Key offset: ±7 semitones from default. Use a Gaussian-ish bias toward small offsets.
+  // Random integer in [-7, 7] but biased toward 0 — most picks are within ±3 to keep pad/bass
+  // in comfortable register, occasional bigger jumps for variety.
+  var r=(Math.random()+Math.random()+Math.random())/3; // bell curve 0-1
+  keyOffset=Math.round((r*2-1)*7);
+  // Pad inversion: 50/50
+  padInversion=Math.random()<0.5?1:0;
+}
+
+// Highlight the selected genre pill in the strip and scroll to it
+function syncGenreStripUI(){
+  var pills=document.querySelectorAll('.gp');
+  pills.forEach(function(b){b.classList.remove('on')});
+  for(var i=0;i<pills.length;i++){
+    if(pills[i].dataset.g===genre){
+      pills[i].classList.add('on');
+      // Scroll the strip so this pill is visible
+      try{pills[i].scrollIntoView({behavior:'instant',block:'nearest',inline:'center'})}catch(e){
+        // older browsers
+        try{pills[i].scrollIntoView()}catch(e2){}
+      }
+      break;
+    }
+  }
+}
+
+function init(){
+  // Pick genre based on time of day BEFORE loading
+  genre=pickGenreForTimeOfDay();
+  randomizeCharacter();
+  loadGenre();
+  syncGenreStripUI();
+  startViz();
+  initKonami();
+}
+
+// ============================================================
+// KONAMI CODE — unlock DBG button
+// Sequence: ↑ ↑ ↓ ↓ ← → ← → B A
+// On mobile: 10 rapid taps in the top-left corner (within 64px square, 5s window)
+// ============================================================
+var konamiSeq=['ArrowUp','ArrowUp','ArrowDown','ArrowDown','ArrowLeft','ArrowRight','ArrowLeft','ArrowRight','b','a'];
+var konamiPos=0;
+var konamiCornerTaps=[];
+function initKonami(){
+  document.addEventListener('keydown',function(e){
+    var k=e.key;
+
+    // Mode toggle shortcut: M
+    if(k==='m'||k==='M'){
+      if(audioUnlocked)toggleMode();
+      return;
+    }
+
+    // Konami sequence
+    if(k===konamiSeq[konamiPos]||k.toLowerCase()===konamiSeq[konamiPos]){
+      konamiPos++;
+      if(konamiPos===konamiSeq.length){
+        unlockDbg();
+        konamiPos=0;
+      }
+    }else{
+      // Reset, but allow this key to start a new attempt
+      konamiPos=(k===konamiSeq[0])?1:0;
+    }
+  });
+  // Mobile easter egg: 10 rapid taps in top-left 64px corner
+  document.addEventListener('touchstart',function(e){
+    var t=e.changedTouches[0];
+    if(!t)return;
+    if(t.clientX>64||t.clientY>64)return;
+    var now=Date.now();
+    konamiCornerTaps.push(now);
+    konamiCornerTaps=konamiCornerTaps.filter(function(ts){return now-ts<5000});
+    if(konamiCornerTaps.length>=10){
+      unlockDbg();
+      konamiCornerTaps=[];
+    }
+  });
+}
+function unlockDbg(){
+  var btn=document.getElementById('dbgBtn');
+  if(btn.classList.contains('unlocked'))return;
+  btn.classList.add('unlocked');
+  // Quick celebratory hype to confirm
+  if(audioUnlocked){
+    fireHype({text:'DEV MODE',fx:fxStab,color:'#AF52DE'},'heavy');
+  }
+}
+
+function dropBeat(){
+  if(audioUnlocked)return;
+  getAC();getM();
+  if(ac)ac.resume();
+  audioUnlocked=true;
+  document.getElementById('startWall').classList.add('gone');
+  setTimeout(function(){document.getElementById('startWall').style.display='none'},500);
+  master.gain.value=0.7;
+  playing=true;curStep=-1;
+  nextT=ac.currentTime+0.05;loopSt=nextT;
+  sched();
+  startPad();
+  if(G().vinyl)startVinyl();
+  // CRITICAL: preload + iOS-unlock all voice audio while still inside the user gesture.
+  // iOS Safari blocks <audio>.play() unless it's been called once during a gesture.
+  preloadAllVoices();
+  primeAudioForIOS();
+  // Show mic prompt after a beat lands
+  setTimeout(function(){document.getElementById('micp').classList.add('show')},1500);
+}
+
+// Walk every reaction and trigger audio loading for both modes.
+function preloadAllVoices(){
+  var slugs={};
+  var i;
+  for(i=0;i<KEYWORDS.length;i++){if(KEYWORDS[i].audio)slugs[KEYWORDS[i].audio]=true}
+  for(i=0;i<GENERIC_HYPE.length;i++){if(GENERIC_HYPE[i].audio)slugs[GENERIC_HYPE[i].audio]=true}
+  for(i=0;i<SIGNATURE_REACTIONS.length;i++){if(SIGNATURE_REACTIONS[i].audio)slugs[SIGNATURE_REACTIONS[i].audio]=true}
+  // Always probe both modes so swap-on-fly is instant once boom files exist
+  for(var slug in slugs){
+    loadVariantsForSlug('hype',slug);
+    loadVariantsForSlug('boom',slug);
+  }
+  dbgLog('system','preloading '+Object.keys(slugs).length+' voice slugs × 2 modes × 3 variants');
+}
+
+// iOS Safari requires every <audio> element to have play() invoked from within a
+// user gesture before it can play in the background. We do the play+immediate-pause
+// trick here, which "unlocks" each element for later silent playback on triggers.
+var audioElementsPrimed=false;
+function primeAudioForIOS(){
+  if(audioElementsPrimed)return;
+  audioElementsPrimed=true;
+  // Walk every audio element we know about and prime it
+  var primed=0,failed=0;
+  for(var key in audioCache){
+    var arr=audioCache[key]||[];
+    for(var i=0;i<arr.length;i++){
+      (function(a){
+        try{
+          a.muted=true; // play silently during the prime
+          var p=a.play();
+          if(p&&p.then){
+            p.then(function(){a.pause();a.currentTime=0;a.muted=false;primed++})
+             .catch(function(){failed++;a.muted=false});
+          }else{
+            // legacy — assume it worked
+            a.pause();a.currentTime=0;a.muted=false;primed++;
+          }
+        }catch(e){failed++}
+      })(arr[i]);
+    }
+  }
+  // Some audio elements might not have loaded yet; re-prime once they've cached.
+  // We do another pass after a short delay to catch late-loaders.
+  setTimeout(function(){
+    for(var key in audioCache){
+      var arr=audioCache[key]||[];
+      for(var i=0;i<arr.length;i++){
+        if(!arr[i]._primed){
+          (function(a){
+            try{
+              a.muted=true;
+              var p=a.play();
+              if(p&&p.then){
+                p.then(function(){a.pause();a.currentTime=0;a.muted=false;a._primed=true})
+                 .catch(function(){a.muted=false});
+              }
+            }catch(e){}
+          })(arr[i]);
+        }
+      }
+    }
+    dbgLog('system','iOS audio primed (primary='+primed+', failed='+failed+')');
+  },800);
+}
+
+// ============================================================
+// TAP — add hits with quantization
+// ============================================================
+function handleTap(x,y){
+  if(!audioUnlocked)return;
+  var zx=x/W,zy=y/H;
+  var res=playZ(zx,zy);
+  addRip(x,y,res.color);
+  tapCount++;
+  if(playing&&ac){
+    var c=ac;
+    var stepDur=60/tempo/4;
+    var timeSinceStep=c.currentTime-loopSt;
+    var loopDur=16*stepDur;
+    var loopPos=((timeSinceStep%loopDur)+loopDur)%loopDur;
+    var nearest=Math.round(loopPos/stepDur)%16;
+    var row=typeMap[res.type];if(row===undefined)row=0;
+    recPat[row][nearest]=true;
+    userHits[row][nearest]=true;
+    addUserMarker(row,nearest,x,y,res.color);
+  }
+}
+
+// ============================================================
+// GESTURE HANDLER — multi-touch state machine
+// ============================================================
+var touchState={
+  fingers:0,        // current finger count
+  touches:{},       // id -> {sx, sy, x, y, ts, moved, kind}
+  pinchStart:0,     // initial distance for pinch
+  pinchStartVol:1,
+  scratchActive:false,
+  longPressTimer:null,
+  longPressFired:false,
+  twoFingerKind:null, // 'pinch' or 'scratch' (decided after movement)
+  twoFingerStartCenter:null,
+  threeFingerStart:null,
+  threeFingerSwipeFired:false,
+  swipeWarning:null  // pending user-marker remove confirmation
+};
+
+function clearLongPress(){
+  if(touchState.longPressTimer){clearTimeout(touchState.longPressTimer);touchState.longPressTimer=null}
+}
+function showTempoIndicator(){
+  var el=document.getElementById('tempoInd');
+  document.getElementById('bpmVal').textContent=Math.round(tempo);
+  el.classList.add('show');
+  clearTimeout(showTempoIndicator._t);
+  showTempoIndicator._t=setTimeout(function(){el.classList.remove('show')},700);
+}
+function showVolIndicator(v){
+  var el=document.getElementById('volInd'),fill=document.getElementById('volFill');
+  fill.style.height=Math.min(100,v*100/1.5)+'%';
+  el.classList.add('show');
+  clearTimeout(showVolIndicator._t);
+  showVolIndicator._t=setTimeout(function(){el.classList.remove('show')},800);
+}
+function showScratchIndicator(){
+  var el=document.getElementById('scratchInd');
+  el.classList.add('show');
+}
+function hideScratchIndicator(){
+  document.getElementById('scratchInd').classList.remove('show');
+}
+function dist(t1,t2){var dx=t1.x-t2.x,dy=t1.y-t2.y;return Math.sqrt(dx*dx+dy*dy)}
+
+var surf=document.getElementById('tap');
+surf.addEventListener('touchstart',function(e){
+  e.preventDefault();
+  if(!audioUnlocked)return;
+
+  for(var i=0;i<e.changedTouches.length;i++){
+    var t=e.changedTouches[i];
+    touchState.touches[t.identifier]={sx:t.clientX,sy:t.clientY,x:t.clientX,y:t.clientY,ts:Date.now(),moved:false,kind:null};
+  }
+  touchState.fingers=Object.keys(touchState.touches).length;
+
+  if(touchState.fingers===1){
+    // Single tap — start long-press timer for clear-all
+    touchState.longPressFired=false;
+    clearLongPress();
+    touchState.longPressTimer=setTimeout(function(){
+      touchState.longPressFired=true;
+      // Only clear if still holding and didn't move much
+      var ids=Object.keys(touchState.touches);
+      if(ids.length===1){
+        var t=touchState.touches[ids[0]];
+        if(!t.moved){
+          resetUserHits();
+          fireHype({text:'CLEARED',voice:'CLEAN SLATE',fx:fxScratch,color:'#FF3B30'},'heavy');
+        }
+      }
+    },2200);
+  }else if(touchState.fingers===2){
+    clearLongPress();
+    var ids=Object.keys(touchState.touches);
+    var a=touchState.touches[ids[0]],b=touchState.touches[ids[1]];
+    touchState.pinchStart=dist(a,b);
+    touchState.pinchStartVol=beatVolume;
+    touchState.twoFingerKind=null; // decide on first move
+    touchState.twoFingerStartCenter={x:(a.x+b.x)/2,y:(a.y+b.y)/2};
+  }else if(touchState.fingers===3){
+    clearLongPress();
+    var ids=Object.keys(touchState.touches);
+    var sumX=0,sumY=0;
+    for(var i=0;i<ids.length;i++){sumX+=touchState.touches[ids[i]].sx;sumY+=touchState.touches[ids[i]].sy}
+    touchState.threeFingerStart={x:sumX/3,y:sumY/3};
+    touchState.threeFingerSwipeFired=false;
+  }
+},{passive:false});
+
+surf.addEventListener('touchmove',function(e){
+  e.preventDefault();
+  if(!audioUnlocked)return;
+  for(var i=0;i<e.changedTouches.length;i++){
+    var t=e.changedTouches[i];
+    var st=touchState.touches[t.identifier];
+    if(!st)continue;
+    st.x=t.clientX;st.y=t.clientY;
+    var dx=st.x-st.sx,dy=st.y-st.sy;
+    if(Math.sqrt(dx*dx+dy*dy)>10)st.moved=true;
+  }
+
+  if(touchState.fingers===1){
+    var ids=Object.keys(touchState.touches);var st=touchState.touches[ids[0]];
+    if(st&&st.moved){
+      clearLongPress();
+      // Check for swipe-near-marker behavior
+      var dx=st.x-st.sx,dy=st.y-st.sy;
+      var swipeMag=Math.sqrt(dx*dx+dy*dy);
+      if(swipeMag>30){
+        // Look for nearest marker to the START point
+        var near=findNearestUserMarker(st.sx,st.sy,80);
+        if(near){
+          touchState.swipeWarning=near;
+          near.el.classList.add('warn');
+        }
+        // If swiping past threshold AND warning is set → kill it
+        if(swipeMag>70&&touchState.swipeWarning){
+          var killed=touchState.swipeWarning;
+          // Save for undo
+          lastUndoableRemoval={row:killed.row,step:killed.step,x:killed.x,y:killed.y,color:killed.color,ts:Date.now()};
+          removeUserMarker(killed);
+          touchState.swipeWarning=null;
+          // Mark this touch as "consumed" so it doesn't also become a tap
+          st.consumed=true;
+        }
+      }
+    }
+  }else if(touchState.fingers===2){
+    var ids=Object.keys(touchState.touches);
+    if(ids.length<2)return;
+    var a=touchState.touches[ids[0]],b=touchState.touches[ids[1]];
+    var newDist=dist(a,b);
+
+    // Decide intent on first significant motion
+    if(touchState.twoFingerKind===null){
+      var distChange=Math.abs(newDist-touchState.pinchStart);
+      var centerNow={x:(a.x+b.x)/2,y:(a.y+b.y)/2};
+      var centerMove=Math.sqrt(Math.pow(centerNow.x-touchState.twoFingerStartCenter.x,2)+Math.pow(centerNow.y-touchState.twoFingerStartCenter.y,2));
+      if(distChange>20||centerMove>20){
+        // If distance is changing more than center → pinch
+        // If center is moving more than distance change → scratch
+        if(distChange>centerMove){
+          touchState.twoFingerKind='pinch';
+        }else{
+          touchState.twoFingerKind='scratch';
+          touchState.scratchActive=true;
+          showScratchIndicator();
+          startScratch();
+        }
+      }
+    }
+
+    if(touchState.twoFingerKind==='pinch'){
+      var ratio=newDist/Math.max(20,touchState.pinchStart);
+      beatVolume=Math.max(0,Math.min(1.5,touchState.pinchStartVol*ratio));
+      if(beatBus)beatBus.gain.setTargetAtTime(beatVolume,getAC().currentTime,0.05);
+      showVolIndicator(beatVolume);
+    }else if(touchState.twoFingerKind==='scratch'){
+      var centerNow={x:(a.x+b.x)/2,y:(a.y+b.y)/2};
+      updateScratch(centerNow,touchState.twoFingerStartCenter);
+    }
+  }else if(touchState.fingers===3){
+    var ids=Object.keys(touchState.touches);
+    if(ids.length<3)return;
+    var sumX=0,sumY=0;
+    for(var i=0;i<ids.length;i++){sumX+=touchState.touches[ids[i]].y;}
+    var avgY=sumY/3;
+    var sx=0,sy=0;
+    for(var i=0;i<ids.length;i++){sx+=touchState.touches[ids[i]].x;sy+=touchState.touches[ids[i]].y}
+    sx/=3;sy/=3;
+    var dy=sy-touchState.threeFingerStart.y;
+    if(!touchState.threeFingerSwipeFired&&Math.abs(dy)>60){
+      touchState.threeFingerSwipeFired=true;
+      if(dy<0){
+        // Swipe up = HYPE
+        if(hypeMode!=='hype'){hypeMode='hype';onModeChange()}
+      }else{
+        // Swipe down = BOOM
+        if(hypeMode!=='boom'){hypeMode='boom';onModeChange()}
+      }
+    }
+  }
+},{passive:false});
+
+surf.addEventListener('touchend',function(e){
+  if(!audioUnlocked)return;
+  for(var i=0;i<e.changedTouches.length;i++){
+    var t=e.changedTouches[i];
+    var st=touchState.touches[t.identifier];
+    if(st&&touchState.fingers===1&&!st.moved&&!touchState.longPressFired&&!st.consumed){
+      // Genuine tap
+      handleTap(st.x,st.y);
+    }
+    // Check for reverse-swipe undo
+    if(st&&touchState.fingers===1&&st.moved&&lastUndoableRemoval&&Date.now()-lastUndoableRemoval.ts<3000){
+      // If swipe ENDED near where the deleted marker was, AND went in a direction roughly opposite to original swipe
+      var rx=lastUndoableRemoval.x,ry=lastUndoableRemoval.y;
+      var dxStart=st.sx-rx,dyStart=st.sy-ry;
+      var dxEnd=st.x-rx,dyEnd=st.y-ry;
+      var startMag=Math.sqrt(dxStart*dxStart+dyStart*dyStart);
+      var endMag=Math.sqrt(dxEnd*dxEnd+dyEnd*dyEnd);
+      // Started near the marker and ended close to it (or a swipe back near it)
+      if(startMag<120&&endMag<60){
+        // Restore
+        userHits[lastUndoableRemoval.row][lastUndoableRemoval.step]=true;
+        recPat[lastUndoableRemoval.row][lastUndoableRemoval.step]=true;
+        addUserMarker(lastUndoableRemoval.row,lastUndoableRemoval.step,lastUndoableRemoval.x,lastUndoableRemoval.y,lastUndoableRemoval.color);
+        fireHype({text:'BACK!',voice:'BACK',fx:fxAyy,color:'#34C759'},'medium');
+        lastUndoableRemoval=null;
+      }
+    }
+    delete touchState.touches[t.identifier];
+  }
+  touchState.fingers=Object.keys(touchState.touches).length;
+  if(touchState.fingers===0){
+    clearLongPress();
+    if(touchState.swipeWarning){touchState.swipeWarning.el.classList.remove('warn');touchState.swipeWarning=null}
+    if(touchState.scratchActive){touchState.scratchActive=false;hideScratchIndicator();endScratch()}
+    touchState.twoFingerKind=null;
+  }
+  if(touchState.fingers<2&&touchState.scratchActive){touchState.scratchActive=false;hideScratchIndicator();endScratch()}
+},{passive:false});
+
+surf.addEventListener('mousedown',function(e){if(audioUnlocked)handleTap(e.clientX,e.clientY)});
+
+// ============================================================
+// SCRATCH ENGINE — pitch+tempo bend (Style 1+3 hybrid)
+// Real reverse playback of synth events is impractical, so we do:
+// horizontal velocity → tempo speed (can go negative → time-stretch reverse feel via duck+pitch)
+// vertical position → pitch bend on master
+// ============================================================
+var scratchOrigTempo=0;
+var scratchSampler=null; // recorded buffer for true scratch effect
+var scratchSourceNode=null;
+var scratchGainNode=null;
+var preScratchBeatVol=1;
+function startScratch(){
+  if(!audioUnlocked)return;
+  scratchOrigTempo=tempo;
+  preScratchBeatVol=beatVolume;
+  // Duck the live beat — scratch sound takes over visually & sonically
+  if(beatBus){var c=getAC();beatBus.gain.cancelScheduledValues(c.currentTime);beatBus.gain.linearRampToValueAtTime(beatVolume*0.25,c.currentTime+0.05)}
+  // Trigger a scratch sound
+  fxScratch();
+}
+var lastScratchPos=null,lastScratchTime=0;
+function updateScratch(center,startCenter){
+  if(!audioUnlocked)return;
+  var now=Date.now();
+  if(lastScratchPos){
+    var dx=center.x-lastScratchPos.x;
+    var dy=center.y-lastScratchPos.y;
+    var dt=Math.max(16,now-lastScratchTime);
+    var vx=dx/dt; // px per ms
+    // Trigger scratch sounds on sudden direction changes / velocity spikes
+    var speed=Math.sqrt(dx*dx+dy*dy)/dt;
+    if(speed>0.8&&now-lastScratchTime>80){
+      // Modulate scratch sound pitch by direction
+      fxScratchAt(vx);
+      lastScratchTime=now;
+    }
+  }else{
+    lastScratchTime=now;
+  }
+  lastScratchPos={x:center.x,y:center.y};
+
+  // Vertical position relative to start = pitch bend
+  var dyTotal=center.y-startCenter.y;
+  var pitchBend=Math.max(-12,Math.min(12,-dyTotal/30)); // up = higher
+  // Apply via a temporary playbackRate on... hmm, hard with synth. We'll skip live pitch bend on master.
+  // Instead, encode the pitch in the next scratch sound triggers.
+  scratchPitchOffset=pitchBend;
+}
+var scratchPitchOffset=0;
+function fxScratchAt(vx){
+  var c=getAC(),t=c.currentTime,m=getHypeOut();
+  var o=c.createOscillator();o.type='sawtooth';
+  var basePitch=Math.pow(2,scratchPitchOffset/12);
+  var startF=(vx>0?900:300)*basePitch;
+  var endF=(vx>0?200:1200)*basePitch;
+  o.frequency.setValueAtTime(startF,t);
+  o.frequency.exponentialRampToValueAtTime(Math.max(50,endF),t+0.12);
+  var g=c.createGain();g.gain.setValueAtTime(0.22,t);g.gain.exponentialRampToValueAtTime(0.001,t+0.14);
+  var bp=c.createBiquadFilter();bp.type='bandpass';bp.frequency.value=1100;bp.Q.value=6;
+  o.connect(bp).connect(g).connect(m);o.start(t);o.stop(t+0.16);
+}
+function endScratch(){
+  if(beatBus){var c=getAC();beatBus.gain.cancelScheduledValues(c.currentTime);beatBus.gain.linearRampToValueAtTime(preScratchBeatVol,c.currentTime+0.1)}
+  beatVolume=preScratchBeatVol;
+  lastScratchPos=null;
+  scratchPitchOffset=0;
+}
+
+// ============================================================
+// HYPE MODE CHANGE
+// ============================================================
+function onModeChange(){
+  // Sync mode button
+  var btn=document.getElementById('modeBtn');
+  if(btn){btn.textContent=hypeMode==='hype'?'HYPE':'BOOM';btn.classList.toggle('boom',hypeMode==='boom')}
+  fireHype({text:hypeMode==='hype'?'HYPE!':'BOOM.',voice:hypeMode==='hype'?'HYPE':'BOOM',fx:hypeMode==='hype'?fxAirhorn:fxBell,color:hypeMode==='hype'?'#FF3B30':'#FF9500'},'heavy');
+}
+
+// ============================================================
+// GENRE
+// ============================================================
+function pickGenre(btn){
+  document.querySelectorAll('.gp').forEach(function(b){b.classList.remove('on')});
+  btn.classList.add('on');
+  genre=btn.dataset.g;
+  randomizeCharacter(); // fresh key + voicing on each genre change
+  loadGenre();
+  if(melActive)genMel();
+  if(padOn)changePad();
+  if(G().vinyl)startVinyl();else stopVinyl();
+  if(master&&audioUnlocked){
+    var c=getAC(),t=c.currentTime;
+    master.gain.setValueAtTime(0.7,t);
+    master.gain.linearRampToValueAtTime(0.3,t+0.1);
+    master.gain.linearRampToValueAtTime(0.7,t+0.4);
+  }
+}
+
+// ============================================================
+// PLAYBACK / SCHED
+// ============================================================
+function sched(){
+  if(!playing)return;
+  if(!ac){tmrID=setTimeout(sched,50);return}
+  var c=ac;
+  while(nextT<c.currentTime+0.1){
+    curStep=(curStep+1)%16;
+    if(curStep===0){loopSt=nextT;barCount++;setChord(barCount)}
+    // SWING: delay every off-16th by the genre's swing amount.
+    // 0.50 = straight (trap/drill/jersey), 0.58 = classic MPC boom bap,
+    // 0.62 = lofi drag. The grid (nextT/loopSt) stays straight so tap
+    // quantization and the hype pocket stay locked.
+    var stepDur=60/tempo/4;
+    var sw=G().sw||0.5;
+    var swT=nextT+((curStep%2===1)?((sw-0.5)*2*stepDur):0);
+    pStep(curStep,swT);
+    nextT+=stepDur;
+  }
+  tmrID=setTimeout(sched,20);
+}
+var barCount=0;
+function pStep(step,time){
+  if(!audioUnlocked)return;
+  var c=ac,delay=Math.max(0,time-c.currentTime)*1000;
+  var pat=recPat;
+  var fns=[
+    function(t,v){return playZ(0.25,0.85,t,v)},function(t,v){return playZ(0.75,0.85,t,v)},
+    function(t,v){return playZ(0.25,0.55,t,v)},function(t,v){return playZ(0.75,0.55,t,v)},
+    function(t,v){return playZ(0.25,0.05,t,v)},function(t,v){return playZ(0.75,0.05,t,v)},
+    function(t,v){return playZ(0.25,0.3,t,v)},function(t,v){return playZ(0.75,0.3,t,v)}
+  ];
+  var pos=[
+    [W*0.25,H*0.85],[W*0.75,H*0.85],
+    [W*0.25,H*0.55],[W*0.75,H*0.55],
+    [W*0.25,H*0.05],[W*0.75,H*0.05],
+    [W*0.25,H*0.3],[W*0.75,H*0.3]
+  ];
+  // ACCENTS: downbeats punch, off-16ths ghost. Applied to hats/perc
+  // (rows 4+); kicks/snares keep their programmed weight.
+  var vel=step%4===0?1.0:(step%2===0?0.82:0.58);
+  // TURNAROUND: every 4th bar, the last beat opens up — kick drops out
+  // on 14-15, snare ghost-rolls 13→15 into the downbeat slam.
+  var fillBar=(barCount%4===3);
+  var fired=[]; // collect for visual ripples
+  for(var r=0;r<Math.min(pat.length,fns.length);r++){
+    if(!pat[r][step])continue;
+    if(fillBar&&(r===0||r===1)&&step>=14)continue; // kick drop-out
+    var v=r>=4?vel:1.0;
+    var res=fns[r](time,v);
+    fired.push({r:r,color:res.color});
+    // PEAK-HEAT HAT ROLLS: when the rapper is locked in (heat>70), closed
+    // hats double into 32nds on the back half of each beat — the DJ
+    // responding to the flow.
+    if(r===4&&heat>70&&step%4===2){
+      playZ(0.25,0.05,time+(60/tempo/4)/2,0.32);
+    }
+  }
+  // Snare ghost roll on the fill bar (row 2 = snare zone)
+  if(fillBar&&(step===13||step===14||step===15)){
+    var rollV=step===13?0.4:(step===14?0.55:0.8);
+    var res2=playZ(0.25,0.55,time,rollV);
+    fired.push({r:2,color:res2.color});
+  }
+  // Bass + melody at exact grid time. Bass follows the chord progression.
+  // MELODY RIDES THE HEAT: when the mic is live, the lead sits out until
+  // you bring energy (heat>15) — the beat opens sparse and builds with
+  // your flow. Without the mic, full arrangement plays.
+  if(melActive){
+    for(var i=0;i<bassP.length;i++){if(bassP[i].s===step)pBass(bassP[i].m+curChordOff,time)}
+    if(!micOn||heat>15){
+      for(var i=0;i<melP.length;i++){if(melP[i].s===step)pMel(melP[i].m,time,melP[i].d)}
+    }
+  }
+  // Visual ripples land when the audio does
+  if(fired.length){
+    setTimeout(function(){
+      for(var i=0;i<fired.length;i++){
+        var f=fired[i];
+        addRip(pos[f.r][0]+(Math.random()-0.5)*20,pos[f.r][1]+(Math.random()-0.5)*20,f.color);
+      }
+    },delay);
+  }
+}
+
+// ============================================================
+// VISUALIZER
+// ============================================================
+var vizC,vizX,vizOn=false,wOff=0,parts=[];
+function startViz(){
+  vizC=document.getElementById('viz');vizX=vizC.getContext('2d');
+  var dpr=window.devicePixelRatio||1;vizC.width=W*dpr;vizC.height=H*dpr;vizX.setTransform(dpr,0,0,dpr,0,0);
+  parts=[];for(var i=0;i<50;i++)parts.push({x:Math.random()*W,y:Math.random()*H,vx:(Math.random()-0.5)*0.3,vy:(Math.random()-0.5)*0.3,r:1+Math.random()*2,a:0.05+Math.random()*0.1,c:COLORS[Math.floor(Math.random()*COLORS.length)]});
+  vizOn=true;rViz();
+}
+function rViz(){
+  if(!vizOn)return;requestAnimationFrame(rViz);vizX.clearRect(0,0,W,H);
+  var bass=0,mid=0,high=0;
+  if(beatAn&&audioUnlocked){var fd=new Uint8Array(beatAn.frequencyBinCount);beatAn.getByteFrequencyData(fd);for(var i=0;i<8;i++)bass+=fd[i];bass/=(8*255);for(var i=8;i<32;i++)mid+=fd[i];mid/=(24*255);for(var i=32;i<fd.length;i++)high+=fd[i];high/=((fd.length-32)*255)}
+  var ml=0;if(micAn&&micOn){var td=new Uint8Array(micAn.fftSize);micAn.getByteTimeDomainData(td);var sum=0;for(var i=0;i<td.length;i++){var v=(td[i]-128)/128;sum+=v*v}ml=Math.sqrt(sum/td.length)*4}
+  var bp=bass*30;vizX.fillStyle='rgb('+(250-bp)+','+(250-bp*0.8)+','+(248-bp*0.7)+')';vizX.fillRect(0,0,W,H);
+  wOff+=0.02;
+  [[H*0.85,20+bass*60,0.008,255,59,48,0.06+bass*0.08,1],[H*0.8,15+bass*40,0.012,255,149,0,0.04+bass*0.06,1.3],[H*0.75,10+mid*30,0.015,175,82,222,0.03+mid*0.05,0.8]].forEach(function(L){vizX.beginPath();vizX.moveTo(0,H);for(var x=0;x<=W;x+=3){vizX.lineTo(x,L[0]+Math.sin(x*L[2]+wOff*L[7])*L[1]+Math.sin(x*L[2]*1.5+wOff*L[7]*0.7)*L[1]*0.4)}vizX.lineTo(W,H);vizX.closePath();vizX.fillStyle='rgba('+L[3]+','+L[4]+','+L[5]+','+L[6]+')';vizX.fill()});
+  for(var i=0;i<parts.length;i++){var p=parts[i];p.x+=p.vx+mid*(Math.random()-0.5)*2;p.y+=p.vy+high*(Math.random()-0.5)*1.5;if(p.x<0)p.x=W;if(p.x>W)p.x=0;if(p.y<0)p.y=H;if(p.y>H)p.y=0;vizX.beginPath();vizX.arc(p.x,p.y,p.r*(1+high*3),0,Math.PI*2);vizX.fillStyle=p.c;vizX.globalAlpha=Math.min(1,p.a+high*0.2);vizX.fill();vizX.globalAlpha=1}
+  if(micOn&&ml>0.01&&micAn){var td2=new Uint8Array(micAn.fftSize);micAn.getByteTimeDomainData(td2);var cy=H*0.45,wh=H*0.15;vizX.beginPath();vizX.strokeStyle='rgba(255,59,48,'+Math.min(0.5,ml*0.8)+')';vizX.lineWidth=2;var st=Math.max(1,Math.floor(td2.length/W*2));for(var i=0;i<td2.length;i+=st){var x2=(i/td2.length)*W,v2=(td2[i]-128)/128,y2=cy+v2*wh*ml*3;if(i===0)vizX.moveTo(x2,y2);else vizX.lineTo(x2,y2)}vizX.stroke()}
+}
+
+// ============================================================
+// MICROPHONE + SPEECH RECOGNITION (the heart of the hype man)
+// ============================================================
+var micStr=null,micAn=null,micOn=false;
+var recognition=null,recogActive=false;
+var rmsHistory=[];
+
+// Flow-aware reaction state
+var lastReactionTs=0,lastHeavyReactionTs=0;
+var reactedWords={}; // word -> ts of last reaction (4s expiry, allows re-fire after window)
+
+// Signature triggers: track recent reactions for multi-keyword streaks
+var recentReactionTs=[]; // timestamps of all recent hype fires
+var lastSignatureTs=0;
+var lastFinalWordTs=0;   // when the last final word came in (for end-of-phrase detection)
+var wordsInWindow=[];    // {word, ts} sliding window for syllable/multisyllabic detection
+var pendingPauseRespect=false; // set after a heater word, fires a soft hit if rapper pauses
+
+// ============================================================
+// HEAT — the energy arc. A real hype man builds a set, he doesn't
+// react at one flat intensity. Heat rises with flow density and
+// keyword fires, decays in silence. Heat drives:
+//   • selectivity (high heat = fewer, BIGGER reactions)
+//   • burst scale + splatter count
+//   • signature cooldown (peaks come faster when you're cooking)
+//   • echo chattiness (he fills space early, gets locked-in late)
+var heat=0,lastHeatTickTs=Date.now();
+function bumpHeat(amt){heat=Math.min(100,heat+amt)}
+setInterval(function(){
+  var now=Date.now(),dt=(now-lastHeatTickTs)/1000;lastHeatTickTs=now;
+  var talking=rmsHistory.length&&(now-rmsHistory[rmsHistory.length-1].ts<600)&&rmsHistory[rmsHistory.length-1].rms>0.05;
+  // Slow burn-off while flowing, fast cool-down in silence
+  heat=Math.max(0,heat-dt*(talking?1.0:6.5));
+},500);
+
+// CATEGORY MEMORY — call-and-response. Track per-category hits in a
+// rolling window so the 2nd/3rd time you hit a theme, he escalates
+// instead of repeating himself.
+var catHits={}; // slug -> {count, ts}
+function noteCatHit(slug){
+  var now=Date.now();
+  var c=catHits[slug];
+  if(!c||now-c.ts>30000){catHits[slug]={count:1,ts:now};return 1}
+  c.count++;c.ts=now;return c.count;
+}
+
+// Subtitle flow state — words rendered as DOM nodes, scrolled via flexbox
+var subsWords=[];    // {text, el, isFinal, kind} — most recent first in DOM, oldest at left
+var MAX_SUB_WORDS=10; // how many words visible at once
+var lastInterimSet=[]; // current interim words (replaced as recognizer updates)
+
+function startMic(){
+  navigator.mediaDevices.getUserMedia({audio:true}).then(function(stream){
+    micStr=stream;
+    var ctx=getAC(),src=ctx.createMediaStreamSource(stream);
+    micAn=ctx.createAnalyser();micAn.fftSize=2048;micAn.smoothingTimeConstant=0.8;
+    src.connect(micAn);
+    micOn=true;
+    document.getElementById('micp').classList.remove('show');
+    startSpeechRecog();
+    monitorRMS();
+    fireHype({text:'LET HIM COOK',fx:fxAirhorn,color:'#FF6B35'},'heavy');
+  }).catch(function(err){
+    document.getElementById('mictxt').textContent='mic permission denied';
+    document.getElementById('micsub').textContent='enable microphone access and reload to use AD-LIB hype mode';
+  });
+}
+
+function startSpeechRecog(){
+  var SR=window.webkitSpeechRecognition||window.SpeechRecognition;
+  if(!SR){
+    var b=document.getElementById('modeBtn');if(b){b.textContent='NO SPEECH';b.classList.add('warn')}
+    return;
+  }
+  recognition=new SR();
+  recognition.continuous=true;
+  recognition.interimResults=true;
+  recognition.lang='en-US';
+  recognition.maxAlternatives=3; // get fuzzy alternatives so we can match against multiple guesses
+  var lastResultTs=Date.now();
+  recognition.onresult=function(evt){
+    var now=Date.now();
+    var gap=now-lastResultTs;
+    lastResultTs=now;
+
+    // Process every result to keep up with flow — interim AND final
+    var allInterimWords=[];
+    var newFinalWords=[];
+    var rawInterim='',rawFinal='';
+    var alts=[];
+    for(var i=evt.resultIndex;i<evt.results.length;i++){
+      var r=evt.results[i];
+      var txt=r[0].transcript;
+      var ws=txt.toLowerCase().replace(/[^a-z\s']/g,'').split(/\s+/).filter(Boolean);
+      if(r.isFinal){
+        for(var j=0;j<ws.length;j++)newFinalWords.push(ws[j]);
+        rawFinal+=txt+' ';
+        // Capture alternative interpretations from final results for fuzzy matching
+        for(var k=1;k<r.length&&k<3;k++){
+          if(r[k]&&r[k].transcript)alts.push(r[k].transcript);
+        }
+      }else{
+        for(var j=0;j<ws.length;j++)allInterimWords.push(ws[j]);
+        rawInterim+=txt+' ';
+      }
+    }
+
+    // DBG: log raw recognizer output + gap since last event
+    if(rawFinal)dbgLog('final','FINAL ['+gap+'ms gap]: "'+rawFinal.trim()+'"'+(alts.length?' | alts: '+alts.join(' / '):''));
+    if(rawInterim)dbgLog('interim','interim ['+gap+'ms gap]: "'+rawInterim.trim()+'"');
+
+    // Apply finals first (locks them in), then interim (transient tail)
+    if(newFinalWords.length>0){
+      for(var i=0;i<newFinalWords.length;i++){
+        addSubWord(newFinalWords[i],true);
+        considerWordForHype(newFinalWords[i],true);
+      }
+      // Also test alternative interpretations from final results — Chrome's 2nd/3rd guesses
+      // sometimes catch slang the primary missed. KEYWORD MATCHES ONLY: an alt is a
+      // guess about what you said — echoing an unspoken word back kills credibility.
+      for(var k=0;k<alts.length;k++){
+        var altWords=alts[k].toLowerCase().replace(/[^a-z\s']/g,'').split(/\s+/).filter(Boolean);
+        for(var w=0;w<altWords.length;w++){
+          if(newFinalWords.indexOf(altWords[w])<0&&isKeywordWord(altWords[w])){
+            considerWordForHype(altWords[w],true);
+          }
+        }
+      }
+    }
+    // Refresh interim tail
+    refreshInterim(allInterimWords);
+    // React on EVERY interim word we haven't seen yet — not just the latest.
+    // Track which interim words we've already passed to consider, to avoid re-checking.
+    if(allInterimWords.length>0){
+      for(var i=0;i<allInterimWords.length;i++){
+        var w=allInterimWords[i];
+        if(!interimSeen[w]||now-interimSeen[w]>3000){
+          interimSeen[w]=now;
+          considerWordForHype(w,false);
+        }
+      }
+    }
+  };
+  recognition.onerror=function(e){
+    dbgLog('miss','RECOG ERROR: '+e.error);
+    if(e.error==='not-allowed'||e.error==='service-not-allowed'){
+      var b=document.getElementById('modeBtn');if(b){b.textContent='MIC BLOCKED';b.classList.add('warn')}
+    }
+  };
+  recognition.onend=function(){
+    dbgLog('system','recog ended (auto-restart='+recogActive+')');
+    if(recogActive){
+      try{recognition.start()}catch(e){setTimeout(function(){if(recogActive)try{recognition.start()}catch(e){}},250)}
+    }
+  };
+  recognition.onstart=function(){dbgLog('system','recog started')};
+  recognition.onspeechstart=function(){dbgLog('system','speech detected')};
+  recognition.onspeechend=function(){dbgLog('system','speech ended (silence)')};
+  try{recognition.start();recogActive=true;dbgLog('system','recognition initialized — maxAlts=3, continuous=true, interim=true')}catch(e){dbgLog('miss','recog start failed: '+e)}
+
+  // Periodic kick-restart: every 4s, if no interim has come through in 1.5s+
+  // while we KNOW you're talking (RMS high), force-restart to flush Chrome's buffer.
+  setInterval(function(){
+    if(!recogActive||!micOn)return;
+    var now=Date.now();
+    var quietDur=now-lastResultTs;
+    // Are you currently talking? (recent RMS)
+    var recentRMS=0,recentCount=0;
+    for(var i=rmsHistory.length-1;i>=0&&i>=rmsHistory.length-6;i--){
+      recentRMS+=rmsHistory[i].rms;recentCount++;
+    }
+    var avgRMS=recentCount?recentRMS/recentCount:0;
+    if(quietDur>1800&&avgRMS>0.05){
+      dbgLog('system','FORCE-RESTART: '+quietDur+'ms no interim while RMS='+avgRMS.toFixed(3));
+      try{recognition.stop()}catch(e){}
+      // onend will auto-restart
+    }
+  },2000);
+}
+
+// Track which interim words we've already passed to considerWordForHype this session
+var interimSeen={};
+
+// Fast keyword membership test (built once) — used to filter alt-guesses
+var _kwSet=null;
+function isKeywordWord(w){
+  if(!_kwSet){
+    _kwSet={};
+    for(var i=0;i<KEYWORDS.length;i++)for(var j=0;j<KEYWORDS[i].words.length;j++)_kwSet[KEYWORDS[i].words[j]]=true;
+  }
+  return !!_kwSet[w];
+}
+
+// Add a word to the subtitle flow (right-aligned, oldest scrolls off left)
+function addSubWord(word,isFinal){
+  if(!word||word.length===0)return;
+  var flow=document.getElementById('subsFlow');
+  var el=document.createElement('span');
+  el.className='sw';
+  el.textContent=word;
+  flow.appendChild(el);
+  subsWords.push({text:word,el:el,isFinal:isFinal,interim:!isFinal});
+  // Trim
+  while(subsWords.length>MAX_SUB_WORDS){
+    var old=subsWords.shift();
+    try{old.el.remove()}catch(e){}
+  }
+  return el;
+}
+
+// Replace the trailing interim words with the latest interim guess
+function refreshInterim(interimWords){
+  // Remove existing interim words from the tail
+  while(subsWords.length&&subsWords[subsWords.length-1].interim){
+    var last=subsWords.pop();
+    try{last.el.remove()}catch(e){}
+  }
+  // Append new interim words
+  var flow=document.getElementById('subsFlow');
+  for(var i=0;i<interimWords.length;i++){
+    var el=document.createElement('span');
+    el.className='sw interim';
+    el.textContent=interimWords[i];
+    flow.appendChild(el);
+    subsWords.push({text:interimWords[i],el:el,isFinal:false,interim:true});
+  }
+  // Trim from the front if too many total
+  while(subsWords.length>MAX_SUB_WORDS){
+    var old=subsWords.shift();
+    try{old.el.remove()}catch(e){}
+  }
+  lastInterimSet=interimWords;
+}
+
+// Highlight a subtitle word when it triggers a hype reaction
+function flashSubWord(word){
+  // Find the most recent matching word in subsWords
+  for(var i=subsWords.length-1;i>=0;i--){
+    if(subsWords[i].text===word){
+      subsWords[i].el.classList.add('hit');
+      break;
+    }
+  }
+}
+
+function toggleSubs(){
+  subsVisible=!subsVisible;
+  document.getElementById('subs').classList.toggle('on',subsVisible);
+  document.getElementById('subsBtn').classList.toggle('on',subsVisible);
+}
+
+// Toggle voice mode (button + keyboard shortcut M)
+function toggleMode(){
+  hypeMode=hypeMode==='hype'?'boom':'hype';
+  onModeChange();
+}
+
+// Share AD-LIB — uses native share sheet on mobile, falls back to clipboard copy on desktop
+function shareApp(){
+  var shareUrl=window.location.origin&&window.location.origin.indexOf('localhost')<0
+    ?window.location.origin
+    :'https://adlib.live';
+  var shareData={
+    title:'AD-LIB',
+    text:'AD-LIB is your AI hype man. Drop a beat. Spit your bars. Get hyped.',
+    url:shareUrl
+  };
+  // Try native share API first (mobile + some desktop browsers)
+  if(navigator.share){
+    try{navigator.share(shareData).catch(function(){})}catch(e){copyToClipboard(shareUrl)}
+  }else{
+    copyToClipboard(shareUrl);
+  }
+}
+function copyToClipboard(text){
+  var ok=false;
+  try{
+    if(navigator.clipboard&&navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text);ok=true;
+    }else{
+      // legacy fallback
+      var ta=document.createElement('textarea');ta.value=text;ta.style.position='fixed';ta.style.opacity='0';
+      document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);ok=true;
+    }
+  }catch(e){}
+  if(ok)showShareToast();
+}
+function showShareToast(){
+  var t=document.getElementById('shareToast');
+  t.classList.add('show');
+  clearTimeout(showShareToast._t);
+  showShareToast._t=setTimeout(function(){t.classList.remove('show')},1800);
+}
+
+// Consider a single word — fire hype if it matches a keyword and we haven't recently
+function considerWordForHype(word,isFinal){
+  if(!word||word.length<2)return;
+  var now=Date.now();
+  var src=isFinal?'F':'i';
+
+  // Track word in sliding window for streak/multisyllabic detection
+  wordsInWindow.push({word:word,ts:now,isFinal:isFinal,syllables:countSyllables(word)});
+  // Trim window to last 6 seconds
+  while(wordsInWindow.length&&now-wordsInWindow[0].ts>6000)wordsInWindow.shift();
+
+  if(isFinal)lastFinalWordTs=now;
+
+  // Tight global cooldown — keeps it from machine-gunning
+  if(now-lastReactionTs<250){
+    dbgLog('miss','['+src+'] "'+word+'" — global cooldown ('+(now-lastReactionTs)+'ms)');
+    return;
+  }
+
+  // Repeat-word handling. Repetition is a FLOW TECHNIQUE, not noise.
+  // 1st repeat inside the window: hold (don't parrot).
+  // 2nd repeat (word said 3x): THROWBACK — shout their own word back at em.
+  var rep=reactedWords[word];
+  if(rep&&now-rep.ts<4000){
+    rep.count++;rep.ts=now;
+    if(rep.count===3&&now-lastReactionTs>300){
+      var up=word.toUpperCase();
+      dbgLog('fire','THROWBACK: "'+word+'" x3 — running it back');
+      fireHype({text:up+'! '+up+'! '+up+'!',fx:fxHorn,color:'#FF3B30',audio:'gooff',keepText:true},'heavy');
+      flashSubWord(word);
+      bumpHeat(10);
+      lastReactionTs=now;lastHeavyReactionTs=now;
+      recentReactionTs.push(now);
+      while(recentReactionTs.length&&now-recentReactionTs[0]>6000)recentReactionTs.shift();
+    }else{
+      dbgLog('miss','['+src+'] "'+word+'" — repeat #'+rep.count+' (holding)');
+    }
+    return;
+  }
+
+  // Every word you spit feeds the heat — flow density warms him up
+  bumpHeat(0.5);
+
+  // Check for SIGNATURE upgrade trigger:
+  //   1. Multi-keyword streak (3+ reactions in 6s) — check before normal logic so it doesn't get eaten
+  //   2. Multisyllabic streak (8+ syllables in <2s)
+  //   3. Word is in SIGNATURE_UPGRADE_WORDS (random chance to escalate)
+  //   4. Idle drop (35-45s of active rapping with no signature)
+  // Signature has its own cooldown — at most 1 every 10s cold,
+  // tightening to ~6s when heat is peaked (peaks come faster mid-set)
+  var sigCooldown=10000-heat*40;
+  if(now-lastSignatureTs>sigCooldown){
+    var sigReason=null;
+
+    // (1) Multi-keyword streak
+    var recentCount=0;
+    for(var i=0;i<recentReactionTs.length;i++){
+      if(now-recentReactionTs[i]<6000)recentCount++;
+    }
+    if(recentCount>=3)sigReason='3+ reactions in 6s';
+
+    // (2) Multisyllabic streak — sum syllables in last 2s
+    if(!sigReason){
+      var sylCount=0;
+      for(var i=wordsInWindow.length-1;i>=0;i--){
+        if(now-wordsInWindow[i].ts>2000)break;
+        sylCount+=wordsInWindow[i].syllables;
+      }
+      if(sylCount>=8)sigReason=sylCount+' syllables in 2s';
+    }
+
+    // (3) Idle drop — been rapping (recent words) but no signature in 35-45s
+    if(!sigReason&&lastSignatureTs>0&&now-lastSignatureTs>35000&&wordsInWindow.length>=8){
+      // Random within 35-45s window
+      if(Math.random()<0.04)sigReason='idle drop ('+Math.round((now-lastSignatureTs)/1000)+'s)';
+    }
+
+    // (4) Random upgrade on heater words
+    if(!sigReason&&SIGNATURE_UPGRADE_WORDS.indexOf(word)>=0&&Math.random()<0.30){
+      sigReason='heater upgrade on "'+word+'"';
+    }
+
+    if(sigReason){
+      var sig=SIGNATURE_REACTIONS[Math.floor(Math.random()*SIGNATURE_REACTIONS.length)];
+      dbgLog('fire','SIGNATURE: '+sig.text+' ['+sigReason+'] heat='+Math.round(heat));
+      fireHype(sig,'heavy');
+      flashSubWord(word);
+      bumpHeat(15);
+      reactedWords[word]={ts:now,count:1};
+      lastReactionTs=now;
+      lastHeavyReactionTs=now;
+      lastSignatureTs=now;
+      recentReactionTs.push(now);
+      // Trim recentReactionTs
+      while(recentReactionTs.length&&now-recentReactionTs[0]>6000)recentReactionTs.shift();
+      return;
+    }
+  }
+
+  // Find keyword match
+  var matched=null;
+  for(var i=0;i<KEYWORDS.length;i++){
+    if(KEYWORDS[i].words.indexOf(word)>=0){matched=KEYWORDS[i];break}
+  }
+
+  if(matched){
+    var inHeavyCooldown=(now-lastHeavyReactionTs<600);
+    if(matched.weight==='heavy'&&inHeavyCooldown){
+      dbgLog('miss','['+src+'] "'+word+'" → '+matched.text+' BLOCKED (heavy cooldown '+(now-lastHeavyReactionTs)+'ms)');
+      return;
+    }
+    // HIGH-HEAT SELECTIVITY: when he's locked in, the ultimate hype man
+    // doesn't parrot every light hit — he saves it so the big ones land.
+    if(matched.weight==='light'&&heat>70&&Math.random()<0.5){
+      dbgLog('miss','['+src+'] "'+word+'" → '+matched.text+' held (locked in, heat='+Math.round(heat)+')');
+      reactedWords[word]={ts:now,count:1};
+      return;
+    }
+    // CATEGORY MEMORY: 2nd hit on the same theme escalates the visual;
+    // 3rd hit in 30s goes full call-and-response — repeat the tag, heavy.
+    var catCount=noteCatHit(matched.audio);
+    var fireWeight=matched.weight;
+    var txt=matched.text; // fallback tag — fireHype swaps in the actual voice line
+    if(catCount>=3){
+      txt=matched.text+' '+matched.text;
+      fireWeight='heavy';
+      dbgLog('fire','['+src+'] "'+word+'" → '+matched.text+' [CAT x'+catCount+' — escalating]');
+    }else{
+      dbgLog('fire','['+src+'] "'+word+'" → '+txt+' ['+fireWeight+'] heat='+Math.round(heat));
+    }
+    fireHype({text:txt,color:matched.color,fx:matched.fx,audio:matched.audio,signature:catCount>=3},fireWeight);
+    flashSubWord(word);
+    bumpHeat(matched.weight==='heavy'?6:4);
+    reactedWords[word]={ts:now,count:1};
+    lastReactionTs=now;
+    if(fireWeight==='heavy'){
+      lastHeavyReactionTs=now;
+      // After a heavy reaction, mark for pause-respect (if rapper trails off, hit a soft note)
+      pendingPauseRespect=true;
+      setTimeout(function(){pendingPauseRespect=false},2500);
+    }
+    recentReactionTs.push(now);
+    while(recentReactionTs.length&&now-recentReactionTs[0]>6000)recentReactionTs.shift();
+    return;
+  }
+
+  // Echo logic — only on FINAL words, only when no keyword fired in a while,
+  // and only on substantial, interesting words (no filler/grammar/stopwords).
+  // Echo is meant to be a "punctuation" beat, not a constant reaction.
+  // HEAT-GATED: he fills space early in the set; once you're cooking
+  // (heat>60) he stops chattering and saves his voice for real moments.
+  if(isFinal&&word.length>=5&&word.length<=14&&!ECHO_STOPWORDS[word]&&heat<=60){
+    var echoGap=2000+heat*25; // chattier cold, quieter warm
+    if(now-lastReactionTs>echoGap){
+      var echoText=word.toUpperCase()+'! '+word.toUpperCase()+'!';
+      dbgLog('fire','['+src+'] "'+word+'" → ECHO (heat='+Math.round(heat)+')');
+      fireHype({text:echoText,fx:fxAyy,color:'#FF6B35'},'light');
+      flashSubWord(word);
+      bumpHeat(2);
+      reactedWords[word]={ts:now,count:1};
+      lastReactionTs=now;
+      recentReactionTs.push(now);
+      while(recentReactionTs.length&&now-recentReactionTs[0]>6000)recentReactionTs.shift();
+    }else{
+      dbgLog('miss','['+src+'] "'+word+'" — no kw match, echo-cooldown ('+(now-lastReactionTs)+'ms)');
+    }
+  }else if(!isFinal){
+    dbgLog('miss','['+src+'] "'+word+'" — no kw match');
+  }
+}
+
+// Common filler/grammar words that should NEVER echo — they're not punchlines
+var ECHO_STOPWORDS={
+  // contractions / pronouns
+  "it's":1,"that's":1,"there's":1,"here's":1,"what's":1,"who's":1,"how's":1,"where's":1,
+  "i'm":1,"you're":1,"we're":1,"they're":1,"i'll":1,"you'll":1,"we'll":1,"they'll":1,
+  "don't":1,"can't":1,"won't":1,"didn't":1,"isn't":1,"aren't":1,"wasn't":1,"weren't":1,
+  "i've":1,"you've":1,"we've":1,"they've":1,"i'd":1,"you'd":1,"we'd":1,"they'd":1,
+  // common short verbs
+  "was":1,"were":1,"have":1,"having":1,"been":1,"being":1,"will":1,"would":1,"could":1,
+  "should":1,"might":1,"must":1,"shall":1,"does":1,"doing":1,"goes":1,"going":1,"gone":1,
+  "said":1,"says":1,"saying":1,"got":1,"getting":1,"makes":1,"making":1,"took":1,"taking":1,
+  "give":1,"gave":1,"giving":1,"come":1,"came":1,"coming":1,"went":1,"want":1,"wanted":1,
+  // articles / determiners / prepositions / conjunctions / pronouns
+  "this":1,"that":1,"these":1,"those":1,"with":1,"without":1,"about":1,"above":1,"after":1,
+  "before":1,"between":1,"during":1,"into":1,"onto":1,"upon":1,"under":1,"over":1,"through":1,
+  "from":1,"some":1,"only":1,"even":1,"also":1,"than":1,"then":1,"when":1,"where":1,"while":1,
+  "what":1,"which":1,"whose":1,"because":1,"since":1,"until":1,"unless":1,
+  "your":1,"yours":1,"their":1,"theirs":1,"ours":1,"hers":1,"mine":1,
+  "them":1,"they":1,"there":1,"here":1,
+  // common filler
+  "very":1,"much":1,"more":1,"most":1,"many":1,"like":1,"just":1,"well":1,"such":1,
+  "really":1,"actually":1,"basically":1,"literally":1,"probably":1,"maybe":1,"kinda":1,
+  "gonna":1,"wanna":1,"gotta":1,"lemme":1,"tryna":1,
+  // numbers / time fillers
+  "one":1,"two":1,"three":1,"four":1,"five":1,"six":1,"seven":1,"eight":1,"nine":1,"ten":1,
+  "first":1,"second":1,"third":1,"last":1,"next":1,"another":1,
+  // greetings / fillers spoken aloud
+  "hello":1,"hey":1,"okay":1,"alright":1,"thanks":1,"please":1,"sorry":1,"excuse":1
+};
+
+// Rough syllable counter — heuristic, good enough for streak detection
+function countSyllables(word){
+  if(!word)return 0;
+  word=word.toLowerCase().replace(/[^a-z]/g,'');
+  if(word.length<=2)return 1;
+  // Strip silent e
+  word=word.replace(/e$/,'');
+  // Count vowel groups
+  var matches=word.match(/[aeiouy]+/g);
+  return matches?Math.max(1,matches.length):1;
+}
+
+// Periodically sweep stale entries from reactedWords map
+setInterval(function(){
+  var now=Date.now();
+  for(var k in reactedWords){if(now-reactedWords[k].ts>4000)delete reactedWords[k]}
+  for(var k in interimSeen){if(now-interimSeen[k]>10000)delete interimSeen[k]}
+  for(var k in catHits){if(now-catHits[k].ts>30000)delete catHits[k]}
+},2000);
+
+// RMS monitoring — silence-based generic fallback (only when really quiet)
+var lastFallbackTs=0;
+var lastRmsLogTs=0;
+function monitorRMS(){
+  if(!micOn||!micAn)return;
+  setTimeout(monitorRMS,150);
+  var bufLen=micAn.fftSize,td=new Uint8Array(bufLen);
+  micAn.getByteTimeDomainData(td);
+  var sum=0;for(var i=0;i<bufLen;i++){var v=(td[i]-128)/128;sum+=v*v}
+  var rms=Math.sqrt(sum/bufLen);
+  rmsHistory.push({rms:rms,ts:Date.now()});
+  if(rmsHistory.length>40)rmsHistory.shift();
+
+  var now=Date.now();
+  // Log RMS every 1s while debug is open and dbg sees activity
+  if(now-lastRmsLogTs>1000){
+    lastRmsLogTs=now;
+    if(rms>0.05||(rms<0.04&&rmsHistory.length>10&&rmsHistory[rmsHistory.length-3].rms>0.05)){
+      // Only log RMS during interesting moments (talking or just stopped)
+      dbgLog('silent','RMS='+rms.toFixed(3)+(rms>0.06?' (loud)':rms>0.04?' (quiet)':' (silent)'));
+    }
+  }
+  if(rms<0.035){
+    var silentDur=0;
+    for(var i=rmsHistory.length-1;i>=0;i--){
+      if(rmsHistory[i].rms<0.035)silentDur=now-rmsHistory[i].ts;else break;
+    }
+    // PAUSE RESPECT: rapper just landed a heater and trailed off.
+    // 800-1500ms silent window: drop a single soft reverb hit. Don't stomp.
+    if(pendingPauseRespect&&silentDur>800&&silentDur<1500&&now-lastReactionTs>700){
+      pendingPauseRespect=false;
+      dbgLog('fire','PAUSE RESPECT [trailed off after heater]');
+      fireHype({text:'damn.',fx:fxBell,color:'#AF52DE'},'light');
+      lastReactionTs=now;
+    }
+    // 2-4s silent window: throw a generic hype to keep energy. After 4s, chill out.
+    if(silentDur>2000&&silentDur<4000&&now-lastReactionTs>2200&&now-lastFallbackTs>3500){
+      var g=GENERIC_HYPE[Math.floor(Math.random()*GENERIC_HYPE.length)];
+      dbgLog('fire','GENERIC FALLBACK ['+silentDur+'ms silent]: '+g.text);
+      fireHype(g,'medium');
+      lastReactionTs=now;
+      lastFallbackTs=now;
+    }
+  }
+}
+
+// ============================================================
+// VOICE AUDIO LAYER (ElevenLabs / pre-generated MP3s)
+// ============================================================
+// Audio files live at: /audio/{mode}/{slug}_{variant}.mp3
+// e.g. /audio/hype/fire_1.mp3, /audio/hype/fire_2.mp3, /audio/hype/fire_3.mp3
+// We probe for variants 1-3 lazily per slug, cache results, fall back to none if missing.
+var VARIANTS_PER_SLUG=3;
+var audioCache={};         // "mode/slug" -> array of HTMLAudioElement (loaded variants only)
+var audioProbed={};        // "mode/slug" -> true once we've tried to load
+var voiceEnabled=true;     // master toggle (could expose later)
+var voiceBaseVol=0.85;     // base voice mix level on top of synth FX
+
+function audioPath(mode,slug,variant){
+  return 'audio/'+mode+'/'+slug+'_'+variant+'.mp3';
+}
+
+// Probe for available variants the first time a slug is requested
+function loadVariantsForSlug(mode,slug){
+  var key=mode+'/'+slug;
+  if(audioProbed[key])return audioCache[key]||[];
+  audioProbed[key]=true;
+  audioCache[key]=[];
+  for(var v=1;v<=VARIANTS_PER_SLUG;v++){
+    (function(variant){
+      var a=new Audio(audioPath(mode,slug,variant));
+      a.preload='auto';
+      a.volume=voiceBaseVol;
+      a._v=variant; // remember which variant this is — voice-led visuals need it
+      a.addEventListener('canplaythrough',function(){
+        // Only add to the cache once it's actually playable
+        if(audioCache[key].indexOf(a)<0)audioCache[key].push(a);
+      });
+      a.addEventListener('error',function(){
+        // 404 or decode failure — silently skip
+      });
+      // Trigger load
+      try{a.load()}catch(e){}
+    })(v);
+  }
+  return audioCache[key];
+}
+
+// Pick a loaded variant number for a slug WITHOUT playing it — lets fireHype
+// choose the line first so the burst text matches the voice exactly.
+// Returns variant number (1-3) or 0 if nothing loaded yet.
+function pickLoadedVariant(slug){
+  var mode=hypeMode;
+  var variants=loadVariantsForSlug(mode,slug);
+  if(variants.length===0&&mode!=='hype')variants=loadVariantsForSlug('hype',slug);
+  if(variants.length===0)return 0;
+  var pick=variants[Math.floor(Math.random()*variants.length)];
+  if(variants.length>1&&pick._v===pickLoadedVariant._last){
+    pick=variants[(variants.indexOf(pick)+1)%variants.length];
+  }
+  pickLoadedVariant._last=pick._v;
+  return pick._v;
+}
+
+// Play voice for a reaction. Picks a random loaded variant — or the exact
+// variant requested (so the visual and the voice say the same line).
+function playVoice(slug,preferV){
+  if(!voiceEnabled||!slug)return false;
+  var mode=hypeMode; // 'hype' or 'boom'
+  var variants=loadVariantsForSlug(mode,slug);
+  // Try this mode first; if it has nothing, fall back to 'hype' as default
+  if(variants.length===0&&mode!=='hype'){
+    variants=loadVariantsForSlug('hype',slug);
+  }
+  if(variants.length===0){
+    dbgLog('system','voice MISS: '+mode+'/'+slug+' (no variants loaded yet)');
+    return false;
+  }
+  var pick=null;
+  if(preferV){
+    for(var i=0;i<variants.length;i++){if(variants[i]._v===preferV){pick=variants[i];break}}
+  }
+  if(!pick){
+    // Pick a random variant, but try not to repeat the immediately-prior one
+    pick=variants[Math.floor(Math.random()*variants.length)];
+    if(variants.length>1&&pick===playVoice._lastPick){
+      pick=variants[(variants.indexOf(pick)+1)%variants.length];
+    }
+  }
+  playVoice._lastPick=pick;
+  // Play the primed audio element directly (no clone — iOS Safari blocks cloned audio).
+  // If the same variant fires twice quickly, the second call resets currentTime and replays.
+  try{
+    pick.volume=voiceBaseVol*getHypeVolumeScale();
+    pick.currentTime=0;
+    var p=pick.play();
+    if(p&&p.then){
+      p.catch(function(err){dbgLog('miss','voice play rejected: '+err.name+' — '+err.message)});
+    }
+    dbgLog('fire','voice: '+mode+'/'+slug);
+    return true;
+  }catch(e){
+    dbgLog('miss','voice play failed: '+e);
+    return false;
+  }
+}
+
+// ============================================================
+// FIRE HYPE — visual + voice + sound + dim subtitles briefly
+// ============================================================
+// THE POCKET — a real hype man lands ON the beat, not on the word.
+// If the beat is playing and the next 8th-note grid point is close,
+// hold the AUDIO until that grid point (visual still fires instantly —
+// eyes want immediacy, ears want rhythm). If the pocket is too far
+// away (>180ms), fire now; a late reaction is worse than an off-grid one.
+function pocketDelayMs(){
+  if(!playing||!ac||!audioUnlocked)return 0;
+  var stepDur=60/tempo/4,grid=stepDur*2; // 8th notes
+  var loopDur=16*stepDur;
+  var pos=((ac.currentTime-loopSt)%loopDur+loopDur)%loopDur;
+  var wait=grid-(pos%grid);
+  if(wait<0.02)wait+=grid; // grid point basically now — take the next one clean
+  return wait<=0.18?Math.round(wait*1000):0;
+}
+function fireHype(item,weight){
+  // Volume matching: scale hype output relative to recent RMS energy
+  // Quiet rap → quieter hype. Loud rap → louder hype.
+  var hypeVol=getHypeVolumeScale();
+  if(hypeBus)hypeBus.gain.setTargetAtTime(hypeVol,getAC().currentTime,0.05);
+
+  // VOICE-LED VISUALS: if this reaction has a voice, pick the exact variant
+  // NOW and paint the line he's about to say. HYPE mode shouts in caps;
+  // BOOM mode keeps the lowercase deadpan — the visual carries the character.
+  // Signatures and custom-text moments (throwback) keep their own text.
+  var burstText=item.text,chosenV=0;
+  if(item.audio&&!item.signature&&!item.keepText&&typeof PHRASES!=='undefined'&&PHRASES[item.audio]){
+    chosenV=pickLoadedVariant(item.audio);
+    if(chosenV){
+      var lines=PHRASES[item.audio][hypeMode==='boom'?'boom':'hype'];
+      if(lines&&lines[chosenV-1]){
+        burstText=hypeMode==='boom'?lines[chosenV-1]:lines[chosenV-1].toUpperCase();
+      }
+    }
+  }
+
+  showGraffitiBurst(burstText,item.color,!!item.signature);
+  // Dim the subtitle stripe so the burst dominates
+  var subs=document.getElementById('subs');
+  if(subsVisible){
+    subs.classList.add('dim');
+    clearTimeout(fireHype._dimT);
+    var dimDur=item.signature?900:(weight==='heavy'?500:350);
+    fireHype._dimT=setTimeout(function(){subs.classList.remove('dim')},dimDur);
+  }
+  // Voice + synth fx layered together — snapped to the beat pocket when one is near.
+  // The voice plays the SAME variant the burst is showing.
+  var pd=pocketDelayMs();
+  var playAudio=function(){
+    if(item.audio)playVoice(item.audio,chosenV);
+    if(item.fx)try{item.fx()}catch(e){}
+  };
+  if(pd>0){dbgLog('system','pocket: holding audio '+pd+'ms for the grid');setTimeout(playAudio,pd)}
+  else playAudio();
+}
+
+// Compute hype volume scale based on recent RMS — quieter when rapper is quiet
+function getHypeVolumeScale(){
+  if(!rmsHistory.length)return 1.0;
+  // Take peak of last ~1.5s
+  var peak=0,now=Date.now();
+  for(var i=rmsHistory.length-1;i>=0;i--){
+    if(now-rmsHistory[i].ts>1500)break;
+    if(rmsHistory[i].rms>peak)peak=rmsHistory[i].rms;
+  }
+  // Map RMS 0.03-0.25 → scale 0.55-1.15
+  if(peak<0.03)return 0.65;
+  if(peak>0.25)return 1.15;
+  return 0.65+(peak-0.03)*((1.15-0.65)/(0.25-0.03));
+}
+
+function showGraffitiBurst(text,color,isSignature){
+  var stage=document.getElementById('hypeStage');
+  var el=document.createElement('div');
+  el.className='hype-burst'+(isSignature?' signature':'');
+  el.textContent=text;
+  var cx,cy;
+  if(isSignature){
+    // Center it, big — this is a brand moment
+    cx=W*0.5+(Math.random()-0.5)*W*0.1;
+    cy=H*0.4+(Math.random()-0.5)*H*0.08;
+  }else{
+    cx=W*0.5+(Math.random()-0.5)*W*0.35;
+    cy=H*0.4+(Math.random()-0.5)*H*0.22;
+  }
+  el.style.left=cx+'px';
+  el.style.top=cy+'px';
+  if(!isSignature){
+    // Heat scales the burst — cold open is modest, peak set is WALL-SIZED
+    var heatScale=1+heat/200; // 1.0 cold → 1.5 peaked
+    var size=Math.max(54,Math.min(170,(W*0.2-text.length*2)*heatScale));
+    el.style.fontSize=size+'px';
+    el.style.color=color;
+    el.style.webkitTextStroke='3px #1A1A1A';
+  }
+  el.style.setProperty('--rot',((Math.random()-0.5)*(isSignature?10:14))+'deg');
+  stage.appendChild(el);
+  // Splatter dots — more for signature, more when heat is up
+  var n=(isSignature?14:6)+Math.floor(heat/25);
+  for(var i=0;i<n;i++){
+    var sp=document.createElement('div');sp.className='hype-splatter';
+    sp.style.left=cx+'px';sp.style.top=cy+'px';
+    sp.style.background=isSignature?(['#FF3B30','#FF9500','#FFCC00'][i%3]):color;
+    var ang=Math.random()*Math.PI*2,d=(isSignature?80:40)+Math.random()*(isSignature?180:120);
+    sp.style.setProperty('--dx',Math.cos(ang)*d+'px');
+    sp.style.setProperty('--dy',Math.sin(ang)*d+'px');
+    stage.appendChild(sp);
+    setTimeout(function(s){return function(){s.remove()}}(sp),isSignature?1800:1300);
+  }
+  setTimeout(function(){el.remove()},isSignature?2000:1500);
+}
+
+// ============================================================
+// CONTROLS
+// ============================================================
+function resetUserHits(){
+  userHits=initPat();
+  loadGenre();
+  if(melActive)genMel();
+  // Clear all markers
+  for(var i=0;i<userHitMarkers.length;i++){try{userHitMarkers[i].el.remove()}catch(e){}}
+  userHitMarkers=[];
+  document.getElementById('resetBtn').style.display='none';
+  lastUndoableRemoval=null;
+}
+
+// GO
+init();
+</script>
+</body>
+</html>
