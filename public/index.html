@@ -1710,25 +1710,77 @@ var MAX_SUB_WORDS=10; // how many words visible at once
 var lastInterimSet=[]; // current interim words (replaced as recognizer updates)
 
 function startMic(){
-  // Raw capture: default constraints (echoCancellation on) push iOS into
-  // voice-chat session mode, which DUCKS our own beat output around voice
-  // activity — drums vanish, sustained pad survives. Raw mode keeps the
-  // session in normal playback. Tradeoff: on phone speaker the analyser
-  // hears some beat bleed, so RMS reads slightly hotter on iOS.
-  navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}}).then(function(stream){
+  // Echo cancellation ON: AEC subtracts our own beat from the mic input —
+  // essential for flow-mode onset detection on phone speakers (otherwise
+  // the kit hypes itself). The iOS beat-ducking culprit was the speech
+  // recognizer's session, not these constraints — recognizer is off on iOS.
+  navigator.mediaDevices.getUserMedia({audio:true}).then(function(stream){
     micStr=stream;
     var ctx=getAC(),src=ctx.createMediaStreamSource(stream);
     micAn=ctx.createAnalyser();micAn.fftSize=2048;micAn.smoothingTimeConstant=0.8;
     src.connect(micAn);
     micOn=true;
     document.getElementById('micp').classList.remove('show');
-    startSpeechRecog();
+    // WebKit AudioSession API where available — declare play-and-record
+    // intent so iOS routes/mixes instead of treating us like a phone call
+    try{if(navigator.audioSession)navigator.audioSession.type='play-and-record'}catch(e){}
+    // iOS: webkitSpeechRecognition DUCKS all page audio while its session
+    // captures + processes each phrase (unfixable from JS — documented
+    // WebKit issue). The beat kept vanishing mid-flow. So on iOS the
+    // recognizer stays OFF and reactions ride pure energy + cadence —
+    // the beat NEVER drops. Keyword call-outs stay on desktop/Android;
+    // they come to iPhone in the native app where the audio session is ours.
+    if(IS_IOS)startFlowMode();else startSpeechRecog();
     monitorRMS();
     fireHype({text:'LET HIM COOK',fx:fxAirhorn,color:'#FF6B35'},'heavy');
   }).catch(function(err){
     document.getElementById('mictxt').textContent='mic permission denied';
     document.getElementById('micsub').textContent='enable microphone access and reload to use AD-LIB hype mode';
   });
+}
+
+// ============================================================
+// iOS FLOW MODE — no recognizer, reactions ride energy + cadence
+// ============================================================
+var IS_IOS=/iP(hone|ad|od)/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+var flowOnsets=[],flowAvg=0,lastFlowFireTs=0,lastOnsetTs=0;
+function startFlowMode(){
+  dbgLog('system','iOS FLOW MODE — recognizer off (it ducks page audio); riding energy + cadence');
+  setInterval(flowTick,40);
+}
+function flowTick(){
+  if(!micOn||!micAn)return;
+  var bufLen=micAn.fftSize,td=new Uint8Array(bufLen);
+  micAn.getByteTimeDomainData(td);
+  var sum=0;for(var i=0;i<bufLen;i++){var v=(td[i]-128)/128;sum+=v*v}
+  var rms=Math.sqrt(sum/bufLen);
+  var now=Date.now();
+  // Onset = rising energy clearly above the rolling envelope (syllable-ish).
+  // Compare against the PREVIOUS envelope, then update — a sharp attack
+  // shouldn't lift its own reference.
+  if(rms>0.05&&rms>flowAvg*1.45&&now-lastOnsetTs>110){
+    lastOnsetTs=now;flowOnsets.push(now);bumpHeat(0.6);
+  }
+  flowAvg=flowAvg*0.92+rms*0.08;
+  while(flowOnsets.length&&now-flowOnsets[0]>2000)flowOnsets.shift();
+  var cad=flowOnsets.length; // onsets in the last 2s
+  // SIGNATURE on a hot streak — same cooldown curve as keyword mode
+  var sigCooldown=10000-heat*40;
+  if(cad>=9&&now-lastSignatureTs>sigCooldown){
+    var sig=SIGNATURE_REACTIONS[Math.floor(Math.random()*SIGNATURE_REACTIONS.length)];
+    dbgLog('fire','FLOW SIGNATURE: '+sig.text+' ['+cad+' onsets/2s] heat='+Math.round(heat));
+    fireHype(sig,'heavy');bumpHeat(15);
+    lastSignatureTs=now;lastReactionTs=now;lastHeavyReactionTs=now;
+    return;
+  }
+  // Steady flow keeps him talking — generic hype on a heat-scaled interval
+  var gap=heat>70?2200:3200;
+  if(cad>=4&&now-lastReactionTs>gap&&now-lastFlowFireTs>gap){
+    var g=GENERIC_HYPE[Math.floor(Math.random()*GENERIC_HYPE.length)];
+    dbgLog('fire','FLOW HYPE ['+cad+' onsets/2s]: '+g.text);
+    fireHype(g,heat>50?'heavy':'medium');
+    lastReactionTs=now;lastFlowFireTs=now;
+  }
 }
 
 function startSpeechRecog(){
