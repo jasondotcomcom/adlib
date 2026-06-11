@@ -1123,6 +1123,7 @@ function dropBeat(){
   master.gain.value=0.7;
   playing=true;curStep=-1;
   nextT=ac.currentTime+0.05;loopSt=nextT;
+  startSchedClock();
   sched();
   startPad();
   if(G().vinyl)startVinyl();
@@ -1549,15 +1550,30 @@ function pickGenre(btn){
 // ============================================================
 // PLAYBACK / SCHED
 // ============================================================
+// WORKER CLOCK — iOS WebKit suspends main-thread timers during touch
+// gestures (tapping the beatmaker!), starving the sequencer: drums stop
+// getting scheduled while the pad drones on, then it "catches back up."
+// Worker timers are exempt from touch throttling. The worker just ticks;
+// sched() still runs on the main thread but is woken by message events,
+// which keep flowing during gestures.
+var schedWorker=null;
+function startSchedClock(){
+  if(schedWorker)return true;
+  try{
+    var blob=new Blob(["var id=setInterval(function(){postMessage(0)},25);"],{type:'application/javascript'});
+    schedWorker=new Worker(URL.createObjectURL(blob));
+    schedWorker.onmessage=function(){sched()};
+    return true;
+  }catch(e){schedWorker=null;return false}
+}
 function sched(){
   if(!playing)return;
-  if(!ac){tmrID=setTimeout(sched,50);return}
+  if(!ac){if(!schedWorker)tmrID=setTimeout(sched,50);return}
   var c=ac;
-  // 0.35s lookahead: signature bursts + speech recognition can stall the
-  // main thread >100ms on phones — with a short lookahead the drum
-  // sequencer starves while the pad drones on. Audio scheduled this far
-  // ahead survives the jank.
-  while(nextT<c.currentTime+0.35){
+  // 0.6s lookahead: bursts + gesture handling can still block the main
+  // thread for stretches on phones — audio scheduled this far ahead
+  // survives the jank. Live taps are unaffected (separate immediate path).
+  while(nextT<c.currentTime+0.6){
     curStep=(curStep+1)%16;
     if(curStep===0){loopSt=nextT;barCount++;setChord(barCount)}
     // SWING: delay every off-16th by the genre's swing amount.
@@ -1570,7 +1586,7 @@ function sched(){
     pStep(curStep,swT);
     nextT+=stepDur;
   }
-  tmrID=setTimeout(sched,20);
+  if(!schedWorker)tmrID=setTimeout(sched,20); // fallback only — worker clock drives normally
 }
 var barCount=0;
 function pStep(step,time){
