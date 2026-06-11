@@ -417,7 +417,11 @@ function getAC(){
 function getM(){
   var c=getAC();if(!c)return null;
   if(!master){
-    var comp=c.createDynamicsCompressor();comp.threshold.value=-10;comp.knee.value=8;comp.ratio.value=4;comp.attack.value=0.003;comp.release.value=0.15;
+    // Output safety comp only — high threshold, gentle ratio, fast release.
+    // At -10/4:1 a loud voice line pulled the whole beat down with it
+    // (sidechain pumping); brutal on phone speakers that have no bass to
+    // anchor the kick.
+    var comp=c.createDynamicsCompressor();comp.threshold.value=-5;comp.knee.value=6;comp.ratio.value=3;comp.attack.value=0.003;comp.release.value=0.08;
     beatAn=c.createAnalyser();beatAn.fftSize=256;beatAn.smoothingTimeConstant=0.8;
     master=c.createGain();master.gain.value=0.7;
     // beatBus is the main beat output (drums+bass+pad+vinyl) — what pinch-volume controls
@@ -651,7 +655,10 @@ function pMel(midi,t,dur){
   if(best!==null){
     var s=c.createBufferSource();s.buffer=KIT['keys_'+best];
     s.playbackRate.value=freq/mf(best);
-    var g=c.createGain();g.gain.setValueAtTime(0.32*hVol(),t);g.gain.setValueAtTime(0.3,t+dd*0.6);g.gain.exponentialRampToValueAtTime(0.001,t+dd*1.4);
+    // 0.22: sampled keys are peak-normalized WAVs — much hotter than the
+    // old Karplus pluck. At 0.32 they leaned on the bus compressors and
+    // shoved the drums under.
+    var g=c.createGain();g.gain.setValueAtTime(0.22*hVol(),t);g.gain.setValueAtTime(0.21,t+dd*0.6);g.gain.exponentialRampToValueAtTime(0.001,t+dd*1.4);
     s.connect(g).connect(padGain);s.start(t);s.stop(t+dd*1.4+0.05);
     return;
   }
@@ -1546,7 +1553,11 @@ function sched(){
   if(!playing)return;
   if(!ac){tmrID=setTimeout(sched,50);return}
   var c=ac;
-  while(nextT<c.currentTime+0.1){
+  // 0.35s lookahead: signature bursts + speech recognition can stall the
+  // main thread >100ms on phones — with a short lookahead the drum
+  // sequencer starves while the pad drones on. Audio scheduled this far
+  // ahead survives the jank.
+  while(nextT<c.currentTime+0.35){
     curStep=(curStep+1)%16;
     if(curStep===0){loopSt=nextT;barCount++;setChord(barCount)}
     // SWING: delay every off-16th by the genre's swing amount.
