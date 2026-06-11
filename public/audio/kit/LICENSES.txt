@@ -1,0 +1,33 @@
+AD-LIB drum kit + keys — sample sources and licenses
+=====================================================
+All files in this folder are processed derivatives (trimmed, layered,
+saturated, peak-normalized to -1 dBFS, 44.1kHz/16-bit mono WAV) of the
+CC0-licensed sources below. CC0 1.0 permits use, modification, and
+redistribution, commercially or otherwise, without attribution.
+
+DRUMS — kick.wav, deep.wav, snare.wav, clap.wav, hat.wav, ohat.wav,
+rim.wav (and all drum candidates in candidates/)
+  Source: Roland TR-808 Sound Sample Set 1.0.0 (1994) by Michael
+          Fischer / Technopolis, as published by the TidalCycles
+          project.
+  URL:    https://github.com/tidalcycles/sounds-tr808-fischer
+  License: CC0 1.0 Universal (repository LICENSE file)
+  Source files used: BD5025, BD7525, BD5050, BD0075, BD2575, BD0050,
+          SD7575, SD5075, SD7550, CP, CH, OH00, OH25, OH50, RS
+          (16-bit/44.1kHz WAV, sampled from TR-808 serial no. 103852)
+
+KEYS — keys_48.wav (C2, 130.81 Hz / MIDI 48), keys_60.wav (C3,
+261.63 Hz / MIDI 60), keys_72.wav (C4, 523.25 Hz / MIDI 72), and
+keys candidates in candidates/
+  Source: FreePats project, "FM Synthesized Piano #1" (Yamaha DX7
+          E.Piano 1 emulation rendered from the Hexter software
+          synthesizer), version 2019-09-16.
+  URL:    https://freepats.zenvoid.org/ElectricPiano/synthesized-piano.html
+  Download: https://github.com/freepats/fm-piano1/releases/download/2019-09-16/FM-Piano1-SFZ+WAV-20190916.7z
+  License: CC0 1.0 Universal
+  Source files used: C3v100/C4v100/C5v100 (and v80 for candidates).
+  Note: FreePats note names are one octave above this project's MIDI
+  convention; fundamentals were verified by FFT spectral analysis
+  (130.75 / 261.62 / 523.25 Hz measured).
+
+Compiled 2026-06-11 for adlib.live.
