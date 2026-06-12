@@ -410,8 +410,20 @@ var W=window.innerWidth,H=window.innerHeight;
 window.addEventListener('resize',function(){W=window.innerWidth;H=window.innerHeight});
 
 function getAC(){
-  try{if(!ac)ac=new(window.AudioContext||window.webkitAudioContext)();
-  if(ac.state==='suspended')ac.resume();}catch(e){}
+  try{if(!ac){
+    ac=new(window.AudioContext||window.webkitAudioContext)();
+    // iOS suspends the context with a non-standard 'interrupted' state
+    // around audio-session events and does NOT auto-resume. Watchdog
+    // kicks it back while the beat should be playing.
+    ac.onstatechange=function(){
+      dbgLog('system','AC state: '+ac.state);
+      if(ac.state!=='running'&&(playing||audioUnlocked)){try{ac.resume()}catch(e){}}
+    };
+    setInterval(function(){
+      if(ac&&audioUnlocked&&ac.state!=='running'){try{ac.resume()}catch(e){}}
+    },700);
+  }
+  if(ac.state!=='running')ac.resume();}catch(e){}
   return ac;
 }
 function getM(){
@@ -1157,48 +1169,21 @@ var audioElementsPrimed=false;
 function primeAudioForIOS(){
   if(audioElementsPrimed)return;
   audioElementsPrimed=true;
-  // Walk every audio element we know about and prime it
-  var primed=0,failed=0;
-  for(var key in audioCache){
-    var arr=audioCache[key]||[];
-    for(var i=0;i<arr.length;i++){
-      (function(a){
-        try{
-          a.muted=true; // play silently during the prime
-          var p=a.play();
-          if(p&&p.then){
-            p.then(function(){a.pause();a.currentTime=0;a.muted=false;primed++})
-             .catch(function(){failed++;a.muted=false});
-          }else{
-            // legacy — assume it worked
-            a.pause();a.currentTime=0;a.muted=false;primed++;
-          }
-        }catch(e){failed++}
-      })(arr[i]);
-    }
-  }
-  // Some audio elements might not have loaded yet; re-prime once they've cached.
-  // We do another pass after a short delay to catch late-loaders.
+  // Voices play through Web Audio buffers now — there are no media
+  // elements to unlock. (The old prime walked ~222 <audio> elements and
+  // play()ed them all muted inside the start gesture — a media-element
+  // storm that thrashed the iOS audio engine for the whole session.)
+  // Just make sure the context is awake inside the gesture, then warm
+  // the workhorse reaction buffers once probes have landed.
+  try{var c=getAC();if(c&&c.state!=='running')c.resume()}catch(e){}
   setTimeout(function(){
-    for(var key in audioCache){
-      var arr=audioCache[key]||[];
-      for(var i=0;i<arr.length;i++){
-        if(!arr[i]._primed){
-          (function(a){
-            try{
-              a.muted=true;
-              var p=a.play();
-              if(p&&p.then){
-                p.then(function(){a.pause();a.currentTime=0;a.muted=false;a._primed=true})
-                 .catch(function(){a.muted=false});
-              }
-            }catch(e){}
-          })(arr[i]);
-        }
-      }
+    var warm=['ayy','sheesh','bars','whooo','talktoem','riff','adlib'];
+    for(var i=0;i<warm.length;i++){
+      var vars=audioCache[hypeMode+'/'+warm[i]]||[];
+      if(vars.length)voiceBufferFor(vars[0].url).catch(function(){});
     }
-    dbgLog('system','iOS audio primed (primary='+primed+', failed='+failed+')');
-  },800);
+    dbgLog('system','audio context primed; voice buffers decode on demand');
+  },1200);
 }
 
 // ============================================================
@@ -2335,21 +2320,15 @@ function loadVariantsForSlug(mode,slug){
   if(audioProbed[key])return audioCache[key]||[];
   audioProbed[key]=true;
   audioCache[key]=[];
+  // fetch-probe instead of <audio> probe: hundreds of live media elements
+  // thrashed the iOS audio engine (engine-level stutter once busy).
+  // A GET warms the HTTP cache; playback decodes on demand (voiceBufferFor).
   for(var v=1;v<=VARIANTS_PER_SLUG;v++){
     (function(variant){
-      var a=new Audio(audioPath(mode,slug,variant));
-      a.preload='auto';
-      a.volume=voiceBaseVol;
-      a._v=variant; // remember which variant this is — voice-led visuals need it
-      a.addEventListener('canplaythrough',function(){
-        // Only add to the cache once it's actually playable
-        if(audioCache[key].indexOf(a)<0)audioCache[key].push(a);
-      });
-      a.addEventListener('error',function(){
-        // 404 or decode failure — silently skip
-      });
-      // Trigger load
-      try{a.load()}catch(e){}
+      var url=audioPath(mode,slug,variant);
+      fetch(url).then(function(r){
+        if(r.ok)audioCache[key].push({_v:variant,url:url});
+      }).catch(function(){});
     })(v);
   }
   return audioCache[key];
@@ -2399,27 +2378,15 @@ function playVoice(slug,preferV){
   playVoice._lastPick=pick;
   // Play the primed audio element directly (no clone — iOS Safari blocks cloned audio).
   // If the same variant fires twice quickly, the second call resets currentTime and replays.
-  // Play through Web Audio (single output path — see voiceBufferFor).
-  // The primed <audio> element is kept only as a fallback if decode fails.
-  var url=pick.currentSrc||pick.src;
+  // Play through Web Audio — single output path, no media elements.
   var vol=voiceBaseVol*getHypeVolumeScale();
-  voiceBufferFor(url).then(function(buf){
+  voiceBufferFor(pick.url).then(function(buf){
     var c=getAC(),s=c.createBufferSource();s.buffer=buf;
     var g=c.createGain();g.gain.value=vol;
     s.connect(g).connect(getHypeOut());
     s.start();
   }).catch(function(err){
-    dbgLog('miss','voice buffer failed ('+(err&&err.message||err)+') — falling back to <audio>');
-    try{
-      pick.volume=vol;
-      pick.currentTime=0;
-      var p=pick.play();
-      if(p&&p.then){
-        p.catch(function(e2){dbgLog('miss','voice play rejected: '+e2.name+' — '+e2.message)});
-      }
-    }catch(e){
-      dbgLog('miss','voice play failed: '+e);
-    }
+    dbgLog('miss','voice buffer failed: '+(err&&err.message||err));
   });
   dbgLog('fire','voice: '+mode+'/'+slug);
   return true;
