@@ -2,12 +2,14 @@
 //   POST /api/voice        body: the clip as a WAV  ->  { id }
 //   GET  /api/voice?id=…   ->  the WAV
 // Only accepts exactly what the site records: 16-bit mono 32 kHz, at most 2.6 seconds.
+// A clip nobody has opened for 30 days is deleted by api/sweep.js.
 // Needs a Vercel Blob store connected to the project (BLOB_READ_WRITE_TOKEN).
 const { put, head } = require('@vercel/blob');
 const crypto = require('node:crypto');
 
 const RATE = 32000, MAX_BYTES = 44 + RATE * 2 * 2.6;
 const path = id => `voices/${id}.wav`;
+const seen = id => `seen/${id}`;            // a tiny marker, rewritten each time the clip is opened (see sweep.js)
 
 function readBody(req) {
   if (Buffer.isBuffer(req.body)) return Promise.resolve(req.body);
@@ -31,7 +33,10 @@ module.exports = async (req, res) => {
       if (!/^[a-z0-9]{8,20}$/.test(id)) return res.status(400).json({ error: 'bad id' });
       let meta; try { meta = await head(path(id)); } catch { return res.status(404).json({ error: 'not found' }); }
       const r = await fetch(meta.url); if (!r.ok) return res.status(404).json({ error: 'not found' });
-      res.setHeader('Content-Type', 'audio/wav'); res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      // note that it was opened, so the monthly sweep knows this one is still wanted
+      try { await put(seen(id), String(Date.now()), { access: 'public', contentType: 'text/plain', addRandomSuffix: false, allowOverwrite: true }); } catch {}
+      // cached for a day in that browser, so someone who keeps coming back keeps it alive
+      res.setHeader('Content-Type', 'audio/wav'); res.setHeader('Cache-Control', 'private, max-age=86400');
       return res.status(200).send(Buffer.from(await r.arrayBuffer()));
     }
     if (req.method === 'POST') {
