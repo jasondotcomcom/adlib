@@ -67,16 +67,16 @@ body[data-view='perform'] #build { display: none; }
 .dice:active { color: var(--bg); background: var(--yellow); border-color: var(--yellow); }
 
 /* say a word, get a beat */
-.say { display: grid; gap: 6px; background: var(--bg); }
-.say .k { font-size: 15px; color: var(--paper); text-align: center; }
-.sayrow { display: grid; grid-template-columns: 36px 1fr auto; gap: 10px; align-items: center; height: 64px; padding: 0 8px 0 12px; border: 2px solid var(--grey); border-radius: 999px; }
+.say { display: grid; gap: 6px; justify-items: center; }
+.say .k { font-size: 15px; color: var(--paper); text-align: center; text-wrap: balance; background: var(--bg); padding: 3px 14px; border-radius: 18px; }
+.sayrow { justify-self: stretch; background: var(--bg); display: grid; grid-template-columns: 36px 1fr auto; gap: 10px; align-items: center; height: 64px; padding: 0 8px 0 12px; border: 2px solid var(--grey); border-radius: 999px; }
 #sayWord { font-size: clamp(17px, 5.4vw, 21px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--yellow); }
 #sayBtn { height: 46px; padding: 0 22px; border-radius: 999px; background: var(--red); color: var(--paper); font-size: 17px; position: relative; overflow: hidden; }
 #sayBtn.live { background: var(--paper); color: var(--bg); }
 #sayBtn.live::after { content: ''; position: absolute; inset: 0; background: rgba(253, 45, 85, 0.55); transform-origin: left; animation: take var(--take, 2.4s) linear forwards; }
 @keyframes take { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 .knob.drums { grid-column: 1 / -1; order: 1; } .knob.swing, .knob.music { order: 2; } .knob.acts { order: 3; }
-.knobs { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px 14px; align-items: end; background: var(--bg); }
+.knobs { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px 14px; align-items: end; background: var(--bg); border-radius: 18px; }
 .knob { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
 .knob .k { font-size: 14px; color: var(--grey); padding-left: 4px; }
 .knob .k em { font-style: normal; font-weight: 500; }
