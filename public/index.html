@@ -43,6 +43,15 @@
 
   <section id="grid" aria-label="Beat grid. Tap or drag to place hits."></section>
 
+  <section class="say" aria-label="Make the beat out of your voice">
+    <p class="k" id="sayLine">say a word. i'll make the beat out of it.</p>
+    <div class="sayrow">
+      <button type="button" id="sayRoll" class="dice" aria-label="Roll something else to say"></button>
+      <output id="sayWord">boots and cats</output>
+      <button type="button" id="sayBtn">Record</button>
+    </div>
+  </section>
+
   <section class="knobs" aria-label="Beat settings">
     <div class="knob">
       <span class="k">Tempo</span>
@@ -56,11 +65,11 @@
       <span class="k">Swing <em id="swingVal">58%</em></span>
       <input type="range" id="swing" min="50" max="68" step="1" value="58">
     </label>
-    <div class="knob">
+    <div class="knob drums">
       <span class="k">Drums</span>
       <div class="seg" id="kit" role="group" aria-label="Drum sound"></div>
     </div>
-    <div class="knob">
+    <div class="knob music">
       <span class="k">Music</span>
       <div class="seg" role="group" aria-label="Music layers">
         <button type="button" id="keysBtn" aria-pressed="true">Chords</button>

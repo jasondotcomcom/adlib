@@ -68,7 +68,7 @@ export const VIBES = [
   },
 ].map(v => ({ ...v, pat: v.pat.map(p) }));
 
-export const KITS = ['clean', 'dusty', 'crunch'];
+export const KITS = ['clean', 'dusty', 'crunch', 'you'];      // 'you' is a kit cut from the player's own voice
 
 export const vibeById = id => VIBES.find(v => v.id === id) || VIBES[2];
 

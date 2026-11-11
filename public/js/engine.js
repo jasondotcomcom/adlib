@@ -13,6 +13,11 @@ export const getCtx = () => ctx;
 export const nodes = N;
 export const mtof = m => 440 * Math.pow(2, (m - 69) / 12);
 
+// A kit made of the player's own voice plugs in here (see voicekit.js). Null until they record one.
+let own = null;
+export const setOwnKit = k => { own = k; };
+const mine = () => song.kit === 'you' && own && own.ready();
+
 // What the performance is doing right now. The hype brain writes this.
 export const perf = { on: false, heat: 0, rapping: false, dropUntilStep: -1 };
 
@@ -122,6 +127,7 @@ const KIT_FX = {
   clean: { drive: 1.6, levels: 0, tone: 16000, rate: 1, crackle: 0 },
   dusty: { drive: 2.6, levels: 96, tone: 7800, rate: 0.94, crackle: 0.5 },
   crunch: { drive: 4.2, levels: 40, tone: 11000, rate: 1.03, crackle: 0 },
+  you: { drive: 1.8, levels: 0, tone: 16000, rate: 1, crackle: 0 },
 };
 export function applyKit() {
   if (!ctx) return;
@@ -227,7 +233,8 @@ function scheduleStep(abs, time) {
   if (song.pat[6][s] && !dropping) {
     let len = 1; while (len < 8 && !song.pat[6][(s + len) % STEPS]) len++;
     const ch = chordFor(bar), alt = s % 4 !== 0 && hash(bar % 4, s, song.seed + 11) < 0.22;
-    if (v.bass === '808') bass808(ch.bass808 + (alt ? 12 : 0), t, len * sd, 1, v.glide);
+    if (mine()) own.note((v.bass === '808' ? ch.bass808 + 12 : ch.bassRound) + (alt ? 7 : 0), t, Math.min(len, 4) * sd, 'bass');
+    else if (v.bass === '808') bass808(ch.bass808 + (alt ? 12 : 0), t, len * sd, 1, v.glide);
     else bassRound(ch.bassRound + (alt ? 7 : 0), t, Math.min(len, 3) * sd, v.glide);
   }
 
@@ -259,6 +266,7 @@ function drum(r, t, vel) {
   if (r <= 2) { drumLog.push({ t, r }); if (drumLog.length > 64) drumLog.shift(); }
   if (r === 0) sidechain(t);
   if (r === 3 && openHat) { openHat.g.gain.setTargetAtTime(0, t, 0.012); openHat = null; }    // closed hat chokes the open one
+  if (mine()) return own.drum(r, t, vel);
   if (kit[name]) {
     const level = [1, 0.85, 0.7, 0.34, 0.36, 0.55][r];
     const rate = k.rate * (r === 3 ? 0.98 + Math.random() * 0.04 : 1);
@@ -301,6 +309,7 @@ export function audition(row) {
   if (!ctx) return;
   const t = ctx.currentTime + 0.01;
   if (row < 6) drum(row, t, 1);
+  else if (mine()) own.note(chordFor(0).bassRound, t, 0.3, 'bass');
   else { const ch = chordFor(0); vibe().bass === '808' ? bass808(ch.bass808, t, 0.4, 1, false) : bassRound(ch.bassRound, t, 0.25, false); }
 }
 
@@ -393,6 +402,7 @@ function whistleNote(midi, t, dur) {
   clearTimeout(w.timer); w.timer = setTimeout(() => { if (whistle === w && ctx.currentTime > w.dead) { try { w.o.stop(); w.lfo.stop(); } catch {} whistle = null; } }, (dur + 1.2) * 1000 + Math.max(0, (t - ctx.currentTime) * 1000));
 }
 function lead(midi, t, dur, type) {
+  if (mine()) return own.note(midi, t, dur + 0.05, 'lead');
   if (type === 'bell') bell(midi + 12, t, 0.9);
   else if (type === 'whistle') whistleNote(midi, t, dur);
   else if (type === 'keys') key(midi + 12, t, dur + 0.15, 0.75, N.lead);

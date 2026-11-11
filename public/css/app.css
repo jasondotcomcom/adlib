@@ -66,6 +66,16 @@ body[data-view='perform'] #build { display: none; }
 .dice svg { fill: currentColor; }
 .dice:active { color: var(--bg); background: var(--yellow); border-color: var(--yellow); }
 
+/* say a word, get a beat */
+.say { display: grid; gap: 6px; background: var(--bg); }
+.say .k { font-size: 14px; color: var(--grey); padding-left: 4px; }
+.sayrow { display: grid; grid-template-columns: 36px 1fr auto; gap: 10px; align-items: center; height: 52px; padding: 0 6px 0 8px; border: 2px solid var(--line); border-radius: 999px; }
+#sayWord { font-size: 19px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--yellow); }
+#sayBtn { height: 38px; padding: 0 18px; border-radius: 999px; background: var(--paper); color: var(--bg); font-size: 15px; position: relative; overflow: hidden; }
+#sayBtn.live { background: var(--red); color: var(--paper); }
+#sayBtn.live::after { content: ''; position: absolute; inset: 0; background: rgba(12, 11, 14, 0.35); transform-origin: left; animation: take var(--take, 2.4s) linear forwards; }
+@keyframes take { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+.knob.drums { grid-column: 1 / -1; order: 1; } .knob.swing, .knob.music { order: 2; } .knob.acts { order: 3; }
 .knobs { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px 14px; align-items: end; background: var(--bg); }
 .knob { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
 .knob .k { font-size: 14px; color: var(--grey); padding-left: 4px; }
@@ -131,7 +141,9 @@ body[data-view='perform'] #perform { display: block; }
   #markSpace { height: 190px; } .pitch { font-size: 20px; }
   .row { grid-template-columns: 64px 1fr 40px; gap: 10px; } .label { font-size: 17px; }
   .cell { height: 44px; } .cell.on::before { width: min(100% - 6px, 30px); }
-  .knobs { grid-template-columns: 1fr 1fr 1.2fr 1.6fr 1.3fr; }
+  .knobs { grid-template-columns: 1fr 1fr 1.3fr 1.5fr; }
+  .knob.swing, .knob.music { order: 0; } .knob.drums { grid-column: span 2; order: 2; } .knob.acts { grid-column: span 2; order: 3; align-self: end; flex-wrap: nowrap; }
+  #sayWord { font-size: 22px; }
   .dock { left: 50%; right: auto; width: min(760px, 100%); transform: translateX(-50%); padding-left: 24px; padding-right: 24px; }
   .top button { font-size: 15px; }
   .toggles { flex: 1; order: 0; }
