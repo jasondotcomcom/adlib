@@ -90,6 +90,10 @@ function syncPlay() { const on = engine.isPlaying(); $('playBtn').textContent = 
 const withVoice = () => song.kit === 'you' && voice.ready && voice.id;
 function saveHash() { try { history.replaceState(null, '', '#b=' + encodeSong() + (withVoice() ? '&v=' + voice.id : '')); } catch {} }
 
+// the front door shows only the voice row. the machine opens under it once there is a beat.
+const simple = () => document.body.hasAttribute('data-start');
+function openUp() { if (!simple()) return; document.body.removeAttribute('data-start'); document.body.classList.add('opened'); }
+
 let incoming = null;                 // { id, data } promise for a voice that came with the link
 async function wake() {
   await engine.initAudio();
@@ -123,6 +127,7 @@ function wireControls() {
   $('sayRoll').innerHTML = DIE; $('sayWord').textContent = rollSay();
   $('sayRoll').addEventListener('click', () => { $('sayWord').textContent = rollSay(); });
   $('sayBtn').addEventListener('click', sayIt);
+  $('skipBtn').addEventListener('click', async () => { openUp(); await wake(); if (!engine.isPlaying()) engine.play(); syncPlay(); saveHash(); });
   $('shareVoice').addEventListener('click', shareWithVoice);
   $('sharePlain').addEventListener('click', () => { $('shareSheet').hidden = true; sendLink(true); });
   $('shareCancel').addEventListener('click', () => { $('shareSheet').hidden = true; });
@@ -136,7 +141,7 @@ function wireControls() {
   $('retryMic').addEventListener('click', () => listen($('phonesBtn').getAttribute('aria-pressed') === 'true'));
   document.addEventListener('keydown', e => {
     if (e.target.closest('input,textarea')) return;
-    if (e.code === 'Space' && !e.target.closest('button')) { e.preventDefault(); $('playBtn').click(); }
+    if (e.code === 'Space' && !simple() && !e.target.closest('button')) { e.preventDefault(); $('playBtn').click(); }
     if (e.key === 'Escape' && view === 'perform') backToBeat();
     if (e.key === '`') $('debug').hidden = !$('debug').hidden;
   });
@@ -210,7 +215,7 @@ async function sayIt() {
   stopEars(); btn.classList.remove('live'); btn.textContent = 'Record';
   const pcm = data && packTake(data, sr), ok = pcm && buildVoice(unpack(pcm), TAKE_RATE);
   if (ok) { voice.pcm = pcm; voice.id = null; }
-  if (ok) { const made = beatFromVoice(voice.parts); song.kit = 'you'; engine.applyKit(); line.textContent = `i heard ${made.name.toLowerCase()}. ${made.bpm} bpm.`; }
+  if (ok) { const made = beatFromVoice(voice.parts); song.kit = 'you'; engine.applyKit(); openUp(); line.textContent = `i heard ${made.name.toLowerCase()}. ${made.bpm} bpm.`; }
   else line.textContent = "didn't catch that. say it louder.";
   render(); saveHash();
   if (ok || was) { if (!engine.isPlaying()) engine.play(); else engine.restartArc(); syncPlay(); }
@@ -273,7 +278,8 @@ function debugLoop() {
 // ------------------------------------------------------------------ boot
 function boot() {
   const m = location.hash.match(/b=([^&]+)/);
-  if (!(m && decodeSong(decodeURIComponent(m[1])))) loadVibe('boombap');
+  if (m && decodeSong(decodeURIComponent(m[1]))) document.body.removeAttribute('data-start');
+  else { loadVibe('boombap'); document.body.setAttribute('data-start', ''); }
   if (song.kit === 'you') song.kit = vibe().kit;             // until the voice itself has arrived
   const vm = location.hash.match(/[&#]v=([a-z0-9]{8,20})/);
   if (vm) {

@@ -70,7 +70,7 @@ body[data-view='perform'] #build { display: none; }
 .say { display: grid; gap: 6px; background: var(--bg); }
 .say .k { font-size: 15px; color: var(--paper); text-align: center; }
 .sayrow { display: grid; grid-template-columns: 36px 1fr auto; gap: 10px; align-items: center; height: 64px; padding: 0 8px 0 12px; border: 2px solid var(--grey); border-radius: 999px; }
-#sayWord { font-size: 21px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--yellow); }
+#sayWord { font-size: clamp(17px, 5.4vw, 21px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--yellow); }
 #sayBtn { height: 46px; padding: 0 22px; border-radius: 999px; background: var(--red); color: var(--paper); font-size: 17px; position: relative; overflow: hidden; }
 #sayBtn.live { background: var(--paper); color: var(--bg); }
 #sayBtn.live::after { content: ''; position: absolute; inset: 0; background: rgba(253, 45, 85, 0.55); transform-origin: left; animation: take var(--take, 2.4s) linear forwards; }
@@ -92,6 +92,21 @@ body[data-view='perform'] #build { display: none; }
 .acts button:active { background: var(--yellow); border-color: var(--yellow); color: var(--bg); }
 .fine { font-size: 14px; font-weight: 500; color: var(--grey); display: flex; gap: 18px; justify-content: center; }
 .fine.credit { display: block; text-align: center; margin-top: -6px; }
+
+/* the front door: the name, something to say and a record button. the machine arrives with the first beat. */
+#build { transition: padding-top 0.7s cubic-bezier(0.2, 0.8, 0.2, 1); }
+#markSpace { transition: height 0.7s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.skip { display: none; align-self: center; font-size: 15px; font-weight: 500; color: var(--grey); padding: 8px 14px; border-radius: 999px; background: var(--bg); text-decoration: underline; text-underline-offset: 4px; }
+body[data-start] #build { padding-top: 11vh; padding-bottom: 22px; gap: 20px; }
+body[data-start] #markSpace { height: clamp(150px, 30vh, 250px); }
+body[data-start] :is(#grid, #vibes, .knobs, .dock) { display: none; }
+body[data-start] .skip { display: block; }
+body[data-start] .say .k { font-size: clamp(15px, 4.4vw, 18px); }
+body[data-start] .fine:not(.credit) { margin-top: auto; }
+body.opened :is(#grid, #vibes, .knobs) { animation: rise 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+body.opened #grid { animation-delay: 0.15s; } body.opened #vibes { animation-delay: 0.27s; } body.opened .knobs { animation-delay: 0.39s; }
+body.opened .dock { animation: rise 0.5s 0.55s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+@keyframes rise { from { opacity: 0; translate: 0 30px; } }
 
 .dock {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 6; display: grid; grid-template-columns: 1fr 2.2fr 1fr; gap: 14px; align-items: center;
@@ -153,5 +168,6 @@ body[data-view='perform'] #perform { display: block; }
   .toggles { flex: 1; order: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
+  #build, #markSpace { transition: none; } body.opened :is(#grid, #vibes, .knobs, .dock) { animation: none; }
   @keyframes pop { 0% { opacity: 0; } 8%, 84% { opacity: 1; } 100% { opacity: 0; } }
 }

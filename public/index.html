@@ -29,6 +29,7 @@
 <link rel="stylesheet" href="css/app.css">
 </head>
 <body data-view="build">
+<script>if(!/[#&]b=/.test(location.hash))document.body.setAttribute("data-start","")</script>
 
 <canvas id="field" aria-hidden="true"></canvas>
 <div id="bursts" aria-hidden="true"></div>
@@ -47,6 +48,7 @@
       <button type="button" id="sayBtn">Record</button>
     </div>
   </section>
+  <button type="button" id="skipBtn" class="skip">or start with a beat</button>
 
   <section id="grid" aria-label="Beat grid. Tap or drag to place hits."></section>
 
