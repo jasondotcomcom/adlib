@@ -2,7 +2,7 @@
 import { song, vibe, VIBES, KITS, ROWS, ROW_LABELS, STEPS, loadVibe, diceRow, diceAll, newMelody, encodeSong, decodeSong, shownBpm, chordFor } from './song.js';
 import * as engine from './engine.js';
 import { ears, startEars, stopEars, slice, micRate } from './ears.js';
-import { voice, buildVoice, voiceDrum, voiceNote, rollSay } from './voicekit.js';
+import { voice, buildVoice, voiceDrum, voiceNote, voiceTag, voiceChop, voiceRiser, rollSay } from './voicekit.js';
 import { words, startWords, stopWords, onWord, feed } from './words.js';
 import { hype, startHype, stopHype, setMode } from './hype.js';
 import { initStage, setPerforming } from './stage.js';
@@ -102,7 +102,7 @@ function wireControls() {
   for (const k of KITS) {
     const b = document.createElement('button'); b.type = 'button'; b.dataset.kit = k; b.textContent = k[0].toUpperCase() + k.slice(1);
     if (k === 'you') b.hidden = true;
-    b.addEventListener('click', async () => { await wake(); song.kit = k; engine.applyKit(); render(); saveHash(); });
+    b.addEventListener('click', async () => { await wake(); song.kit = k; engine.applyKit(); if (k === 'you') engine.restartArc(); render(); saveHash(); });
     $('kit').appendChild(b);
   }
   $('keysBtn').addEventListener('click', () => { song.keys = !song.keys; render(); saveHash(); });
@@ -187,7 +187,7 @@ async function sayIt() {
   if (ok) { song.kit = 'you'; engine.applyKit(); line.textContent = 'that beat is you now'; }
   else line.textContent = "didn't catch that. say it louder.";
   render(); saveHash();
-  if (ok || was) { if (!engine.isPlaying()) engine.play(); syncPlay(); }
+  if (ok || was) { if (!engine.isPlaying()) engine.play(); else engine.restartArc(); syncPlay(); }
   setTimeout(() => { if (!taking) line.textContent = SAY_LINE; }, 5000);
   taking = false;
 }
@@ -249,7 +249,7 @@ function boot() {
   const m = location.hash.match(/b=([^&]+)/);
   if (!(m && decodeSong(decodeURIComponent(m[1])))) loadVibe('boombap');
   if (song.kit === 'you') song.kit = vibe().kit;             // a link carries the pattern, not the voice
-  engine.setOwnKit({ ready: () => voice.ready, drum: voiceDrum, note: voiceNote });
+  engine.setOwnKit({ ready: () => voice.ready, drum: voiceDrum, note: voiceNote, tag: voiceTag, chop: voiceChop, riser: voiceRiser });
   buildVibes(); buildGrid(); buildTape(); wireControls(); render(); initStage(); playhead(); debugLoop();
   if (new URLSearchParams(location.search).has('debug')) $('debug').hidden = false;
   window.adlib = { song, engine, ears, words, hype, feed, voice, buildVoice };

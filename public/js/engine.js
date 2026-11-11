@@ -17,6 +17,8 @@ export const mtof = m => 440 * Math.pow(2, (m - 69) / 12);
 let own = null;
 export const setOwnKit = k => { own = k; };
 const mine = () => song.kit === 'you' && own && own.ready();
+let arcFrom = 0, under = 0;         // the bar a voice beat started growing from; how much real kit sits under it
+export function restartArc() { arcFrom = Math.floor(Math.max(0, nextStep) / STEPS); }
 
 // What the performance is doing right now. The hype brain writes this.
 export const perf = { on: false, heat: 0, rapping: false, dropUntilStep: -1 };
@@ -183,7 +185,7 @@ function tick() {
 }
 export function play() {
   if (!ctx || playing) return;
-  nextStep = 0; nextTime = ctx.currentTime + 0.06; playing = true; lastBass = null; tick();
+  nextStep = 0; nextTime = ctx.currentTime + 0.06; playing = true; lastBass = null; arcFrom = 0; tick();
 }
 export function stop() {
   playing = false;
@@ -202,6 +204,20 @@ function scheduleStep(abs, time) {
   const dropping = perf.on && heat > 55 && b4 === 3 && s >= 14;
   const landing = perf.on && heat > 55 && b4 === 0 && s === 0 && bar > 0;
   const fill = b4 === 3;
+
+  // A beat made of your voice grows instead of looping: two bars of just you, then the
+  // bass, then the keys, then on bar nine the real kit drops in underneath and the
+  // melody arrives. Every sixteen bars after that it breaks back down to just you.
+  const you = mine(), ab = you ? bar - arcFrom : 0;
+  const stage = !you ? 9 : ab < 2 ? 0 : ab < 4 ? 1 : ab < 8 ? 2 : 3;
+  const bare = you && ab >= 8 && (ab - 8) % 16 === 15;                 // the breakdown bar
+  under = you && stage === 3 && !bare ? 0.6 : 0;
+  if (you) {
+    if (s === 0 && (ab === 0 || bare)) own.tag(t);                     // your word, whole, over the top
+    if (s === 0 && ab >= 8 && (ab - 8) % 16 === 0) { crash(t, 0.55); if (kit.deep) sample('deep', t, 0.75, 1, N.drums); }   // the drop
+    if (s === 8 && (ab === 1 || ab === 3 || ab === 7 || bare)) own.riser(time + 8 * sd, 8 * sd);   // backwards into the change
+    if (s >= 12 && stage >= 2 && fill && !bare) own.chop(t, s - 12, sd);                          // chopped into the turn
+  }
 
   // ---- drums
   for (let r = 0; r < 6; r++) {
@@ -233,20 +249,20 @@ function scheduleStep(abs, time) {
   if (song.pat[6][s] && !dropping) {
     let len = 1; while (len < 8 && !song.pat[6][(s + len) % STEPS]) len++;
     const ch = chordFor(bar), alt = s % 4 !== 0 && hash(bar % 4, s, song.seed + 11) < 0.22;
-    if (mine()) own.note((v.bass === '808' ? ch.bass808 + 12 : ch.bassRound) + (alt ? 7 : 0), t, Math.min(len, 4) * sd, 'bass');
+    if (you) { if (stage >= 1 && !bare) own.note((v.bass === '808' ? ch.bass808 + 12 : ch.bassRound) + (alt ? 7 : 0), t, Math.min(len, 4) * sd, 'bass'); }
     else if (v.bass === '808') bass808(ch.bass808 + (alt ? 12 : 0), t, len * sd, 1, v.glide);
     else bassRound(ch.bassRound + (alt ? 7 : 0), t, Math.min(len, 3) * sd, v.glide);
   }
 
   // ---- keys
-  if (song.keys) {
+  if (song.keys && stage >= 2 && !bare) {
     const ch = chordFor(bar);
     for (const [cs, len, vel] of v.comp) if (cs === s) ch.keys.forEach((m, i) => key(m, t + i * 0.012, len * sd, vel * (i === 3 ? 0.7 : 1)));
     if (v.pad && s === 0) pad(ch.pad, t, STEPS * sd);
   }
 
   // ---- lead (4-bar line)
-  if (song.lead) {
+  if (song.lead && stage >= 3 && !bare) {
     const at = b4 * STEPS + s;
     for (const n of melody()) if (n.s === at) lead(n.midi, t, n.len * sd, v.lead);
   }
@@ -266,7 +282,11 @@ function drum(r, t, vel) {
   if (r <= 2) { drumLog.push({ t, r }); if (drumLog.length > 64) drumLog.shift(); }
   if (r === 0) sidechain(t);
   if (r === 3 && openHat) { openHat.g.gain.setTargetAtTime(0, t, 0.012); openHat = null; }    // closed hat chokes the open one
-  if (mine()) return own.drum(r, t, vel);
+  if (mine()) {
+    own.drum(r, t, vel);
+    if (under && kit[name]) sample(name, t, vel * [1, 0.85, 0.7, 0.34, 0.36, 0.55][r] * under, k.rate, N.drums);   // the real kit, underneath you
+    return;
+  }
   if (kit[name]) {
     const level = [1, 0.85, 0.7, 0.34, 0.36, 0.55][r];
     const rate = k.rate * (r === 3 ? 0.98 + Math.random() * 0.04 : 1);

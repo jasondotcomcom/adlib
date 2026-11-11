@@ -91,6 +91,7 @@ export function analyze(data, sr) {
   }
   const hatStart = at(back(iH), 0.006), kickStart = at(iK, 0.01);
   return {
+    word: [at(first, 0.01), Math.min(data.length, last * hop + win)],
     f0, pitched, ownSnare,
     kick: cut(kickStart, 0.18), perc: cut(kickStart, 0.035),
     hat: cut(hatStart, 0.07), ohat: cut(hatStart, 0.22),
@@ -103,7 +104,7 @@ export function analyze(data, sr) {
 export function buildVoice(data, sr) {
   const parts = analyze(data, sr); if (!parts) return false;
   const ctx = getCtx(), bufs = {};
-  for (const name of ['kick', 'perc', 'hat', 'ohat', 'snare', 'vowel']) {
+  for (const name of ['kick', 'perc', 'hat', 'ohat', 'snare', 'vowel', 'word']) {
     const [a, b] = parts[name], len = b - a; if (len < 64) return false;
     const out = new Float32Array(len); let pk = 0;
     for (let i = 0; i < len; i++) { out[i] = data[a + i]; pk = Math.max(pk, Math.abs(out[i])); }
@@ -111,6 +112,9 @@ export function buildVoice(data, sr) {
     for (let i = 0; i < len; i++) { let w = 1; if (i < fin) w = i / fin; else if (i > len - fout) w = (len - i) / fout; out[i] *= g * w; }
     const buf = ctx.createBuffer(1, len, sr); buf.copyToChannel(out, 0); bufs[name] = buf;
   }
+  const fwd = bufs.word.getChannelData(0), rev = ctx.createBuffer(1, fwd.length, sr), rd = rev.getChannelData(0);
+  for (let i = 0; i < fwd.length; i++) rd[i] = fwd[fwd.length - 1 - i];
+  bufs.rev = rev;
   // a loop inside the vowel that is a whole number of wave cycles long, so held notes do not click
   const v = bufs.vowel, period = sr / parts.f0, start = Math.round(v.length * 0.3), cycles = Math.max(1, Math.floor((v.length * 0.6) / period));
   voice.loop = [start / sr, (start + Math.round(cycles * period)) / sr];
@@ -154,4 +158,28 @@ export function voiceNote(midi, t, dur, role) {
   g.gain.setTargetAtTime(0, t + Math.max(0.06, dur * (bass ? 0.8 : 0.9)), bass ? 0.05 : 0.07);
   src.connect(f).connect(g).connect(bass ? N.bass : N.lead);
   src.start(t); src.stop(t + dur + 0.5);
+}
+
+// ------------------------------------------------------------------ the parts that make a loop into a song
+// the whole word, said once over the top: your producer tag
+export function voiceTag(t) {
+  shot(voice.bufs.word, t, { gain: 0.85, type: 'highpass', freq: 160, dest: N.lead });
+}
+// the vowel chopped on 16ths and climbing, into the turn
+const CHOP = [1, 1.12, 1.26, 1.5];
+export function voiceChop(t, k, sd) {
+  const ctx = getCtx(), src = ctx.createBufferSource(), g = ctx.createGain(), f = ctx.createBiquadFilter();
+  src.buffer = voice.bufs.vowel; src.playbackRate.value = CHOP[k % 4];
+  f.type = 'highpass'; f.frequency.value = 300;
+  const len = Math.min(sd * 0.8, 0.09);
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.5, t + 0.004); g.gain.setTargetAtTime(0, t + len, 0.01);
+  src.connect(f).connect(g).connect(N.lead); src.start(t, voice.loop[0]); src.stop(t + len + 0.08);
+}
+// the word backwards, swelling up so it ends exactly on the next downbeat
+export function voiceRiser(tEnd, room) {
+  const ctx = getCtx(), buf = voice.bufs.rev, len = Math.min(buf.duration, room), src = ctx.createBufferSource(), g = ctx.createGain(), f = ctx.createBiquadFilter();
+  src.buffer = buf; f.type = 'highpass'; f.frequency.value = 400;
+  const t = tEnd - len;
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.6, tEnd - 0.01); g.gain.linearRampToValueAtTime(0, tEnd + 0.01);
+  src.connect(f).connect(g).connect(N.lead); src.start(t, buf.duration - len); src.stop(tEnd + 0.05);
 }
