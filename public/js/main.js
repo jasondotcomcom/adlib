@@ -1,5 +1,5 @@
 // main.js — the page. Two views of one beat: build it, then rap on it.
-import { song, vibe, VIBES, KITS, ROWS, ROW_LABELS, STEPS, loadVibe, diceRow, diceAll, newMelody, encodeSong, decodeSong, shownBpm, chordFor } from './song.js';
+import { song, vibe, VIBES, KITS, ROWS, ROW_LABELS, STEPS, loadVibe, diceRow, diceAll, newMelody, encodeSong, decodeSong, shownBpm, chordFor, beatFromVoice } from './song.js';
 import * as engine from './engine.js';
 import { ears, startEars, stopEars, slice, micRate } from './ears.js';
 import { voice, buildVoice, voiceDrum, voiceNote, voiceTag, voiceChop, voiceRiser, rollSay } from './voicekit.js';
@@ -165,7 +165,7 @@ let toastTimer = null;
 function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 2200); }
 
 // ------------------------------------------------------------------ say a word, get a beat
-const SAY_LINE = "say a word. i'll make the beat out of it.";
+const SAY_LINE = "say a word. how you say it is the beat.";
 const TAKE = 2.4;
 let taking = false;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -184,11 +184,11 @@ async function sayIt() {
   const data = slice(t0, ctx.currentTime), sr = micRate();
   stopEars(); btn.classList.remove('live'); btn.textContent = 'Record';
   const ok = data && buildVoice(data, sr);
-  if (ok) { song.kit = 'you'; engine.applyKit(); line.textContent = 'that beat is you now'; }
+  if (ok) { const made = beatFromVoice(voice.parts); song.kit = 'you'; engine.applyKit(); line.textContent = `i heard ${made.name.toLowerCase()}. ${made.bpm} bpm.`; }
   else line.textContent = "didn't catch that. say it louder.";
   render(); saveHash();
   if (ok || was) { if (!engine.isPlaying()) engine.play(); else engine.restartArc(); syncPlay(); }
-  setTimeout(() => { if (!taking) line.textContent = SAY_LINE; }, 5000);
+  if (!ok) setTimeout(() => { if (!taking) line.textContent = SAY_LINE; }, 5000);
   taking = false;
 }
 

@@ -1,7 +1,7 @@
 // node test/logic.test.mjs — beat data, share links and rhyme detection.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { song, VIBES, loadVibe, encodeSong, decodeSong, diceAll, diceRow, melody, chordFor, rng } from '../public/js/song.js';
+import { song, VIBES, vibeById, loadVibe, encodeSong, decodeSong, diceAll, diceRow, melody, chordFor, rng } from '../public/js/song.js';
 import { parseRhymes, rhymes, tailOf, keywordSlug, isContent } from '../public/js/words.js';
 
 // every vibe is well formed
@@ -55,5 +55,27 @@ for (const s of SAY) { assert.match(s, /[bpdgkt]/, s + ' hard hit'); assert.matc
     const e = new Float32Array(rate); for (let i = 0; i < rate * 0.4; i++) { const tt = i / rate; let v = 0; for (let h = 1; h < 9; h++) v += Math.sin(2 * Math.PI * f * h * tt) / h; e[Math.floor(0.2 * rate) + i] = 0.25 * v * Math.min(1, tt / 0.004); }
     const q = analyze(e, rate); assert.ok(q && Math.abs(q.f0 - f) < f * 0.04, `pitch ${f} at ${rate}: ${q && q.f0}`);
   }
+}
+
+// the beat comes out of the voice: how it is said picks the vibe, the tempo, the rhythm and the key
+{
+  const { beatFromVoice } = await import('../public/js/song.js');
+  const say = (gaps, kinds, f0, sharp) => { let t = 0; const events = kinds.map((k, i) => ({ t: (t += i ? gaps[(i - 1) % gaps.length] : 0), kind: k })); const dur = t + 0.15; return { events, dur, pace: events.length / Math.max(0.3, dur), sharp, f0, pitched: true }; };
+  const slow = beatFromVoice(say([0.42], ['low', 'low', 'low'], 125, 0.12)), slowPat = song.pat[0].join('');
+  assert.ok(['lofi', 'boombap', 'soul'].includes(slow.id), 'slow and low: ' + slow.id);
+  const fast = beatFromVoice(say([0.13], ['low', 'sharp', 'low', 'sharp', 'low', 'low', 'sharp'], 170, 0.3));
+  assert.ok(['jersey', 'afro'].includes(fast.id), 'fast: ' + fast.id);
+  const hissy = beatFromVoice(say([0.2, 0.25], ['sharp', 'low', 'sharp', 'sharp', 'low'], 100, 0.42));
+  assert.ok(['trap', 'drill'].includes(hissy.id), 'low and sharp: ' + hissy.id);
+  assert.notEqual(song.pat[0].join(''), slowPat, 'a different word writes a different kick');
+  for (const r of song.pat) assert.equal(r.length, 16);
+  assert.equal(song.pat[0][0], 1); assert.deepEqual(song.pat[0], song.pat[6], 'bass rides the kick');
+  assert.ok(song.pat[5].some(Boolean), 'sharp sounds became the rim');
+  assert.ok(song.key >= -6 && song.key <= 6 && song.bpm >= 50 && song.bpm <= 180 && song.seed > 0);
+  const a440 = beatFromVoice(say([0.3], ['low', 'low'], 110, 0.1)); assert.equal((((vibeById(a440.id).key + song.key) % 12) + 12) % 12, 9, 'said on an A, in A');
+  assert.ok(decodeSong(encodeSong()), 'still a valid link');
+  // and the cutter reports how the made-up word was said
+  const sr = 48000, d = new Float32Array(sr); for (let i = 0; i < sr * 0.3; i++) d[9600 + i] = 0.3 * Math.sin(2 * Math.PI * 150 * i / sr) * Math.min(1, i / 200);
+  const p = analyze(d, sr); assert.ok(p.events.length >= 1 && p.events[0].kind === 'low' && p.pace > 0 && p.sharp < 0.1);
 }
 console.log('ok');

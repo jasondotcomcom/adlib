@@ -206,3 +206,51 @@ export function decodeSong(str) {
     return true;
   } catch { return false; }
 }
+
+// ---------- a beat that comes out of a voice ----------
+// How someone says a word picks the kind of beat and writes its rhythm.
+// Where each vibe lives: [sounds per second, pitch in Hz, how much of it is sharp]
+const HOME = {
+  lofi: [2.5, 130, 0.15], soul: [3.2, 190, 0.12], boombap: [3.8, 120, 0.22], gfunk: [4.0, 210, 0.2],
+  afro: [5.0, 180, 0.15], trap: [4.2, 110, 0.4], drill: [5.2, 95, 0.38], jersey: [6.5, 170, 0.3],
+};
+export function beatFromVoice(v) {
+  // 1. the kind of beat: slow and soft lands on lo-fi, fast lands on jersey, low and hissy lands on drill
+  const f0 = v.pitched ? v.f0 : 140;
+  let id = 'boombap', best = Infinity;
+  for (const [k, [pace, hz, sharp]] of Object.entries(HOME)) {
+    const d = ((v.pace - pace) / 1.5) ** 2 + (Math.log2(f0 / hz) / 0.6) ** 2 + ((v.sharp - sharp) / 0.12) ** 2;
+    if (d < best) { best = d; id = k; }
+  }
+  loadVibe(id);
+  const vb = vibe(), ev = v.events && v.events.length ? v.events : [{ t: 0, kind: 'low' }];
+
+  // 2. the tempo: the gap between your sounds is a 16th, an 8th or a quarter, whichever sits nearest this kind of beat
+  const gaps = []; for (let i = 1; i < ev.length; i++) gaps.push(ev[i].t - ev[i - 1].t);
+  gaps.sort((a, b) => a - b);
+  const u = gaps.length ? gaps[gaps.length >> 1] : 0.2;
+  let bpm = vb.bpm, off = Infinity;
+  for (const div of [8, 4, 2, 1]) { const c = 60 / (u * div), o = Math.abs(Math.log2(c / vb.bpm)); if (o < off) { off = o; bpm = c; } }
+  song.bpm = Math.round(Math.max(vb.bpm * 0.88, Math.min(vb.bpm * 1.14, bpm)));
+
+  // 3. the rhythm: where your sounds landed becomes where the kick, the bass and the rim land
+  const sd = 60 / song.bpm / 4, hits = ev.map(e => ({ s: Math.round((e.t - ev[0].t) / sd), low: e.kind === 'low' }));
+  const span = hits[hits.length - 1].s + 1, rep = span <= 4 ? 4 : span <= 8 ? 8 : 16;
+  const kick = new Array(STEPS).fill(0), rim = new Array(STEPS).fill(0);
+  for (let k = 0; k < STEPS; k += rep) hits.forEach((h, i) => {
+    const pos = k + h.s; if (pos >= STEPS) return;
+    if (rep < STEPS && k + rep >= STEPS && i === hits.length - 1 && hits.length > 2) return;   // last time round, leave the end open
+    (h.low ? kick : rim)[pos] = 1;
+  });
+  kick[0] = 1;
+  const thin = (row, max) => { for (const odd of [1, 0]) for (let i = STEPS - 1; i > 0 && row.reduce((a, b) => a + b, 0) > max; i--) if (row[i] && i % 2 === odd) row[i] = 0; };
+  thin(kick, 6); thin(rim, 5);
+  if (kick.reduce((a, b) => a + b, 0) >= 2) { song.pat[0] = kick; song.pat[6] = kick.slice(); }   // one lone hit is not a pattern; keep the vibe's
+  if (rim.some(Boolean)) { song.pat[5] = rim; const lastSharp = rim.lastIndexOf(1); song.pat[4] = new Array(STEPS).fill(0); if (lastSharp % 2) song.pat[4][lastSharp] = 1; }
+
+  // 4. the key: the note you said it on becomes the root, so the bass sits where your voice does
+  if (v.pitched) { const k = (((Math.round(69 + 12 * Math.log2(f0 / 440)) - vb.key) % 12) + 12) % 12; song.key = k > 6 ? k - 12 : k; }
+  song.seed = 1 + (Math.abs(ev.reduce((a, e, i) => a + Math.round(e.t * 1000) * (i + 7), Math.round(f0))) % 46655);
+  melodyCache = null;
+  return { id, name: vb.name, bpm: shownBpm() };
+}

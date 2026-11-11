@@ -89,8 +89,21 @@ export function analyze(data, sr) {
     for (let lag = lo + 1; lag < bestLag; lag++) if (rs[lag] >= bestR * 0.88 && rs[lag] >= rs[lag - 1] && rs[lag] >= rs[lag + 1]) { bestLag = lag; break; }
     if (bestLag && r0 > 0 && bestR / r0 > 0.35) { f0 = sr / bestLag; pitched = true; }
   }
+  // how it was said: each new sound, when it landed and whether it was round or sharp
+  const cls = i => (!act(i) ? 0 : zcr[i] > 0.18 ? 2 : 1);
+  const events = []; let prevC = 0, lastT = -1, sharpN = 0, actN = 0;
+  for (let i = first; i <= last; i++) {
+    const c = cls(i); if (c) actN++; if (c === 2) sharpN++;
+    const steady = i + 1 > last || cls(i + 1) === c, jump = i >= 2 ? rms[i] - rms[i - 2] : rms[i];
+    const fresh = c === 1 && prevC === 1 && jump > peak * 0.3;                 // a new syllable inside a run of voice
+    if (c && steady && (c !== prevC || fresh)) { const t = (i * hop) / sr; if (t - lastT >= 0.07) { events.push({ t, kind: c === 2 ? 'sharp' : 'low' }); lastT = t; } }
+    if (steady) prevC = c;
+  }
+  const dur = ((last - first) * hop) / sr;
+
   const hatStart = at(back(iH), 0.006), kickStart = at(iK, 0.01);
   return {
+    events, dur, pace: events.length / Math.max(0.3, dur), sharp: actN ? sharpN / actN : 0,
     word: [at(first, 0.01), Math.min(data.length, last * hop + win)],
     f0, pitched, ownSnare,
     kick: cut(kickStart, 0.18), perc: cut(kickStart, 0.035),
