@@ -1,97 +1,61 @@
-# AD-LIB
+# adlib
 
-The AI hype man. Live at [adlib.live](https://adlib.live).
+The AI hype man. Build a beat, grab the mic, and he backs you up. Home: [adlib.live](https://adlib.live).
 
-## What's in this folder
-
-```
-adlib-live/
-├── public/
-│   ├── index.html        ← the app (replace with adlib-hypeman.html, renamed)
-│   └── audio/
-│       ├── hype/         ← Melly, hype mode (high energy)
-│       └── boom/         ← future second voice (deep mode)
-├── scripts/
-│   ├── generate-audio.js ← runs locally, hits ElevenLabs, downloads MP3s
-│   └── phrases.js        ← the lines AD-LIB will say (edit these to taste)
-├── package.json
-├── vercel.json
-├── .env.example          ← copy to .env.local, add your key
-└── .gitignore
-```
-
-## Setup (one-time)
+## Run it
 
 ```bash
-# 1. Install Node 18+ if you don't have it
-node --version  # should print v18+ or v20+
-
-# 2. Add your ElevenLabs key
-cp .env.example .env.local
-# Edit .env.local and paste your real key
-
-# 3. Drop the latest adlib-hypeman.html into public/ as index.html
-mv adlib-hypeman.html public/index.html
+npm run dev     # http://localhost:3000  (the mic needs localhost or https)
+npm test        # beat data, share links, rhyme detection
 ```
 
-## Generate the audio (one-time, or whenever you tweak phrases)
+No build step. Vercel serves `public/` as it is and runs `api/` as functions.
 
-```bash
-# Generate everything (hype mode by default — boom mode skipped until voice is set)
-npm run generate
+## How it works
 
-# Generate only hype mode
-npm run generate:hype
-
-# Regenerate one specific reaction (e.g. you didn't like how "fire" came out)
-node scripts/generate-audio.js --slug fire
-
-# Regenerate one slug in one mode
-node scripts/generate-audio.js --slug fire --mode hype
-
-# Force-overwrite all existing files (use sparingly — eats credits)
-npm run generate:force
+```
+public/
+  index.html, css/app.css     the page
+  js/song.js                  the beat as data: vibes, pattern, share links, dice
+  js/engine.js                the sound: clock, mix bus, drums, 808, keys, lead
+  js/ears.js + mic-worklet.js the mic: phrases, syllables, the last 10 seconds of you
+  js/words.js                 optional speech-to-text, rhyme detection, keyword map
+  js/hype.js                  adlib: when he comes in, what he does, how big
+  js/stage.js                 the picture: one shader, circles and lines with rings
+  js/phrases.js               what each recorded line says (mirrors scripts/phrases.js)
+  audio/hype, audio/boom      his recorded voice (ElevenLabs, pre-generated)
+  audio/kit                   CC0 TR-808 drums and DX7 keys (see LICENSES.txt)
+  data/rhymes.txt             rhyme tails built from the CMU Pronouncing Dictionary
+  classic.html                the first version, untouched, at /classic
+api/dg-token.js               mints short-lived Deepgram tokens (off until a key is set)
+scripts/                      voice generation and the rhyme-table builder
 ```
 
-## Run locally
+**He listens to rhythm first.** The beat clock is ours, so he knows where every bar ends.
+`ears.js` finds where your phrases start and stop, and `hype.js` answers in the gap, on the
+grid. None of that needs speech-to-text, so it works on iPhone.
 
-```bash
-npm run dev
-# Opens http://localhost:3000
-```
+**He doubles you.** The tail of your last phrase is sampled from the mic and thrown back on
+the beat with a tempo-synced echo.
 
-## Deploy to adlib.live
+**Words are a bonus layer.** When a speech engine is running he also puts your word on
+screen, answers keywords from the voice bank and calls the rhyme. Engines, best first:
 
-```bash
-# First time:
-npx vercel link
+1. Deepgram streaming, if `DEEPGRAM_API_KEY` is set in Vercel. Works on iPhone. Costs money
+   per minute of mic time for every visitor, so put a spending limit on the key.
+2. The browser's own recognizer (desktop Chrome and Android), fed our echo-cancelled mic
+   and run on-device where Chrome supports it.
+3. Nothing. Rhythm and doubling still work.
 
-# Every deploy:
-npm run deploy
-```
+Press the backtick key (or add `?debug`) for a live readout while you tune.
 
-## Cost notes
+## Voice bank
 
-- Free tier: **10,000 characters/month**
-- Full hype-mode generation: ~1,100 characters
-- Both modes (when boom voice is added): ~2,200 characters
-- You have plenty of headroom for iteration. Regenerate freely.
+`scripts/phrases.js` is what he says. `npm run generate` renders it through ElevenLabs into
+`public/audio/` (needs `ELEVENLABS_API_KEY` in `.env.local`). If you change a line, change it
+in `public/js/phrases.js` too so the screen matches the voice.
 
-## Adding the boom voice later
+## Look
 
-1. Pick a deep, commanding voice in your ElevenLabs library.
-2. Copy its voice ID.
-3. Open `scripts/generate-audio.js` and update:
-   ```js
-   const VOICES = {
-     hype: '5WvkIGikU7UeqTpLa0HI',
-     boom: 'YOUR_BOOM_VOICE_ID_HERE'
-   };
-   ```
-4. Run `npm run generate:boom`.
-
-## Iterating on phrases
-
-`scripts/phrases.js` is the source of truth for what AD-LIB says. Each slug has 3
-variants per mode. Edit any line, re-run `--slug <name>` to regenerate just that
-one. The HTML auto-picks a random variant each time the reaction fires.
+Circles and straight lines, yellow, red and blue on black, with rings echoing out. The
+letter grid and ring spacing in `stage.js` are measured from the adlib mark. No fake paint.
