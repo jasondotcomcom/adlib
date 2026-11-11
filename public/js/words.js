@@ -49,7 +49,8 @@ export function stopWords() {
 // ------------------------------------------------------------------ browser recognizer
 // Slang the stock model fumbles. Only on-device recognition accepts these hints.
 const BIAS = ['bars', 'drip', 'no cap', 'sheesh', 'periodt', 'skrrt', 'racks', 'bands', 'opps', 'glock', 'spittin', 'freestyle', 'cypher', 'ad lib', 'goat', 'finna', 'tryna', 'deadass', 'on god', 'whip'];
-let rec = null, useTrack = true, useLocal = false, seen = [], restarts = 0;
+let rec = null, useTrack = true, useLocal = false, seen = [], restarts = 0, heardNothing = 0, watchdog = null;
+onEar('phraseEnd', p => { if (p.dur > 0.4) heardNothing++; });
 
 async function startBrowser() {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -63,6 +64,16 @@ async function startBrowser() {
   } catch {}
   words.engine = 'browser';
   spin(SR);
+  // If you are clearly rapping and not one word has come back, the setup is not
+  // working on this browser. Step down: first drop our mic track, then on-device.
+  heardNothing = 0; clearInterval(watchdog);
+  watchdog = setInterval(() => {
+    if (!active || words.engine !== 'browser') return clearInterval(watchdog);
+    if (words.recent.length || heardNothing < 3) return;
+    heardNothing = 0;
+    if (useTrack) useTrack = false; else if (useLocal) useLocal = false; else { words.status = 'no words from this browser'; return clearInterval(watchdog); }
+    words.status = 'retrying words'; try { rec && rec.abort(); } catch {}
+  }, 1500);
   return true;
 }
 function spin(SR) {
@@ -73,14 +84,15 @@ function spin(SR) {
     try { r.processLocally = true; } catch {}
     try { if (window.SpeechRecognitionPhrase) r.phrases = BIAS.map(p => new window.SpeechRecognitionPhrase(p, 4)); } catch {}
   }
-  r.onstart = () => { words.status = useLocal ? 'words on (on-device)' : 'words on'; };
+  r.onstart = () => { words.status = (useLocal ? 'on-device' : 'cloud') + (useTrack ? ', our mic' : ', browser mic'); };
   r.onresult = e => {
     const now = getCtx().currentTime - 0.3;                  // rough recognizer lag
     for (let i = e.resultIndex; i < e.results.length; i++) {
       const res = e.results[i], list = res[0].transcript.trim().split(/\s+/).filter(Boolean);
       const from = seen[i] || 0;
       // hold back the newest interim word: it is the one most likely to change
-      const upto = res.isFinal ? list.length : Math.max(from, list.length - 1);
+      let upto = res.isFinal ? list.length : Math.max(from, list.length - 1);
+      if (!res.isFinal && list.length > from && keywordSlug(list[list.length - 1].toLowerCase().replace(/[^a-z']/g, ''))) upto = list.length;
       for (let k = from; k < upto; k++) push(list[k], now, res.isFinal);
       seen[i] = Math.max(from, upto);
     }
@@ -216,7 +228,7 @@ export const isContent = w => w.length > 2 && !STOP.has(w);
 const KW = {
   fire: 'fire flame flames lit hot burn burning blaze blazing heat heater fya fyre',
   wooo: 'hard raw mean sick crazy insane nuts wild dumb stupid bonkers unreal',
-  chaching: 'money cash racks bands rich wealth stacks million millions wealthy fortune',
+  chaching: 'money cash racks bands rich wealth stacks million millions wealthy fortune bread dough bag bags paid dollar dollars bucks bank guap cheddar billion billions hundreds thousands pockets profit paper check checks commas',
   drip: 'flex flexin flexing stuntin stunting drip drippin dripping swag swagger iced jewelry chain chains rolex',
   allhail: 'crown throne reign royal royalty',
   periodt: 'goat king queen legend best undefeated unmatched greatest elite top',

@@ -3,7 +3,7 @@
 // call the rhyme), and how big (heat). Restraint is the whole trick.
 import { getCtx, nodes as N, posAt, nextGrid, stepDur, timeOfStep, on as onBeat, setPerf, isPlaying } from './engine.js';
 import { ears, onEar, slice, expectNoise, micRate, setHang, calibrate } from './ears.js';
-import { words, wordsBetween, rhymes, isContent, keywordSlug } from './words.js';
+import { words, onWord, wordsBetween, rhymes, isContent, keywordSlug } from './words.js';
 import { PHRASES } from './phrases.js';
 
 export const hype = { live: false, mode: 'hype', heat: 0, readyAt: 0, log: [], fires: 0, phrases: 0 };
@@ -136,39 +136,47 @@ const stretch = w => {                                    // COLD -> COOOLD, MON
   const v = m[2]; return m[1] + v + v[v.length - 1].repeat(2) + m[3];
 };
 const size = () => (hype.heat > 75 ? 'xl' : hype.heat > 45 ? 'l' : 'm');
+// One answer at a time, whichever part of him wants to speak.
+const busy = t => Math.abs(t - lastFire) < stepDur() * 4;
 function fired(kind, text, t) {
   lastFire = t; hype.fires++; lastKinds.push(kind); if (lastKinds.length > 3) lastKinds.shift();
   note(kind, text);
 }
 
 function fireVoice(slug, t, opts = {}) {
+  if (busy(t)) return false;
   const said = say(slug, t, opts.vol || 0.95);
-  if (!said) return false;
-  if (opts.fx !== false && SLUG_FX[slug] && hype.heat > 35) fx(SLUG_FX[slug], t);
-  show({ kind: 'text', text: said.text, size: opts.size || size(), at: t });
-  fired('voice', said.text, t); return true;
+  const line = PHRASES[slug] && PHRASES[slug][hype.mode];
+  if (!said && !(opts.must && line)) return false;
+  if (opts.fx === true || (opts.fx !== false && SLUG_FX[slug] && hype.heat > 35)) fx(SLUG_FX[slug] || 'stab', t);
+  const text = said ? said.text : line[0].toLowerCase();
+  show({ kind: 'text', text, size: opts.size || size(), dur: said ? said.dur : 0.5, at: t });
+  fired('voice', text, t); return true;
 }
 function fireDouble(p, t, word) {
+  if (busy(t)) return false;
   const style = hype.heat > 65 && rand() < 0.4 ? 'stutter' : rand() < 0.55 ? 'throw' : 'double';
   const d = double(p, t, style);
   if (!d) return false;
-  if (word) show({ kind: 'text', text: stretch(word) + '!', size: size(), echo: true, at: t });
-  else show({ kind: 'wave', at: t });
+  if (word) show({ kind: 'text', text: stretch(word) + '!', size: size(), echo: true, dur: d.dur, at: t });
+  else show({ kind: 'wave', dur: d.dur, at: t });
   fired(word ? 'echo' : 'double', word || '(voice)', t); return true;
 }
 function fireRhyme(p, a, b, chain, strength, t) {
+  if (busy(t)) return;
   const sd = stepDur();
-  double(p, t, 'throw');
-  show({ kind: 'text', text: a + '!', ghost: b, chain, size: chain >= 3 ? 'xl' : 'l', echo: true, at: t });
-  if (chain >= 3 || strength === 2) { const said = say(fresh(BIG), t + sd * 4, 0.9); if (said) show({ kind: 'text', text: said.text, size: 'm', at: t + sd * 4 }); }
+  const d = double(p, t, 'throw');
+  show({ kind: 'text', text: a + '!', ghost: b, chain, size: chain >= 3 ? 'xl' : 'l', echo: true, dur: d ? d.dur : 0.5, at: t });
+  if (chain >= 3 || strength === 2) { const said = say(fresh(BIG), t + sd * 4, 0.9); if (said) show({ kind: 'text', text: said.text, size: 'm', dur: said.dur, at: t + sd * 4 }); }
   bump(6 + chain * 4);
   fired('rhyme', `${b} / ${a} x${chain}`, t);
 }
 function signature(t) {
+  if (busy(t)) return;
   lastSig = t;
   const said = say('adlib', t, 1);
   fx('airhorn', t); fx('scratch', t + stepDur() * 2);
-  show({ kind: 'text', text: said ? said.text.replace(/ad lib/i, 'adlib') : 'adlib!', size: 'xl', sig: true, at: t });
+  show({ kind: 'text', text: said ? said.text.replace(/ad lib/i, 'adlib') : 'adlib!', size: 'xl', sig: true, dur: said ? said.dur : 0.8, at: t });
   fired('signature', 'adlib', t);
   hype.heat = Math.max(40, hype.heat - 25);              // release, then build again
 }
@@ -215,17 +223,42 @@ function choose(p, t, go, barEnd) {
     }
     if (barEnd || rhyme) { ends.push({ w: last, chain: rhyme ? rhyme.chain : 1 }); if (ends.length > 8) ends.shift(); }
   }
+  if (now - lastKw < stepDur() * 4) return;               // he just answered a word of yours; let it land
   if (hype.heat >= 88 && now - lastSig > 25 && go) return signature(nextGrid(now + 0.04, 4));
   if (rhyme && (go || now - Math.max(lastFire, reserved) > stepDur() * 2)) return fireRhyme(p, last, rhyme.b, rhyme.chain, rhyme.strength, t);
   if (!go) return;
 
   const kw = [...heard].reverse().map(keywordSlug).find(Boolean);
   const repeat = k => lastKinds.length >= 2 && lastKinds.slice(-2).every(x => x === k);
-  if (kw && rand() < 0.65 && !repeat('voice') && fireVoice(kw, t)) return;
-  if (last && rand() < 0.6 && !repeat('echo') && fireDouble(p, t, last)) return;
+  if (kw && now - lastKw > stepDur() * 6 && rand() < 0.8 && fireVoice(kw, t, { must: true })) { lastKw = now; return; }
+  if (last && rand() < 0.85 && fireDouble(p, t, last)) return;
   if (rand() < 0.5 && !repeat('double') && fireDouble(p, t, null)) return;
   if (fireVoice(fresh(GENERIC), t)) return;
   fireDouble(p, t, last);
+}
+
+// The specific stuff. The moment he hears a word he has a line for, he answers it on
+// the next 8th note, without waiting for the bar to end. Hit the same theme again inside
+// thirty seconds and he steps it up; the third time he throws your own word back, big.
+const themes = {};
+let lastKw = 0;
+function onHeard({ w }) {
+  if (!hype.live) return;
+  const slug = keywordSlug(w); if (!slug) return;
+  const now = getCtx().currentTime; if (now < hype.readyAt) return;
+  let m = themes[slug]; if (!m || now - m.t > 30) m = themes[slug] = { n: 0, t: 0 };
+  if (m.n && now - m.t < 1.0) return;                      // the same word, still on its way through the recognizer
+  if (Math.abs(nextGrid(now + 0.03, 2) - Math.max(lastFire, reserved)) < stepDur() * 3) return;   // he is already answering
+  if (now - lastKw < stepDur() * 3) return;                // not every single word
+  const t = nextGrid(now + 0.03, 2); if (busy(t)) return;
+  m.n++; m.t = now; lastKw = now; reserved = t;
+  bump(4 + m.n * 3);
+  if (m.n >= 3) {
+    fx(SLUG_FX[slug] || 'airhorn', t);
+    say(slug, t + stepDur() * 2, 0.95);
+    show({ kind: 'text', text: `${stretch(w)}! ${w}!`, size: 'xl', echo: true, dur: 0.9, at: t });
+    fired('throwback', `${w} x${m.n}`, t); m.n = 0;
+  } else fireVoice(slug, t, { size: m.n === 2 ? 'l' : 'm', fx: m.n === 2, must: true });
 }
 
 // Mid-flow: when you never leave a gap, he punches in on the "and" of four anyway.
@@ -241,7 +274,7 @@ function onStep(abs, t) {
         const recent = wordsBetween(ctx.currentTime - 2, ctx.currentTime + 0.1).map(x => x.w).filter(isContent);
         const kw = [...recent].reverse().map(keywordSlug).find(Boolean);
         if (kw && fireVoice(kw, at, { vol: 0.8, size: 'm' })) return;
-        if (recent.length && rand() < 0.5) { show({ kind: 'text', text: recent[recent.length - 1] + '!', size: 'm', at }); fx('stab', at); fired('echo', recent[recent.length - 1], at); return; }
+        if (recent.length && rand() < 0.8) { show({ kind: 'text', text: recent[recent.length - 1] + '!', size: 'm', dur: 0.4, at }); fx('stab', at); fired('echo', recent[recent.length - 1], at); return; }
         fireVoice(fresh(PUNCH), at, { vol: 0.75, size: 'm', fx: false });
       }, Math.max(0, (at - now - 0.1) * 1000));
     }
@@ -261,7 +294,7 @@ function onStep(abs, t) {
 export function startHype() {
   const ctx = getCtx();
   hype.live = true; hype.heat = 0; hype.fires = 0; hype.phrases = 0; hype.log = [];
-  lastFire = 0; lastSig = ctx.currentTime; lastNudge = 0; nudged = false; lastKinds = []; ends = []; wordCut = 0; reserved = 0;
+  lastFire = 0; lastSig = ctx.currentTime; lastNudge = 0; nudged = false; lastKinds = []; ends = []; wordCut = 0; reserved = 0; lastKw = 0; for (const k in themes) delete themes[k];
   preload(['gooff', 'adlib', ...GENERIC, ...BIG]);
   setTimeout(() => hype.live && preload(Object.keys(PHRASES)), 2500);
 
@@ -276,7 +309,7 @@ export function startHype() {
     const t = hype.readyAt;
     fx('airhorn', t);
     const said = say('gooff', t, 1);
-    show({ kind: 'text', text: said ? said.text : 'go off!', size: 'l', at: t });
+    show({ kind: 'text', text: said ? said.text : 'go off!', size: 'l', dur: said ? said.dur : 0.6, at: t });
     note('ready', 'go');
   }, Math.max(0, (hype.readyAt - now - 0.15) * 1000));
 
@@ -297,5 +330,6 @@ export function stopHype() {
 export function setMode(mode) { hype.mode = mode; if (hype.live) preload(['gooff', 'adlib', ...GENERIC, ...BIG]); }
 
 onEar('phraseEnd', onPhraseEnd);
+onWord(onHeard);
 onEar('onset', () => { if (hype.live && getCtx().currentTime >= hype.readyAt) bump(0.5); });
 onBeat('step', onStep);

@@ -8,29 +8,30 @@ import { ears, onEar } from './ears.js';
 import { onShow, hype } from './hype.js';
 import { onWord, isContent } from './words.js';
 
-const NR = 8, NC = 16, ND = 24, NW = 6;
+const NR = 8, NC = 20, ND = 24, NW = 8;
 const reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 let canvas, gl, U = {}, burstsEl, tickerEl, markSpace, W = 0, H = 0, dpr = 1, ok = false;
 let performing = false, phase = 0, phaseTo = 0, markBump = 0, level = 0, chain = 0, chainAt = 0;
-const rings = new Float32Array(NR * 4), caps = new Float32Array(NC * 4), capR = new Float32Array(NC * 2), discs = new Float32Array(ND * 3), wavesU = new Float32Array(NW * 3);
+let mouth = 0, yell = 0, speakUntil = 0, yellUntil = 0;      // his face: how open, how loud
+const rings = new Float32Array(NR * 4), caps = new Float32Array(NC * 4), capR = new Float32Array(NC * 2), discs = new Float32Array(ND * 3), wavesU = new Float32Array(NW * 4);
 const hits = [], pending = [], waves = [], bursts = [], count = { n: 0, until: 0 };
 
 const FRAG = `
 precision highp float;
-uniform vec2 uRes; uniform float uT, uPhase, uFade, uHeat, uDim;
-uniform vec4 uRing[${NR}]; uniform vec4 uCap[${NC}]; uniform vec2 uCapR[${NC}]; uniform vec3 uDisc[${ND}]; uniform vec3 uWave[${NW}];
+uniform vec2 uRes; uniform float uT, uPhase, uFade, uHeat, uDim, uGap;
+uniform vec4 uRing[${NR}]; uniform vec4 uCap[${NC}]; uniform vec2 uCapR[${NC}]; uniform vec3 uDisc[${ND}]; uniform vec4 uWave[${NW}];
 const vec3 BG = vec3(0.047, 0.043, 0.055), YEL = vec3(0.996, 0.902, 0.004), RED = vec3(0.992, 0.176, 0.333), BLU = vec3(0.176, 0.329, 0.992), GRY = vec3(0.592, 0.573, 0.533);
 float seg(vec2 p, vec2 a, vec2 b) { vec2 pa = p - a, ba = b - a; float h = clamp(dot(pa, ba) / max(dot(ba, ba), 0.0001), 0.0, 1.0); return length(pa - ba * h); }
 void main() {
   vec2 p = vec2(gl_FragCoord.x, uRes.y - gl_FragCoord.y);
-  float d = 1e6, dh = 1e6;
-  for (int i = 0; i < ${NR}; i++) { vec4 r = uRing[i]; if (r.w > 0.0) d = min(d, abs(length(p - r.xy) - r.z) - r.w); }
+  float d = 1e6, dh = 1e6, de = 1e6, d0 = 1e6, d1 = 1e6;      // d0: your ring, d1: his mouth
+  for (int i = 0; i < ${NR}; i++) { vec4 r = uRing[i]; if (r.w > 0.0) { float s = abs(length(p - r.xy) - r.z) - r.w; d = min(d, s); if (i == 0) d0 = s; if (i == 1) d1 = s; } }
   for (int i = 0; i < ${ND}; i++) { vec3 c = uDisc[i]; if (c.z > 0.0) d = min(d, length(p - c.xy) - c.z); }
   for (int i = 0; i < ${NC}; i++) {
     vec2 k = uCapR[i]; if (k.x <= 0.0) continue;
     float s = seg(p, uCap[i].xy, uCap[i].zw) - k.x;
-    if (k.y < 1.5) d = min(d, s); else dh = min(dh, s);
+    if (k.y < 1.5) d = min(d, s); else if (k.y < 2.5) dh = min(dh, s); else de = min(de, s);
   }
   float P = uT * 0.5;                                   // ring spacing is half a stroke, as in the mark
   float D = min(d, dh + P * 2.0 + uT * 0.2);            // words sit in a clearing; grey rings start at its edge
@@ -42,13 +43,16 @@ void main() {
   float far = 1.0 - smoothstep(uFade * 0.35, uFade, D);
   float a = k < colored ? 1.0 : mix(uDim, 1.0, far);
   for (int i = 0; i < ${NW}; i++) {                      // pulses travelling out through the rings
-    vec3 w = uWave[i]; if (w.y <= 0.0) continue;
-    float g = clamp(w.y * exp(-pow((D - w.x) / (P * 1.6), 2.0)), 0.0, 1.0);
+    vec4 w = uWave[i]; if (w.y <= 0.0) continue;
+    float from = w.w < 0.5 ? D : (w.w < 1.5 ? d0 : d1);      // the beat is everywhere; a voice comes from its owner
+    float g = clamp(w.y * exp(-pow((from - w.x) / (P * 1.6), 2.0)), 0.0, 1.0);
     if (k >= colored) { ink = mix(ink, w.z < 0.5 ? vec3(1.0) : (w.z < 1.5 ? RED : BLU), g); a = max(a, g); }
   }
   vec3 col = mix(BG, ink, line * a * step(0.0, u));
   col = mix(col, BG, 1.0 - smoothstep(-1.0, 1.0, dh));  // inside a clearing
   col = mix(YEL, col, smoothstep(-1.0, 1.0, d));        // inside a shape
+  col = mix(col, BG, 1.0 - smoothstep(uGap - 1.0, uGap + 1.0, de));   // his eyes: over the rings, a black gap, no rings of their own
+  col = mix(YEL, col, smoothstep(-1.0, 1.0, de));
   col += (fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453) - 0.5) * 0.018;
   gl_FragColor = vec4(col, 1.0);
 }`;
@@ -66,18 +70,18 @@ export function initStage() {
     gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
     const loc = gl.getAttribLocation(prog, 'a'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
-    for (const n of ['uRes', 'uT', 'uPhase', 'uFade', 'uHeat', 'uDim', 'uRing', 'uCap', 'uCapR', 'uDisc', 'uWave']) U[n] = gl.getUniformLocation(prog, n);
+    for (const n of ['uRes', 'uT', 'uPhase', 'uFade', 'uHeat', 'uDim', 'uGap', 'uRing', 'uCap', 'uCapR', 'uDisc', 'uWave']) U[n] = gl.getUniformLocation(prog, n);
     ok = true;
   } catch (err) { document.body.classList.add('no-field'); console.warn('field off:', err && err.message); }
   resize(); window.addEventListener('resize', resize);
   onBeat('hit', (r, t, vel) => { if (r <= 2) { hits.push({ r, t, vel }); if (hits.length > 100) hits.shift(); } });
   onShow(ev => pending.push(ev));
-  onEar('onset', () => { if (performing && !reduced) wave(0.25, 2, 620); });
+  onEar('onset', () => { if (performing && !reduced) wave(0.3, 2, 620, 1); });
   onWord(addWord);
   requestAnimationFrame(frame);
 }
 export function setPerforming(on) {
-  performing = on; chain = 0; count.n = 0; count.until = 0; waves.length = 0; pending.length = 0;
+  performing = on; chain = 0; count.n = 0; count.until = 0; waves.length = 0; pending.length = 0; mouth = yell = 0; speakUntil = yellUntil = 0;
   for (const b of bursts) b.el.remove(); bursts.length = 0;
   if (tickerEl) tickerEl.textContent = '';
 }
@@ -86,7 +90,8 @@ function resize() {
   canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
   if (ok) gl.viewport(0, 0, canvas.width, canvas.height);
 }
-const wave = (strength, hue, speed = 900) => { waves.push({ r: 0, strength, hue, speed }); if (waves.length > NW) waves.shift(); };
+// hue: 0 white, 1 red, 2 blue.  from: 0 every shape (the beat), 1 your ring, 2 his mouth
+const wave = (strength, hue, speed = 900, from = 0) => { waves.push({ r: 0, strength, hue, speed, from }); if (waves.length > NW) waves.shift(); };
 
 // ------------------------------------------------------------------ shapes
 let nr = 0, nc = 0, nd = 0;
@@ -126,11 +131,13 @@ function frame(ts) {
   phase += (phaseTo - phase) * Math.min(1, dt * 9);
   for (let i = waves.length - 1; i >= 0; i--) { const w = waves[i]; w.r += w.speed * dt; w.strength *= Math.pow(0.12, dt); if (w.strength < 0.02) waves.splice(i, 1); }
   markBump *= Math.pow(0.02, dt);
+  mouth += ((now < speakUntil ? 1 : 0) - mouth) * Math.min(1, dt * (now < speakUntil ? 26 : 7));
+  yell += ((now < yellUntil ? 1 : 0) - yell) * Math.min(1, dt * 14);
   level += ((ears.on ? ears.level : 0) - level) * Math.min(1, dt * 18);
   if (!ok) return;
 
   nr = nc = nd = 0; rings.fill(0); capR.fill(0); discs.fill(0); wavesU.fill(0);
-  let T, fade, dim;
+  let T, fade, dim, gap = 0;
   if (!performing) {
     // build view: the name up top, rings fading out behind the drum machine
     const b = markSpace.getBoundingClientRect();
@@ -147,9 +154,20 @@ function frame(ts) {
     else if (chain > 1) chain = 0;
     // count-in: four dots, one per beat
     if (now < count.until) for (let i = 0; i < 4; i++) disc(cx + (i - 1.5) * 2.2 * T, cy - 6 * T, (i < count.n ? 0.62 : 0.2) * T);
-    // adlib himself, bottom of the screen. He bumps when he speaks.
-    const m = T * 0.34 * (1 + markBump * 0.5), mx = cx - 2.5 * m, my = H - 62;
-    bowlStem(mx, my, m, false, false);
+    // adlib's face, bottom of the screen, drawn from the parts of the mark (see adlib-voice.md, "His face").
+    // The mouth is one bowl: small while he listens, wide open when he comes in. It must stay ring 1.
+    const F = T * 0.42, fx = cx, fy = H - 48 - 2.5 * F;
+    ring(fx, fy, F * (1 + mouth + markBump * 0.25), 0.5 * F);
+    // The eyes are straight lines. Short and upright while he listens; when he yells they
+    // squeeze shut into > <. They sit over the rings and have none of their own.
+    // They ride just above the mouth and move apart as it opens, so they never read as ears.
+    const top = F * (1.5 + mouth), spread = F * (1.45 + 0.55 * mouth + 0.65 * yell), ey = fy - top - 2.4 * F, eh = F * (0.5 + 0.5 * yell);
+    for (const side of [-1, 1]) {
+      const ex = fx + side * (spread + 0.95 * F * yell), vx = fx + side * (spread - 0.95 * F * yell);
+      cap(ex, ey - eh, vx, ey, 0.5 * F, 3); cap(vx, ey, ex, ey + eh, 0.5 * F, 3);
+    }
+    gap = 0.38 * F;
+    document.documentElement.style.setProperty('--face', Math.round(48 + 9.6 * F) + 'px');
     // clearings for the words he throws up
     for (let i = bursts.length - 1; i >= 0; i--) {
       const s = bursts[i], age = now - s.at;
@@ -159,36 +177,42 @@ function frame(ts) {
     }
     fade = 1e5; dim = 1;
   }
-  waves.forEach((w, i) => wavesU.set([w.r * dpr, w.strength, w.hue], i * 3));
+  waves.forEach((w, i) => wavesU.set([w.r * dpr, w.strength, w.hue, w.from], i * 4));
   gl.uniform2f(U.uRes, canvas.width, canvas.height); gl.uniform1f(U.uT, T * dpr); gl.uniform1f(U.uPhase, phase % 1); gl.uniform1f(U.uFade, fade * dpr);
   gl.uniform1f(U.uHeat, performing ? hype.heat / 100 : 0); gl.uniform1f(U.uDim, dim);
-  gl.uniform4fv(U.uRing, rings); gl.uniform4fv(U.uCap, caps); gl.uniform2fv(U.uCapR, capR); gl.uniform3fv(U.uDisc, discs); gl.uniform3fv(U.uWave, wavesU);
+  gl.uniform4fv(U.uRing, rings); gl.uniform4fv(U.uCap, caps); gl.uniform2fv(U.uCapR, capR); gl.uniform3fv(U.uDisc, discs); gl.uniform4fv(U.uWave, wavesU); gl.uniform1f(U.uGap, gap * dpr);
   gl.drawArrays(gl.TRIANGLES, 0, 3);
 }
 
 // ------------------------------------------------------------------ what adlib throws up
 const SIZES = { m: [38, 11, 92], l: [48, 15, 132], xl: [60, 20, 180] };       // min px, vw, max px
 // clear of the buttons up top, your ring in the middle and your words below
-const TALL = [[0.5, 0.25], [0.5, 0.68], [0.42, 0.29], [0.58, 0.72], [0.5, 0.21], [0.5, 0.64]];
-const WIDE = [[0.24, 0.34], [0.76, 0.34], [0.24, 0.62], [0.76, 0.62], [0.5, 0.2], [0.5, 0.76]];
+const TALL = [[0.5, 0.25], [0.5, 0.66], [0.42, 0.28], [0.58, 0.68], [0.5, 0.21], [0.5, 0.64]];
+const WIDE = [[0.24, 0.34], [0.76, 0.34], [0.24, 0.6], [0.76, 0.6], [0.5, 0.19], [0.22, 0.47], [0.78, 0.47]];
 let slot = 0;
 const SVGNS = 'http://www.w3.org/2000/svg';
 const LAYERS = [['#2D54FD', 0.67], ['#0C0B0E', 0.6], ['#FD2D55', 0.42], ['#0C0B0E', 0.34], ['#FEE601', 0.16]];
 
 function present(ev, now) {
   if (ev.kind === 'count') { count.n = +ev.text; count.until = now + stepDur() * 4 * (5 - count.n) + 0.3; return; }
-  if (ev.echo || ev.kind === 'wave') {                                         // your voice coming back: blue rings, in time with the echo
+  // he comes in: mouth open for as long as he makes sound, rings pushing out of it on the hit
+  speakUntil = Math.max(speakUntil, now + Math.min(1.6, ev.dur || 0.5)); markBump = 1;
+  if (ev.size === 'xl' || ev.sig) yellUntil = now + Math.min(1.8, (ev.dur || 0.6) + 0.4);
+  wave(1, 0, 820, 2);
+  if (ev.echo || ev.kind === 'wave') {                                         // your voice coming back out of his mouth, in time with the echo
     const sd = stepDur();
-    for (let k = 0; k < 3; k++) setTimeout(() => performing && wave(0.95 - k * 0.28, 2, 760), k * sd * 3 * 1000);
+    for (let k = 1; k < 3; k++) setTimeout(() => { if (performing) { wave(0.95 - k * 0.28, 2, 760, 2); speakUntil = Math.max(speakUntil, getCtx().currentTime + 0.18); } }, k * sd * 3 * 1000);
   }
   if (ev.chain) { chain = ev.chain; chainAt = now; }
   if (ev.kind !== 'text') return;
-  markBump = 1;
   const text = ev.text.toLowerCase(), [min, vw, max] = SIZES[ev.size] || SIZES.m;
-  let px = Math.max(min, Math.min(max, (W * vw) / 100));
-  px = Math.min(px, (W * 0.92) / (text.length * 0.7 + 0.8));                   // never wider than the screen
-  const list = W > H * 1.1 ? WIDE : TALL, [fx, fy] = ev.sig ? [0.5, list === TALL ? 0.25 : 0.2] : list[slot++ % list.length];
-  const x = fx * W, y = fy * H;
+  const wide = W > H * 1.1, list = wide ? WIDE : TALL;
+  const [fx, fy] = ev.sig ? [0.5, wide ? 0.19 : 0.25] : list[slot++ % list.length];
+  const room = W * (wide && fx !== 0.5 ? 0.36 : 0.92);                          // beside your ring there is less room than above it
+  let px = Math.max(min, Math.min(max, (Math.min(W, H * 1.2) * vw) / 100));
+  px = Math.min(px, room / (text.length * 0.7 + 0.8));
+  const reach = (text.length * 0.7 + 0.8) * px / 2;
+  const x = Math.max(reach + 6, Math.min(W - reach - 6, fx * W)), y = fy * H;
   const svg = document.createElementNS(SVGNS, 'svg');
   svg.setAttribute('class', 'burst'); svg.setAttribute('width', '1'); svg.setAttribute('height', '1');
   svg.style.left = x + 'px'; svg.style.top = y + 'px'; svg.style.fontSize = px + 'px';

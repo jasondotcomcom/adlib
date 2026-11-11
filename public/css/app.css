@@ -80,7 +80,7 @@ body[data-view='perform'] #build { display: none; }
 .acts { grid-column: 1 / -1; flex-direction: row; flex-wrap: wrap; gap: 8px; }
 .acts button { font-size: 15px; padding: 9px 15px; border-color: var(--line); }
 .acts button:active { background: var(--yellow); border-color: var(--yellow); color: var(--bg); }
-.fine { font-size: 14px; font-weight: 500; color: var(--grey); }
+.fine { font-size: 14px; font-weight: 500; color: var(--grey); display: flex; gap: 18px; justify-content: center; }
 
 .dock {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 6; display: grid; grid-template-columns: 1fr 2.2fr 1fr; gap: 14px; align-items: center;
@@ -104,7 +104,7 @@ body[data-view='perform'] #perform { display: block; }
 #micHelp[hidden] { display: none; }
 #micHelp .cta { justify-self: stretch; margin: 0 10px; }
 
-#ticker { position: absolute; left: 0; right: 0; bottom: 138px; display: flex; flex-wrap: nowrap; justify-content: center; gap: 0.4em; padding: 0 14px; overflow: hidden; font-size: clamp(20px, 4.6vw, 34px); white-space: nowrap; pointer-events: none; text-transform: lowercase; }
+#ticker { position: absolute; left: 0; right: 0; bottom: calc(var(--face, 130px) + 14px); display: flex; flex-wrap: nowrap; justify-content: center; gap: 0.4em; padding: 0 14px; overflow: hidden; font-size: clamp(20px, 4.6vw, 34px); white-space: nowrap; pointer-events: none; text-transform: lowercase; }
 #ticker[hidden] { display: none; }
 #ticker span { background: var(--bg); padding: 0 0.3em; border-radius: 999px; }
 #ticker .soft { color: var(--grey); font-weight: 500; }

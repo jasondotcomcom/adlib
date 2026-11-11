@@ -164,7 +164,7 @@ async function perform() {
   await wake();
   if (!engine.isPlaying()) { engine.play(); syncPlay(); }
   view = 'perform'; document.body.dataset.view = 'perform'; setPerforming(true);
-  $('status').textContent = 'Let me hear you. Allow the mic.';
+  $('status').textContent = 'let me hear you. allow the mic.';
   await listen($('phonesBtn').getAttribute('aria-pressed') === 'true');
 }
 async function listen(headphones) {
@@ -174,13 +174,13 @@ async function listen(headphones) {
   catch (err) {
     $('status').textContent = '';
     $('micHelpText').textContent = err && err.name === 'NotAllowedError'
-      ? 'The mic is blocked. Allow it in your browser\'s site settings and try again.'
-      : 'I can\'t find a mic. Check your input and try again.';
+      ? 'the mic is blocked. allow it in your browser\'s site settings and try again.'
+      : 'i can\'t find a mic. check your input and try again.';
     $('micHelp').hidden = false; return;
   }
   if (view !== 'perform') return stopEars();
   startHype();
-  $('status').textContent = 'Give me one bar.';
+  $('status').textContent = 'give me one bar';
   startWords().then(() => { if (view === 'perform') statusSoon(); });
   statusSoon();
 }
@@ -189,10 +189,10 @@ function statusSoon() {
   clearTimeout(statusSoon.t);
   statusSoon.t = setTimeout(() => {
     if (view !== 'perform' || !ears.on) return;
-    $('status').textContent = words.recent.length ? 'I hear every word' : 'I hear you';
+    $('status').textContent = words.recent.length ? 'i hear every word' : 'i hear you';
   }, wait * 1000 + 50);
 }
-onWord(() => { if (view === 'perform' && words.recent.length === 1 && engine.getCtx().currentTime > hype.readyAt) $('status').textContent = 'I hear every word'; });
+onWord(() => { if (view === 'perform' && words.recent.length === 1 && engine.getCtx().currentTime > hype.readyAt) $('status').textContent = 'i hear every word'; });
 function backToBeat() {
   view = 'build'; document.body.dataset.view = 'build';
   stopHype(); stopWords(); stopEars(); setPerforming(false);
