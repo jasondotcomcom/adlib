@@ -9,7 +9,7 @@ import { getCtx, nodes as N, mtof } from './engine.js';
 // A lot of them are record titles. The rest are just fun in the mouth.
 export const SAY = [
   'boots and cats', 'mic check', "don't believe the hype", 'bring the noise', 'fight the power', 'can i kick it',
-  'protect ya neck', 'peter piper', 'bust a move', 'push it', 'pass the mic', 'stakes is high', 'check the rhime',
+  'protect ya neck', 'peter piper', 'bust a move', 'push it', 'pass the mic', 'stakes is high',
   'paid in full', 'ante up', 'shook ones', 'tootsie roll', 'kick push', 'the choice is yours', 'pump it up',
   "drop it like it's hot", 'get ur freak on', 'whoomp there it is', 'it takes two', 'the breaks', "rapper's delight",
   'planet rock', 'sucker mcs', 'top billin', 'party up', 'hypnotize', 'bucktown', 'sixteen bars', 'two turntables',
