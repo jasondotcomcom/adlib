@@ -213,7 +213,18 @@ function scheduleStep(abs, time) {
   const bare = you && ab >= 8 && (ab - 8) % 16 === 15;                 // the breakdown bar
   under = you && stage === 3 && !bare ? 0.6 : 0;
   if (you) {
-    if (s === 0 && (ab === 0 || bare)) own.tag(t);                     // your word, whole, over the top
+    // Your phrase is the hook. Whole at the top and alone in the breakdown. In between it
+    // comes back on the one every four bars: whole when the keys arrive and on the first
+    // drop, then trading front half and whole. It stays out while someone is rapping.
+    if (s === 0) {
+      const c = ab >= 8 ? (ab - 8) % 16 : -1;
+      if (ab === 0 || bare) own.tag(t);
+      else if (!perf.on) {
+        if (ab === 8) own.tag(t, { gain: 0.8 });
+        else if (ab === 4 || c === 8) own.tag(t, { gain: 0.56, wet: true, sd });
+        else if (c === 4 || c === 12) own.tag(t, { gain: 0.56, half: true, wet: true, sd });
+      }
+    }
     if (s === 0 && ab >= 8 && (ab - 8) % 16 === 0) { crash(t, 0.55); if (kit.deep) sample('deep', t, 0.75, 1, N.drums); }   // the drop
     if (s === 8 && (ab === 1 || ab === 3 || ab === 7 || bare)) own.riser(time + 8 * sd, 8 * sd);   // backwards into the change
     if (s >= 12 && stage >= 2 && fill && !bare) own.chop(t, s - 12, sd);                          // chopped into the turn

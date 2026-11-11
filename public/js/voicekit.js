@@ -22,7 +22,7 @@ export const SAY = [
 let lastSay = -1;
 export function rollSay() { let i; do { i = Math.floor(Math.random() * SAY.length); } while (i === lastSay); lastSay = i; return SAY[i]; }
 
-export const voice = { ready: false, f0: 140, pitched: false, parts: null, bufs: {}, pcm: null, id: null };
+export const voice = { ready: false, f0: 140, pitched: false, parts: null, bufs: {}, pcm: null, id: null, half: 0.5 };
 
 // ------------------------------------------------------------------ one format for a take, so a shared link rebuilds the same kit
 // Every take is turned into 16-bit mono at 32 kHz before anything is cut from it.
@@ -136,6 +136,15 @@ export function analyze(data, sr) {
   };
 }
 
+// Where the front half of the phrase ends: the start of the syllable nearest the middle,
+// so "bring the noise" can come back as just "bring the".
+export function halfCut(parts, sr) {
+  const t0 = parts.word[0] / sr, len = (parts.word[1] - parts.word[0]) / sr;
+  let best = len * 0.5, d = Infinity;
+  for (const e of parts.events) { const x = e.t - t0; if (x > len * 0.3 && x < len * 0.72 && Math.abs(x - len / 2) < d) { d = Math.abs(x - len / 2); best = x - 0.015; } }
+  return best;
+}
+
 // ------------------------------------------------------------------ building the kit
 export function buildVoice(data, sr) {
   const parts = analyze(data, sr); if (!parts) return false;
@@ -154,7 +163,7 @@ export function buildVoice(data, sr) {
   // a loop inside the vowel that is a whole number of wave cycles long, so held notes do not click
   const v = bufs.vowel, period = sr / parts.f0, start = Math.round(v.length * 0.3), cycles = Math.max(1, Math.floor((v.length * 0.6) / period));
   voice.loop = [start / sr, (start + Math.round(cycles * period)) / sr];
-  Object.assign(voice, { ready: true, f0: parts.f0, pitched: parts.pitched, parts, bufs });
+  Object.assign(voice, { ready: true, f0: parts.f0, pitched: parts.pitched, parts, bufs, half: halfCut(parts, sr) });
   return true;
 }
 
@@ -198,8 +207,28 @@ export function voiceNote(midi, t, dur, role) {
 
 // ------------------------------------------------------------------ the parts that make a loop into a song
 // the whole word, said once over the top: your producer tag
-export function voiceTag(t) {
-  shot(voice.bufs.word, t, { gain: 0.85, type: 'highpass', freq: 160, dest: N.lead });
+// The phrase itself, whole or just its front half. When it comes back mid-song it sits
+// a little under the drums and trails an echo three 16ths long.
+let echo = null;
+function echoIn(sd) {
+  const ctx = getCtx();
+  if (!echo) {
+    const input = ctx.createGain(), d = ctx.createDelay(1.5), lp = ctx.createBiquadFilter(), fb = ctx.createGain(), out = ctx.createGain();
+    lp.type = 'lowpass'; lp.frequency.value = 2400; fb.gain.value = 0.36; out.gain.value = 0.5;
+    input.connect(d); d.connect(lp); lp.connect(fb); fb.connect(d); lp.connect(out); out.connect(N.lead);
+    echo = { input, d, time: 0 };
+  }
+  const time = Math.min(1.4, sd * 3);
+  if (Math.abs(time - echo.time) > 0.001) { echo.d.delayTime.setValueAtTime(time, ctx.currentTime); echo.time = time; }
+  return echo.input;
+}
+export function voiceTag(t, { gain = 0.85, half = false, wet = false, sd = 0.15 } = {}) {
+  const ctx = getCtx(), src = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain();
+  src.buffer = voice.bufs.word; f.type = 'highpass'; f.frequency.value = 160; g.gain.setValueAtTime(gain, t);
+  src.connect(f).connect(g).connect(N.lead);
+  if (wet) g.connect(echoIn(sd));
+  src.start(t);
+  if (half) { const end = t + voice.half; g.gain.setTargetAtTime(0, end - 0.02, 0.012); src.stop(end + 0.12); }
 }
 // the vowel chopped on 16ths and climbing, into the turn
 const CHOP = [1, 1.12, 1.26, 1.5];

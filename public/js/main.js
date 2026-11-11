@@ -1,5 +1,5 @@
 // main.js — the page. Two views of one beat: build it, then rap on it.
-import { song, vibe, VIBES, KITS, ROWS, ROW_LABELS, STEPS, loadVibe, diceRow, diceAll, newMelody, encodeSong, decodeSong, shownBpm, chordFor, beatFromVoice } from './song.js';
+import { song, vibe, VIBES, KITS, ROWS, ROW_LABELS, STEPS, loadVibe, diceRow, diceAll, rollBeat, newMelody, encodeSong, decodeSong, shownBpm, chordFor, beatFromVoice } from './song.js';
 import * as engine from './engine.js';
 import { ears, startEars, stopEars, slice, micRate } from './ears.js';
 import { voice, buildVoice, voiceDrum, voiceNote, voiceTag, voiceChop, voiceRiser, rollSay, packTake, unpack, toWav, fromWav, TAKE_RATE } from './voicekit.js';
@@ -120,12 +120,14 @@ function wireControls() {
   $('keysBtn').addEventListener('click', () => { song.keys = !song.keys; render(); saveHash(); });
   $('leadBtn').addEventListener('click', () => { song.lead = !song.lead; render(); saveHash(); });
   $('melodyBtn').addEventListener('click', async () => { await wake(); newMelody(); song.lead = true; render(); saveHash(); });
-  $('rollBtn').addEventListener('click', async () => { await wake(); diceAll(); render(); saveHash(); if (!engine.isPlaying()) { engine.play(); syncPlay(); } });
+  $('rollBtn').addEventListener('click', async () => { await wake(); rollBeat(); engine.applyKit(); render(); saveHash(); if (!engine.isPlaying()) { engine.play(); syncPlay(); } });
   $('clearBtn').addEventListener('click', () => { song.pat = ROWS.map(() => new Array(STEPS).fill(0)); render(); saveHash(); });
   $('shareBtn').addEventListener('click', share);
   $('micBtn').addEventListener('click', perform);
-  $('sayRoll').innerHTML = DIE; $('sayWord').textContent = rollSay();
-  $('sayRoll').addEventListener('click', () => { $('sayWord').textContent = rollSay(); });
+  $('sayRoll').innerHTML = DIE; $('sayWord').value = rollSay();
+  $('sayRoll').addEventListener('click', () => { $('sayWord').value = rollSay(); });
+  $('sayWord').addEventListener('keydown', e => { if (e.key === 'Enter') e.target.blur(); });   // type your own thing to say
+  $('sayWord').addEventListener('blur', e => { e.target.value = e.target.value.trim() || rollSay(); e.target.scrollLeft = 0; });
   $('sayBtn').addEventListener('click', sayIt);
   $('skipBtn').addEventListener('click', async () => { openUp(); await wake(); if (!engine.isPlaying()) engine.play(); syncPlay(); saveHash(); });
   $('shareVoice').addEventListener('click', shareWithVoice);

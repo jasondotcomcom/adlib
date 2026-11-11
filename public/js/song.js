@@ -174,6 +174,16 @@ export function diceRow(row, r = Math.random) {
   if (row === 0 || row === 6) out[0] = 1;
   song.pat[row] = out;
 }
+// Roll a new beat. Four rolls in five land on a different style, with that style's tempo
+// and feel. A beat made of your voice stays made of your voice.
+export function rollBeat(r = Math.random) {
+  if (r() < 0.8) {
+    const others = VIBES.filter(v => v.id !== song.vibe), mine = song.kit === 'you';
+    loadVibe(others[Math.floor(r() * others.length)].id);
+    if (mine) song.kit = 'you';
+  }
+  diceAll(r);
+}
 export function diceAll(r = Math.random) {
   for (let i = 0; i < ROWS.length; i++) diceRow(i, r);
   // bass mostly rides the kick: that is what makes a beat feel like one instrument

@@ -1,7 +1,7 @@
 // node test/logic.test.mjs — beat data, share links and rhyme detection.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { song, VIBES, vibeById, loadVibe, encodeSong, decodeSong, diceAll, diceRow, melody, chordFor, rng } from '../public/js/song.js';
+import { song, VIBES, vibeById, loadVibe, encodeSong, decodeSong, diceAll, diceRow, melody, chordFor, rng, rollBeat } from '../public/js/song.js';
 import { parseRhymes, rhymes, tailOf, keywordSlug, isContent } from '../public/js/words.js';
 
 // every vibe is well formed
@@ -33,7 +33,7 @@ assert.ok(tailOf('zxqvy') !== undefined);
 assert.equal(keywordSlug('fire'), 'fire'); assert.equal(keywordSlug('money'), 'chaching'); assert.equal(isContent('the'), false); assert.equal(isContent('mic'), true);
 
 // things to say: each one gives the kit a hard hit, something sharp and a vowel
-const { SAY, analyze } = await import('../public/js/voicekit.js');
+const { SAY, analyze, halfCut } = await import('../public/js/voicekit.js');
 assert.ok(SAY.length >= 50); assert.equal(new Set(SAY).size, SAY.length, 'no repeats');
 for (const s of SAY) { assert.match(s, /[bpdgkt]/, s + ' hard hit'); assert.match(s, /[sztkjxcf]/, s + " sharp"); assert.match(s, /[aeiou]/, s + ' vowel'); assert.equal(s, s.toLowerCase()); }
 
@@ -44,6 +44,7 @@ for (const s of SAY) { assert.match(s, /[bpdgkt]/, s + ' hard hit'); assert.matc
   const hiss = (t0, len, a) => { let prev = 0; for (let i = 0; i < len * sr; i++) { const n = rnd(), hp = n - prev; prev = n; d[Math.floor(t0 * sr) + i] += a * hp * 0.5 * Math.min(1, i / 60); } };
   tone(0.2, 0.3, 150, 0.6); hiss(0.55, 0.12, 0.4); tone(0.7, 0.2, 150, 0.4); hiss(0.95, 0.03, 0.5);
   const p = analyze(d, sr); assert.ok(p, 'found a word');
+  { const w0 = p.word[0] / sr, len = (p.word[1] - p.word[0]) / sr, h = halfCut(p, sr); assert.ok(h > len * 0.25 && h < len * 0.75, 'the front half ends near the middle ' + h + ' of ' + len); assert.ok(p.events.some(e => Math.abs(e.t - w0 - 0.015 - h) < 0.001) || Math.abs(h - len / 2) < 0.001, 'and on a syllable when there is one'); }
   assert.ok(p.pitched && Math.abs(p.f0 - 150) < 6, 'pitch ' + p.f0);
   const sec = x => x / sr;
   assert.ok(sec(p.kick[0]) > 0.17 && sec(p.kick[0]) < 0.23, 'kick at the first hit ' + sec(p.kick[0]));
@@ -89,5 +90,12 @@ for (const s of SAY) { assert.match(s, /[bpdgkt]/, s + ' hard hit'); assert.matc
   const a1 = analyze(unpack(pcm), TAKE_RATE), a2 = analyze(unpack(back), TAKE_RATE);
   assert.deepEqual(a1.kick, a2.kick); assert.equal(a1.f0, a2.f0); assert.ok(Math.abs(a1.f0 - 180) < 6, 'pitch survives 32k: ' + a1.f0);
   assert.equal(fromWav(new ArrayBuffer(10)), null); assert.equal(packTake(new Float32Array(100), sr), null);
+}
+// rolling a beat moves between styles, sometimes stays, and keeps a voice kit
+{
+  loadVibe('boombap'); const seen = new Set(); let stayed = 0, moved = 0;
+  for (let i = 0; i < 300; i++) { const was = song.vibe; rollBeat(); seen.add(song.vibe); song.vibe === was ? stayed++ : moved++; assert.ok(song.pat.length === 7 && song.pat[0].length === 16); assert.equal(decodeSong(encodeSong()), true, 'a rolled beat survives its link'); }
+  assert.equal(seen.size, VIBES.length, 'every style comes up'); assert.ok(stayed > 25 && moved > 200, `stays sometimes, moves more: ${stayed}/${moved}`);
+  song.kit = 'you'; for (let i = 0; i < 20; i++) rollBeat(); assert.equal(song.kit, 'you', 'the voice kit survives a roll');
 }
 console.log('ok');

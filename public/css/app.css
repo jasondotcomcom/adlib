@@ -70,7 +70,8 @@ body[data-view='perform'] #build { display: none; }
 .say { display: grid; gap: 6px; justify-items: center; }
 .say .k { font-size: 15px; color: var(--paper); text-align: center; text-wrap: balance; background: var(--bg); padding: 3px 14px; border-radius: 18px; }
 .sayrow { justify-self: stretch; background: var(--bg); display: grid; grid-template-columns: 36px 1fr auto; gap: 10px; align-items: center; height: 64px; padding: 0 8px 0 12px; border: 2px solid var(--grey); border-radius: 999px; }
-#sayWord { font-size: clamp(17px, 5.4vw, 21px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--yellow); }
+#sayWord { font: inherit; font-size: clamp(17px, 5.4vw, 21px); width: 100%; min-width: 0; height: 46px; padding: 0; border: 0; border-radius: 0; background: none; outline: none; color: var(--yellow); caret-color: var(--paper); text-transform: lowercase; text-overflow: ellipsis; -webkit-user-select: text; user-select: text; }
+.sayrow:has(#sayWord:focus) { border-color: var(--paper); }
 #sayBtn { height: 46px; padding: 0 22px; border-radius: 999px; background: var(--red); color: var(--paper); font-size: 17px; position: relative; overflow: hidden; }
 #sayBtn.live { background: var(--paper); color: var(--bg); }
 #sayBtn.live::after { content: ''; position: absolute; inset: 0; background: rgba(253, 45, 85, 0.55); transform-origin: left; animation: take var(--take, 2.4s) linear forwards; }
