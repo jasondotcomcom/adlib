@@ -2,7 +2,7 @@
 import { song, vibe, VIBES, KITS, ROWS, ROW_LABELS, STEPS, loadVibe, diceRow, diceAll, newMelody, encodeSong, decodeSong, shownBpm, chordFor, beatFromVoice } from './song.js';
 import * as engine from './engine.js';
 import { ears, startEars, stopEars, slice, micRate } from './ears.js';
-import { voice, buildVoice, voiceDrum, voiceNote, voiceTag, voiceChop, voiceRiser, rollSay } from './voicekit.js';
+import { voice, buildVoice, voiceDrum, voiceNote, voiceTag, voiceChop, voiceRiser, rollSay, packTake, unpack, toWav, fromWav, TAKE_RATE } from './voicekit.js';
 import { words, startWords, stopWords, onWord, feed } from './words.js';
 import { hype, startHype, stopHype, setMode } from './hype.js';
 import { initStage, setPerforming } from './stage.js';
@@ -87,9 +87,17 @@ function render() {
   $('keysBtn').setAttribute('aria-pressed', song.keys); $('leadBtn').setAttribute('aria-pressed', song.lead);
 }
 function syncPlay() { const on = engine.isPlaying(); $('playBtn').textContent = on ? 'Stop' : 'Play'; $('playBtn').setAttribute('aria-pressed', on); }
-function saveHash() { try { history.replaceState(null, '', '#b=' + encodeSong()); } catch {} }
+const withVoice = () => song.kit === 'you' && voice.ready && voice.id;
+function saveHash() { try { history.replaceState(null, '', '#b=' + encodeSong() + (withVoice() ? '&v=' + voice.id : '')); } catch {} }
 
-async function wake() { await engine.initAudio(); }
+let incoming = null;                 // { id, data } promise for a voice that came with the link
+async function wake() {
+  await engine.initAudio();
+  if (!incoming) return;
+  const job = incoming; incoming = null;
+  const got = await job;
+  if (got && buildVoice(unpack(got.pcm), TAKE_RATE)) { voice.pcm = got.pcm; voice.id = got.id; song.kit = 'you'; engine.applyKit(); render(); }
+}
 
 function wireControls() {
   $('playBtn').addEventListener('click', async () => { await wake(); engine.isPlaying() ? engine.stop() : engine.play(); syncPlay(); });
@@ -115,6 +123,9 @@ function wireControls() {
   $('sayRoll').innerHTML = DIE; $('sayWord').textContent = rollSay();
   $('sayRoll').addEventListener('click', () => { $('sayWord').textContent = rollSay(); });
   $('sayBtn').addEventListener('click', sayIt);
+  $('shareVoice').addEventListener('click', shareWithVoice);
+  $('sharePlain').addEventListener('click', () => { $('shareSheet').hidden = true; sendLink(true); });
+  $('shareCancel').addEventListener('click', () => { $('shareSheet').hidden = true; });
   $('backBtn').addEventListener('click', backToBeat);
   $('modeBtn').addEventListener('click', () => { const m = hype.mode === 'hype' ? 'boom' : 'hype'; setMode(m); $('modeBtn').textContent = m === 'hype' ? 'Hype voice' : 'Boom voice'; });
   $('phonesBtn').addEventListener('click', async () => {
@@ -154,8 +165,22 @@ function playhead() {
 function mark(s, on) { for (let r = 0; r < ROWS.length; r++) cells[r][s].classList.toggle('now', on); tape[s].classList.toggle('now', on); }
 
 async function share() {
+  if (song.kit === 'you' && voice.ready && !voice.id) { $('shareSheet').hidden = false; return; }   // sharing your voice saves your clip: ask first
+  sendLink();
+}
+async function shareWithVoice() {
+  const btn = $('shareVoice'); btn.disabled = true; btn.textContent = 'Saving';
+  try {
+    const r = await fetch('/api/voice', { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: toWav(voice.pcm) });
+    if (!r.ok) throw new Error(r.status);
+    voice.id = (await r.json()).id;
+  } catch { toast("couldn't save your voice. sharing the beat without it."); }
+  btn.disabled = false; btn.textContent = 'With my voice'; $('shareSheet').hidden = true;
+  sendLink();
+}
+async function sendLink(plain) {
   saveHash();
-  const url = location.href;
+  const url = plain ? location.href.replace(/&v=[a-z0-9]+/, '') : location.href;
   try {
     if (navigator.share && /Mobi|Android/i.test(navigator.userAgent)) await navigator.share({ title: 'adlib', text: 'Rap on my beat.', url });
     else { await navigator.clipboard.writeText(url); toast('Beat link copied'); }
@@ -183,7 +208,8 @@ async function sayIt() {
   await sleep(TAKE * 1000);
   const data = slice(t0, ctx.currentTime), sr = micRate();
   stopEars(); btn.classList.remove('live'); btn.textContent = 'Record';
-  const ok = data && buildVoice(data, sr);
+  const pcm = data && packTake(data, sr), ok = pcm && buildVoice(unpack(pcm), TAKE_RATE);
+  if (ok) { voice.pcm = pcm; voice.id = null; }
   if (ok) { const made = beatFromVoice(voice.parts); song.kit = 'you'; engine.applyKit(); line.textContent = `i heard ${made.name.toLowerCase()}. ${made.bpm} bpm.`; }
   else line.textContent = "didn't catch that. say it louder.";
   render(); saveHash();
@@ -248,7 +274,12 @@ function debugLoop() {
 function boot() {
   const m = location.hash.match(/b=([^&]+)/);
   if (!(m && decodeSong(decodeURIComponent(m[1])))) loadVibe('boombap');
-  if (song.kit === 'you') song.kit = vibe().kit;             // a link carries the pattern, not the voice
+  if (song.kit === 'you') song.kit = vibe().kit;             // until the voice itself has arrived
+  const vm = location.hash.match(/[&#]v=([a-z0-9]{8,20})/);
+  if (vm) {
+    incoming = fetch('/api/voice?id=' + vm[1]).then(r => (r.ok ? r.arrayBuffer() : null)).then(b => { const pcm = b && fromWav(b); return pcm ? { id: vm[1], pcm } : null; }).catch(() => null);
+    $('sayLine').textContent = 'this beat is made of a voice. hit play.';
+  }
   engine.setOwnKit({ ready: () => voice.ready, drum: voiceDrum, note: voiceNote, tag: voiceTag, chop: voiceChop, riser: voiceRiser });
   buildVibes(); buildGrid(); buildTape(); wireControls(); render(); initStage(); playhead(); debugLoop();
   if (new URLSearchParams(location.search).has('debug')) $('debug').hidden = false;

@@ -22,7 +22,30 @@ export const SAY = [
 let lastSay = -1;
 export function rollSay() { let i; do { i = Math.floor(Math.random() * SAY.length); } while (i === lastSay); lastSay = i; return SAY[i]; }
 
-export const voice = { ready: false, f0: 140, pitched: false, parts: null, bufs: {} };
+export const voice = { ready: false, f0: 140, pitched: false, parts: null, bufs: {}, pcm: null, id: null };
+
+// ------------------------------------------------------------------ one format for a take, so a shared link rebuilds the same kit
+// Every take is turned into 16-bit mono at 32 kHz before anything is cut from it.
+// That is what gets saved when you share, and the kit is built from that same data on both ends.
+export const TAKE_RATE = 32000;
+export function packTake(data, sr) {
+  const n = Math.floor((data.length - 1) * TAKE_RATE / sr); if (n < TAKE_RATE * 0.2) return null;
+  const i16 = new Int16Array(n), step = sr / TAKE_RATE;
+  for (let i = 0; i < n; i++) { const x = i * step, a = Math.floor(x), v = data[a] + (data[a + 1] - data[a]) * (x - a); i16[i] = Math.max(-32768, Math.min(32767, Math.round(v * 32767))); }
+  return i16;
+}
+export function unpack(i16) { const f = new Float32Array(i16.length); for (let i = 0; i < f.length; i++) f[i] = i16[i] / 32767; return f; }
+export function toWav(i16) {
+  const b = new ArrayBuffer(44 + i16.length * 2), v = new DataView(b), str = (o, t) => { for (let i = 0; i < t.length; i++) v.setUint8(o + i, t.charCodeAt(i)); };
+  str(0, 'RIFF'); v.setUint32(4, 36 + i16.length * 2, true); str(8, 'WAVE'); str(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, TAKE_RATE, true); v.setUint32(28, TAKE_RATE * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); str(36, 'data'); v.setUint32(40, i16.length * 2, true);
+  new Int16Array(b, 44).set(i16);
+  return b;
+}
+export function fromWav(buf) {
+  const v = new DataView(buf); if (buf.byteLength < 46 || v.getUint32(24, true) !== TAKE_RATE || v.getUint16(34, true) !== 16) return null;
+  return new Int16Array(buf.slice(44, 44 + ((buf.byteLength - 44) & ~1)));
+}
 
 // ------------------------------------------------------------------ cutting it up (no audio API in here, so it runs in tests)
 export function analyze(data, sr) {

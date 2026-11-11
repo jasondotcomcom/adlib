@@ -78,4 +78,16 @@ for (const s of SAY) { assert.match(s, /[bpdgkt]/, s + ' hard hit'); assert.matc
   const sr = 48000, d = new Float32Array(sr); for (let i = 0; i < sr * 0.3; i++) d[9600 + i] = 0.3 * Math.sin(2 * Math.PI * 150 * i / sr) * Math.min(1, i / 200);
   const p = analyze(d, sr); assert.ok(p.events.length >= 1 && p.events[0].kind === 'low' && p.pace > 0 && p.sharp < 0.1);
 }
+
+// a take survives the trip through a share link bit for bit, so both ends cut the same kit
+{
+  const { packTake, unpack, toWav, fromWav, TAKE_RATE } = await import('../public/js/voicekit.js');
+  const sr = 44100, d = new Float32Array(sr * 2.4); for (let i = 0; i < sr * 0.4; i++) d[sr * 0.3 + i] = 0.4 * Math.sin(2 * Math.PI * 180 * i / sr) * Math.min(1, i / 300);
+  const pcm = packTake(d, sr); assert.ok(pcm && Math.abs(pcm.length - TAKE_RATE * 2.4) < 4);
+  const wav = toWav(pcm); assert.ok(wav.byteLength < 44 + TAKE_RATE * 2 * 2.6, 'small enough for the server');
+  const back = fromWav(wav); assert.deepEqual(Array.from(back.slice(9000, 9050)), Array.from(pcm.slice(9000, 9050))); assert.equal(back.length, pcm.length);
+  const a1 = analyze(unpack(pcm), TAKE_RATE), a2 = analyze(unpack(back), TAKE_RATE);
+  assert.deepEqual(a1.kick, a2.kick); assert.equal(a1.f0, a2.f0); assert.ok(Math.abs(a1.f0 - 180) < 6, 'pitch survives 32k: ' + a1.f0);
+  assert.equal(fromWav(new ArrayBuffer(10)), null); assert.equal(packTake(new Float32Array(100), sr), null);
+}
 console.log('ok');
