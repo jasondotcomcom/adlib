@@ -211,7 +211,7 @@ let toastTimer = null;
 function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 2200); }
 
 // ------------------------------------------------------------------ say a word, get a beat
-const SAY_LINE = "say a word. how you say it is the beat.";
+const SAY_LINE = "say it loud. your voice is the beat.";
 const TAKE = 2.4;
 let taking = false;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
