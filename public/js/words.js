@@ -40,7 +40,7 @@ export async function startWords() {
 }
 export function stopWords() {
   active = false;
-  try { rec && rec.abort(); } catch {}
+  if (rec) drop(rec);
   rec = null;
   try { ws && ws.close(); } catch {}
   ws = null; words.engine = 'none'; words.status = 'off';
@@ -62,7 +62,7 @@ async function startBrowser() {
       else if (a === 'downloadable' || a === 'downloading') SR.install({ langs: ['en-US'], processLocally: true }).catch(() => {});   // ready next visit
     }
   } catch {}
-  words.engine = 'browser';
+  words.engine = 'browser'; restarts = 0;
   spin(SR);
   // If you are clearly rapping and not one word has come back, the setup is not
   // working on this browser. Step down: first drop our mic track, then on-device.
@@ -72,19 +72,27 @@ async function startBrowser() {
     if (words.recent.length || heardNothing < 3) return;
     heardNothing = 0;
     if (useTrack) useTrack = false; else if (useLocal) useLocal = false; else { words.status = 'no words from this browser'; return clearInterval(watchdog); }
-    words.status = 'retrying words'; try { rec && rec.abort(); } catch {}
+    words.status = 'retrying words'; again(SR);
   }, 1500);
   return true;
 }
+// Let go of a recognizer without waiting on it. One that was handed our mic track and
+// never started does not fire 'end' when aborted, so nothing may depend on that event.
+function drop(r) {
+  r.onstart = r.onresult = r.onerror = r.onend = null;
+  try { r.abort(); } catch {}
+  try { r.fed && r.fed.stop(); } catch {}
+}
+function again(SR) { const old = rec; rec = null; if (old) drop(old); setTimeout(() => spin(SR), 80); }
 function spin(SR) {
   if (!active) return;
-  const r = new SR(); rec = r; seen = [];
+  const r = new SR(); rec = r; seen = []; let started = false;
   r.continuous = true; r.interimResults = true; r.lang = 'en-US'; r.maxAlternatives = 1;
   if (useLocal) {
     try { r.processLocally = true; } catch {}
     try { if (window.SpeechRecognitionPhrase) r.phrases = BIAS.map(p => new window.SpeechRecognitionPhrase(p, 4)); } catch {}
   }
-  r.onstart = () => { words.status = (useLocal ? 'on-device' : 'cloud') + (useTrack ? ', our mic' : ', browser mic'); };
+  r.onstart = () => { started = true; words.status = (useLocal ? 'on-device' : 'cloud') + (useTrack ? ', our mic' : ', browser mic'); };
   r.onresult = e => {
     const now = getCtx().currentTime - 0.3;                  // rough recognizer lag
     for (let i = e.resultIndex; i < e.results.length; i++) {
@@ -102,15 +110,19 @@ function spin(SR) {
     else if (e.error === 'language-not-supported' && useLocal) useLocal = false;
     else if (e.error === 'audio-capture' && useTrack) useTrack = false;
   };
-  r.onend = () => { if (active && rec === r && restarts++ < 400) setTimeout(() => spin(SR), 60); };
+  r.onend = () => { try { r.fed && r.fed.stop(); } catch {} if (active && rec === r && restarts++ < 400) setTimeout(() => spin(SR), 60); };
+  // Chrome can take our own mic track, so the recognizer hears the same echo-cancelled
+  // signal the rest of adlib does. Some builds accept the track and then never start:
+  // no start, no error, no end. So it gets a moment, and then we go without the track.
+  const viaTrack = useTrack && ears.track && ears.track.readyState === 'live';
   try {
-    // Newer Chrome can take our own mic track, so the recognizer hears the same
-    // echo-cancelled signal the rest of adlib does. Older ones ignore the argument.
-    if (useTrack && ears.track) r.start(ears.track.clone()); else r.start();
+    if (viaTrack) { r.fed = ears.track.clone(); r.start(r.fed); } else r.start();
   } catch (err) {
-    useTrack = false;
+    useTrack = false; try { r.fed && r.fed.stop(); } catch {} r.fed = null;
     try { r.start(); } catch { words.engine = 'none'; words.status = 'rhythm only'; }
+    return;
   }
+  if (viaTrack) setTimeout(() => { if (active && rec === r && !started) { useTrack = false; words.status = 'retrying words'; again(SR); } }, 2200);
 }
 
 // ------------------------------------------------------------------ Deepgram streaming
