@@ -69,10 +69,11 @@ body[data-view='perform'] #build { display: none; }
 /* say a word, get a beat */
 .say { display: grid; gap: 6px; justify-items: center; }
 .say .k { font-size: 15px; color: var(--paper); text-align: center; text-wrap: balance; background: var(--bg); padding: 3px 14px; border-radius: 18px; }
-.sayrow { justify-self: stretch; background: var(--bg); display: grid; grid-template-columns: 36px 1fr auto; gap: 10px; align-items: center; height: 64px; padding: 0 8px 0 12px; border: 2px solid var(--grey); border-radius: 999px; }
-#sayWord { font: inherit; font-size: clamp(17px, 5.4vw, 21px); width: 100%; min-width: 0; height: 46px; padding: 0; border: 0; border-radius: 0; background: none; outline: none; color: var(--yellow); caret-color: var(--paper); text-transform: lowercase; text-overflow: ellipsis; -webkit-user-select: text; user-select: text; }
+.sayrow { justify-self: stretch; background: var(--bg); display: grid; grid-template-columns: 36px 1fr auto; gap: 10px; align-items: center; min-height: 64px; padding: 7px 8px 7px 12px; border: 2px solid var(--grey); border-radius: 34px; }
+/* the phrase always shows whole: main.js shrinks it to fit one line, and past 16px it wraps instead */
+#sayWord { font: inherit; font-size: 21px; line-height: 1.15; display: block; width: 100%; min-width: 0; padding: 0; margin: 0; border: 0; border-radius: 0; background: none; outline: none; resize: none; overflow: hidden; color: var(--yellow); caret-color: var(--paper); text-transform: lowercase; overflow-wrap: anywhere; -webkit-user-select: text; user-select: text; }
 .sayrow:has(#sayWord:focus) { border-color: var(--paper); }
-#sayBtn { height: 46px; padding: 0 22px; border-radius: 999px; background: var(--red); color: var(--paper); font-size: 17px; position: relative; overflow: hidden; }
+#sayBtn { height: 46px; padding: 0 clamp(14px, 4.6vw, 22px); border-radius: 999px; background: var(--red); color: var(--paper); font-size: 17px; position: relative; overflow: hidden; }
 #sayBtn.live { background: var(--paper); color: var(--bg); }
 #sayBtn.live::after { content: ''; position: absolute; inset: 0; background: rgba(253, 45, 85, 0.55); transform-origin: left; animation: take var(--take, 2.4s) linear forwards; }
 @keyframes take { from { transform: scaleX(0); } to { transform: scaleX(1); } }

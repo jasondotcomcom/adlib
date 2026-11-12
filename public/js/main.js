@@ -92,7 +92,7 @@ function saveHash() { try { history.replaceState(null, '', '#b=' + encodeSong() 
 
 // the front door shows only the voice row. the machine opens under it once there is a beat.
 const simple = () => document.body.hasAttribute('data-start');
-function openUp() { if (!simple()) return; document.body.removeAttribute('data-start'); document.body.classList.add('opened'); }
+function openUp() { if (!simple()) return; document.body.removeAttribute('data-start'); document.body.classList.add('opened'); fitSay(); }
 
 let incoming = null;                 // { id, data } promise for a voice that came with the link
 async function wake() {
@@ -124,10 +124,13 @@ function wireControls() {
   $('clearBtn').addEventListener('click', () => { song.pat = ROWS.map(() => new Array(STEPS).fill(0)); render(); saveHash(); });
   $('shareBtn').addEventListener('click', share);
   $('micBtn').addEventListener('click', perform);
-  $('sayRoll').innerHTML = DIE; $('sayWord').value = rollSay();
-  $('sayRoll').addEventListener('click', () => { $('sayWord').value = rollSay(); });
-  $('sayWord').addEventListener('keydown', e => { if (e.key === 'Enter') e.target.blur(); });   // type your own thing to say
-  $('sayWord').addEventListener('blur', e => { e.target.value = e.target.value.trim() || rollSay(); e.target.scrollLeft = 0; });
+  $('sayRoll').innerHTML = DIE; $('sayWord').value = rollSay(); fitSay();
+  $('sayRoll').addEventListener('click', () => { $('sayWord').value = rollSay(); fitSay(); });
+  $('sayWord').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); } });   // type your own thing to say
+  $('sayWord').addEventListener('input', e => { if (/[\r\n]/.test(e.target.value)) e.target.value = e.target.value.replace(/\s*[\r\n]+\s*/g, ' '); fitSay(); });
+  $('sayWord').addEventListener('blur', e => { e.target.value = e.target.value.trim() || rollSay(); fitSay(); });
+  window.addEventListener('resize', fitSay);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitSay);
   $('sayBtn').addEventListener('click', sayIt);
   $('skipBtn').addEventListener('click', async () => { openUp(); await wake(); if (!engine.isPlaying()) engine.play(); syncPlay(); saveHash(); });
   $('shareVoice').addEventListener('click', shareWithVoice);
@@ -148,6 +151,17 @@ function wireControls() {
     if (e.key === '`') $('debug').hidden = !$('debug').hidden;
   });
   engine.on('step', (abs, t) => { stepQueue.push({ s: abs % STEPS, t }); if (stepQueue.length > 64) stepQueue.shift(); });
+}
+// The phrase to say always shows whole. It shrinks to fit on one line, and once it
+// reaches 16px (any smaller and iPhones zoom the page when you tap it) it wraps instead.
+let pen = null;
+function fitSay() {
+  const el = $('sayWord'); el.style.fontSize = ''; el.style.height = '';
+  const cs = getComputedStyle(el), full = parseFloat(cs.fontSize), room = el.clientWidth; if (!room) return;
+  pen = pen || document.createElement('canvas').getContext('2d'); pen.font = `${cs.fontWeight} ${full}px ${cs.fontFamily}`;
+  const need = pen.measureText(el.value.toLowerCase()).width + 3;
+  el.style.fontSize = Math.max(16, Math.min(full, Math.floor((full * room / need) * 10) / 10)) + 'px';
+  el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px';
 }
 function hold(btn, fn) {
   let timer = null, rep = null;
