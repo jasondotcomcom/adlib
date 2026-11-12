@@ -94,7 +94,8 @@ for (const s of SAY) { assert.match(s, /[bpdgkt]/, s + ' hard hit'); assert.matc
 // rolling a beat moves between styles, sometimes stays, and keeps a voice kit
 {
   loadVibe('boombap'); const seen = new Set(); let stayed = 0, moved = 0;
-  for (let i = 0; i < 300; i++) { const was = song.vibe; rollBeat(); seen.add(song.vibe); song.vibe === was ? stayed++ : moved++; assert.ok(song.pat.length === 7 && song.pat[0].length === 16); assert.equal(decodeSong(encodeSong()), true, 'a rolled beat survives its link'); }
+  let last = false;
+  for (let i = 0; i < 300; i++) { const was = song.vibe; rollBeat(); seen.add(song.vibe); const same = song.vibe === was; assert.ok(!(same && last), 'never the same style three times running'); last = same; same ? stayed++ : moved++; assert.ok(song.pat.length === 7 && song.pat[0].length === 16); assert.equal(decodeSong(encodeSong()), true, 'a rolled beat survives its link'); }
   assert.equal(seen.size, VIBES.length, 'every style comes up'); assert.ok(stayed > 25 && moved > 200, `stays sometimes, moves more: ${stayed}/${moved}`);
   song.kit = 'you'; for (let i = 0; i < 20; i++) rollBeat(); assert.equal(song.kit, 'you', 'the voice kit survives a roll');
 }

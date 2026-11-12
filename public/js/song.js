@@ -176,8 +176,10 @@ export function diceRow(row, r = Math.random) {
 }
 // Roll a new beat. Four rolls in five land on a different style, with that style's tempo
 // and feel. A beat made of your voice stays made of your voice.
+let stayed = false;
 export function rollBeat(r = Math.random) {
-  if (r() < 0.8) {
+  const move = stayed || r() < 0.8; stayed = !move;      // it never stays put twice running
+  if (move) {
     const others = VIBES.filter(v => v.id !== song.vibe), mine = song.kit === 'you';
     loadVibe(others[Math.floor(r() * others.length)].id);
     if (mine) song.kit = 'you';
