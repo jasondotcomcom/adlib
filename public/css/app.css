@@ -94,6 +94,7 @@ body[data-view='perform'] #build { display: none; }
 .acts button:active { background: var(--yellow); border-color: var(--yellow); color: var(--bg); }
 .fine { font-size: 14px; font-weight: 500; color: var(--grey); display: flex; gap: 18px; justify-content: center; }
 .fine.credit { display: block; text-align: center; margin-top: -6px; }
+#beatCount[hidden] { display: none; }
 
 /* the front door: the name, something to say and a record button. the machine arrives with the first beat. */
 #build { transition: padding-top 0.7s cubic-bezier(0.2, 0.8, 0.2, 1); }

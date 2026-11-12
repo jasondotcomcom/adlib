@@ -95,13 +95,37 @@ function saveHash() { try { history.replaceState(null, '', '#b=' + encodeSong() 
 const simple = () => document.body.hasAttribute('data-start');
 function openUp() { if (!simple()) return; document.body.removeAttribute('data-start'); document.body.classList.add('opened'); fitSay(); }
 
+// ------------------------------------------------------------------ beats made so far
+// A beat counts once it has played for ten seconds without being changed, however it was
+// made: a voice take, a roll, a style tap or by hand. Each beat counts once, and one that
+// arrived in a link is somebody else's until it is changed.
+const COUNT_AFTER = 10000;
+const counted = new Set();
+let total = null, takeNo = 0, beatKey = '', beatSince = 0;
+const keyNow = () => encodeSong() + (song.kit === 'you' ? '|take' + takeNo : '');
+function showTotal() {
+  if (total == null) return;
+  const el = $('beatCount'); el.textContent = `${total.toLocaleString('en-US')} ${total === 1 ? 'beat' : 'beats'} made so far.`; el.hidden = false;
+}
+function watchBeats() {
+  fetch('/api/beats').then(r => (r.ok ? r.json() : null)).then(j => { if (j && Number.isFinite(j.n)) { total = j.n; showTotal(); } }).catch(() => {});
+  setInterval(() => {
+    if (!engine.isPlaying()) { beatSince = 0; return; }
+    const k = keyNow(), now = performance.now();
+    if (k !== beatKey || !beatSince) { beatKey = k; beatSince = now; return; }
+    if (now - beatSince < COUNT_AFTER || counted.has(k)) return;
+    counted.add(k);
+    fetch('/api/beats', { method: 'POST' }).then(r => { if (r.ok && total != null) { total++; showTotal(); } }).catch(() => {});
+  }, 500);
+}
+
 let incoming = null;                 // { id, data } promise for a voice that came with the link
 async function wake() {
   await engine.initAudio();
   if (!incoming) return;
   const job = incoming; incoming = null;
   const got = await job;
-  if (got && buildVoice(unpack(got.pcm), TAKE_RATE)) { voice.pcm = got.pcm; voice.id = got.id; song.kit = 'you'; engine.applyKit(); render(); }
+  if (got && buildVoice(unpack(got.pcm), TAKE_RATE)) { voice.pcm = got.pcm; voice.id = got.id; song.kit = 'you'; counted.add(keyNow()); engine.applyKit(); render(); }
 }
 
 function wireControls() {
@@ -239,7 +263,7 @@ async function sayIt() {
   stopEars(); btn.classList.remove('live'); btn.textContent = 'Record';
   const pcm = data && packTake(data, sr), ok = pcm && buildVoice(unpack(pcm), TAKE_RATE);
   if (ok) { voice.pcm = pcm; voice.id = null; }
-  if (ok) { const made = beatFromVoice(voice.parts); song.kit = 'you'; engine.applyKit(); openUp(); told = 'i heard'; again = false; line.textContent = `i heard ${made.name.toLowerCase()}. ${made.bpm} bpm.`; }
+  if (ok) { const made = beatFromVoice(voice.parts); takeNo++; song.kit = 'you'; engine.applyKit(); openUp(); told = 'i heard'; again = false; line.textContent = `i heard ${made.name.toLowerCase()}. ${made.bpm} bpm.`; }
   else line.textContent = "didn't catch that. say it louder.";
   render(); saveHash();
   if (ok || was) { if (!engine.isPlaying()) engine.play(); else engine.restartArc(); syncPlay(); }
@@ -302,16 +326,18 @@ function debugLoop() {
 // ------------------------------------------------------------------ boot
 function boot() {
   const m = location.hash.match(/b=([^&]+)/);
-  if (m && decodeSong(decodeURIComponent(m[1]))) document.body.removeAttribute('data-start');
+  const came = !!(m && decodeSong(decodeURIComponent(m[1])));
+  if (came) document.body.removeAttribute('data-start');
   else { loadVibe('boombap'); document.body.setAttribute('data-start', ''); }
   if (song.kit === 'you') song.kit = vibe().kit;             // until the voice itself has arrived
+  if (came) counted.add(keyNow());                           // a beat from a link is not one made here
   const vm = location.hash.match(/[&#]v=([a-z0-9]{8,20})/);
   if (vm) {
     incoming = fetch('/api/voice?id=' + vm[1]).then(r => (r.ok ? r.arrayBuffer() : null)).then(b => { const pcm = b && fromWav(b); return pcm ? { id: vm[1], pcm } : null; }).catch(() => null);
     $('sayLine').textContent = 'this beat is made of a voice. hit play.';
   }
   engine.setOwnKit({ ready: () => voice.ready, drum: voiceDrum, note: voiceNote, tag: voiceTag, chop: voiceChop, riser: voiceRiser });
-  buildVibes(); buildGrid(); buildTape(); wireControls(); render(); initStage(); playhead(); debugLoop();
+  buildVibes(); buildGrid(); buildTape(); wireControls(); render(); initStage(); playhead(); debugLoop(); watchBeats();
   if (new URLSearchParams(location.search).has('debug')) $('debug').hidden = false;
   window.adlib = { song, engine, ears, words, hype, feed, voice, buildVoice };
 }

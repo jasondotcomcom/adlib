@@ -99,4 +99,19 @@ for (const s of SAY) { assert.match(s, /[bpdgkt]/, s + ' hard hit'); assert.matc
   assert.equal(seen.size, VIBES.length, 'every style comes up'); assert.ok(stayed > 25 && moved > 200, `stays sometimes, moves more: ${stayed}/${moved}`);
   song.kit = 'you'; for (let i = 0; i < 20; i++) rollBeat(); assert.equal(song.kit, 'you', 'the voice kit survives a roll');
 }
+// beats made so far: the number is the latest total plus every later day's markers,
+// and the daily fold never moves it
+{
+  const { createRequire } = await import('node:module');
+  const { tally, fold, START } = createRequire(import.meta.url)('../api/_count.js'), r = 'beats/';
+  assert.equal(tally([], r).n, START);
+  let p = ['beats/d/2026-11-12/aa', 'beats/d/2026-11-12/bb', 'beats/d/2026-11-13/cc', 'voices/x.wav', 'beats-test/d/2026-11-12/zz'];
+  assert.equal(tally(p, r).n, START + 3);
+  let f = fold(p, r, '2026-11-13'); assert.equal(f.write, 'beats/total/2026-11-12_' + (START + 2)); assert.deepEqual(f.remove, []);
+  p.push(f.write); assert.equal(tally(p, r).n, START + 3, 'writing the total changes nothing');
+  p.push('beats/d/2026-11-14/dd'); f = fold(p, r, '2026-11-14');
+  assert.deepEqual(f.remove.sort(), ['beats/d/2026-11-12/aa', 'beats/d/2026-11-12/bb']); assert.equal(f.write, 'beats/total/2026-11-13_' + (START + 3));
+  p = p.filter(x => !f.remove.includes(x)); assert.equal(tally(p, r).n, START + 4, 'clearing folded days changes nothing'); p.push(f.write); assert.equal(tally(p, r).n, START + 4);
+  assert.equal(fold(['beats/total/2026-11-14_70'], r, '2026-11-20').write, null, 'a quiet day writes nothing');
+}
 console.log('ok');
