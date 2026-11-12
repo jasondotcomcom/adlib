@@ -6,7 +6,7 @@
 // and the markers already folded are cleared out. The number is the latest total plus
 // every marker from a day after it. Only names are read, never contents, and each name
 // is written once, so two people finishing a beat at the same moment can't collide.
-const START = 58;        // Jason's own beats from before the counter existed
+const START = 67;        // where Jason set it: his own beats from before the counter existed, and then some
 
 const root = () => (process.env.VERCEL_ENV === 'production' ? 'beats/' : 'beats-test/');
 const dayOf = (ms = Date.now()) => new Date(ms).toISOString().slice(0, 10);
