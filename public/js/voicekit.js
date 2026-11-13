@@ -3,6 +3,7 @@
 // hats and snare, the hardest hit is pitched down into the kick, and the vowel
 // is stretched across notes for the bass and the melody. Nothing leaves the browser.
 import { getCtx, nodes as N, mtof , tuneRatio } from './engine.js';
+import { song } from './song.js';
 
 // Things to say. Each has a hard hit (b p d g k t), something sharp (s sh ch t k z j f)
 // and an open vowel, so every part of the kit has something to be made from.
@@ -178,7 +179,7 @@ export function buildVoice(data, sr) {
     const [a, b] = parts[name]; if (b - a < 64) return false;
     bufs[name] = cutBuf(data, a, b, sr, name);
   }
-  take = { data, sr }; voice.shift = 0;
+  take = { data, sr }; voice.shift = 0; chops = null; chopAt = 0;
   const fwd = bufs.word.getChannelData(0), rev = ctx.createBuffer(1, fwd.length, sr), rd = rev.getChannelData(0);
   for (let i = 0; i < fwd.length; i++) rd[i] = fwd[fwd.length - 1 - i];
   bufs.rev = rev;
@@ -254,6 +255,37 @@ function bassBuf(midi) {
   }
   return psolaCache.get(key);
 }
+// ------------------------------------------------------------------ vocal chops
+// On the Full sound, a voice beat's melody is played with the syllables of your phrase, the
+// way hyphy and g-funk records chop a vocal: each note takes the next syllable, pitched to the
+// note and cut short, so your words become the riff. Each syllable is pitched from the voice's
+// own pitch and kept within an octave of it, so nothing gets chipmunked.
+let chops = null, chopAt = 0;
+function chopBufs() {
+  if (chops || !take || !voice.parts) return chops;
+  const { data, sr } = take, ev = voice.parts.events, out = [];
+  for (let i = 0; i < ev.length; i++) {
+    const a = Math.round(ev[i].t * sr), next = i + 1 < ev.length ? Math.round(ev[i + 1].t * sr) : a + Math.round(0.3 * sr);
+    const b = Math.min(data.length, a + Math.min(next - a, Math.round(0.32 * sr)));
+    if (b - a > sr * 0.05) out.push(cutBuf(data, a, b, sr, 'vowel'));
+  }
+  chops = out.length >= 2 ? out : [];
+  return chops;
+}
+function syllableNote(midi, t, dur) {
+  const set = chopBufs(); if (!set || !set.length) return false;
+  const buf = set[chopAt++ % set.length], ctx = getCtx();
+  const home = 12 * Math.log2(voice.f0 / 440) + 69; while (midi > home + 9) midi -= 12; while (midi < home - 4) midi += 12;
+  const src = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain();
+  src.buffer = buf; src.playbackRate.value = Math.max(0.5, Math.min(1.8, mtof(midi) / voice.f0));
+  f.type = 'bandpass'; f.frequency.value = 1100; f.Q.value = 0.5;
+  const len = Math.min(dur, buf.duration / src.playbackRate.value, 0.3);
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.42, t + 0.004);
+  g.gain.setValueAtTime(0.42, t + len * 0.7); g.gain.linearRampToValueAtTime(0, t + len);
+  src.connect(f).connect(g).connect(N.lead); src.start(t); src.stop(t + len + 0.02);
+  return true;
+}
+
 export function voiceNote(midi, t, dur, role) {
   // The voice melody: keep the note within an octave of the voice's own pitch, so it's never
   // sped up into chipmunk range (it used to run 3-4x fast, which is what screeched)
@@ -261,7 +293,8 @@ export function voiceNote(midi, t, dur, role) {
   // The bass stays the original way, the vowel slowed down: building it from grains buzzed
   // when the voice dropped that far (the grains end up with gaps between them). ?psolabass to compare.
   if (role === 'bass' && PSOLA_BASS && voice.pitched && voice.loop) return voiceBass(midi, t, dur);
-  if (role === 'lead' && PSOLA_LEAD && voice.pitched && voice.loop) return voiceLead(midi, t, dur);   // grain lead only with ?psolalead
+  if (role === 'lead' && PSOLA_LEAD && voice.pitched && voice.loop) return voiceLead(midi, t, dur);
+  if (role === 'lead' && song.tone === 'full' && voice.pitched && syllableNote(midi, t, dur)) return;   // grain lead only with ?psolalead
   const ctx = getCtx(), src = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain();
   src.buffer = voice.bufs.vowel; src.playbackRate.value = Math.max(0.2, Math.min(4, mtof(midi) / voice.f0));
   src.loop = true; src.loopStart = voice.loop[0]; src.loopEnd = voice.loop[1];
