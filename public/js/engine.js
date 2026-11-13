@@ -127,7 +127,7 @@ export async function initAudio() {
   { const lfo = ctx.createOscillator(); lfo.frequency.value = 0.11; N.keysPanDepth = gain(0); lfo.connect(N.keysPanDepth).connect(N.keysPan.pan); lfo.start(); }
   // and an echo on the lead, a dotted eighth long, kept out of the lows and the highs
   N.echo = gain(0); N.echoDelay = ctx.createDelay(2); N.echoFb = gain(0.32);
-  const eLp = eq('lowpass', 3200), eHp = eq('highpass', 350), ePan = ctx.createStereoPanner(); ePan.pan.value = 0.3;
+  const eLp = eq('lowpass', 2200), eHp = eq('highpass', 350), ePan = ctx.createStereoPanner(); ePan.pan.value = 0.3;
   N.lead.connect(N.echo).connect(N.echoDelay).connect(eLp).connect(eHp).connect(N.echoFb).connect(N.echoDelay);
   eHp.connect(ePan).connect(N.music);
 
@@ -383,7 +383,7 @@ function scheduleStep(abs, time) {
       lead(n.midi, t, n.len * sd, v.lead);
       // Full sound: a harmony a third above, in the key, on the longer notes and through the
       // last bar of each phrase, so it lifts in the right places instead of all the time
-      if (song.tone === 'full' && (n.len >= 3 || b4 === 3)) { if (mine()) own.note(harmonyAbove(n.midi), t, n.len * sd + 0.05, 'lead'); else lead(harmonyAbove(n.midi), t, n.len * sd, v.lead, 0.55); }
+      if (song.tone === 'full' && !mine() && (n.len >= 3 || b4 === 3)) lead(harmonyAbove(n.midi), t, n.len * sd, v.lead, 0.45);
     }
   }
 }
@@ -599,13 +599,14 @@ function fullLead(type, midi, t, dur, vel) {
     lp.frequency.value = 3500; atk = 0.03; len = dur + 0.12; level = 0.2 * vel;
   } else {
     // the pluck: three detuned saws through a filter that closes, like a plucked synth string
-    voice('sawtooth', -9, 0.33); voice('sawtooth', 0, 0.33); voice('sawtooth', 9, 0.33);
-    lp.frequency.setValueAtTime(5200, t); lp.frequency.exponentialRampToValueAtTime(900, t + 0.22);
-    level = 0.15 * vel;
+    // one saw and two softer triangles: the body of a pluck without the buzz
+    voice('sawtooth', 0, 0.22); voice('triangle', -7, 0.4); voice('triangle', 7, 0.4);
+    lp.frequency.setValueAtTime(2600, t); lp.frequency.exponentialRampToValueAtTime(700, t + 0.2);
+    level = 0.14 * vel;
   }
   // a breath of noise at the very start
   const n = ctx.createBufferSource(), nf = eq2('bandpass', f * 3, 1.2), ng = gain(0);
-  n.buffer = bassNoise(); ng.gain.setValueAtTime(0.06 * vel, t); ng.gain.exponentialRampToValueAtTime(0.0005, t + 0.03);
+  n.buffer = bassNoise(); ng.gain.setValueAtTime(0.018 * vel, t); ng.gain.exponentialRampToValueAtTime(0.0005, t + 0.03);
   n.connect(nf).connect(ng).connect(N.lead); n.start(t); n.stop(t + 0.05);
   out.gain.setValueAtTime(0, t); out.gain.linearRampToValueAtTime(level, t + atk);
   if (type === 'whistle') { out.gain.setValueAtTime(level, t + Math.max(atk, len - 0.1)); out.gain.linearRampToValueAtTime(0, t + len); }
@@ -613,7 +614,7 @@ function fullLead(type, midi, t, dur, vel) {
   lp.connect(out).connect(N.lead);
   for (const o of oscs) { o.start(t); o.stop(t + len + 0.05); }
 }
-const eq2 = (type, freq, q) => { const f = ctx.createBiquadFilter(); f.type = type; f.frequency.value = Math.min(18000, freq); f.Q.value = q; return f; };
+const eq2 = (type, freq, q) => { const f = ctx.createBiquadFilter(); f.type = type; f.frequency.value = Math.min(2500, freq); f.Q.value = q; return f; };
 
 // ------------------------------------------------------------------ keys, pad, lead
 function key(midi, t, dur, vel, dest = N.music) {
