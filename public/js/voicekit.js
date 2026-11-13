@@ -349,8 +349,10 @@ export function voiceNote(midi, t, dur, role) {
   // when the voice dropped that far (the grains end up with gaps between them). ?psolabass to compare.
   if (role === 'bass' && PSOLA_BASS && voice.pitched && voice.loop) return voiceBass(midi, t, dur);
   if (role === 'lead' && PSOLA_LEAD && voice.pitched && voice.loop) return voiceLead(midi, t, dur);
-  if (role === 'lead' && song.tone === 'full' && TALKBOX && talkNote(midi, t, dur)) return;
-  if (role === 'lead' && song.tone === 'full' && voice.pitched && syllableNote(midi, t, dur)) return;   // grain lead only with ?psolalead
+  // how the melody uses your phrase: chopped syllables, the talkbox, or the vowel held (the original)
+  const vox = TALKBOX ? 'talk' : song.vox;
+  if (role === 'lead' && vox === 'talk' && voice.pitched && talkNote(midi, t, dur)) return;
+  if (role === 'lead' && vox === 'chops' && voice.pitched && syllableNote(midi, t, dur)) return;   // grain lead only with ?psolalead
   const ctx = getCtx(), src = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain();
   src.buffer = voice.bufs.vowel; src.playbackRate.value = Math.max(0.2, Math.min(4, mtof(midi) / voice.f0));
   src.loop = true; src.loopStart = voice.loop[0]; src.loopEnd = voice.loop[1];

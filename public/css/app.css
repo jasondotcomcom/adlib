@@ -84,7 +84,7 @@ body:is([data-view='perform'], [data-view='decks']) #build { display: none; }
 #sayBtn.live .rec-dot { fill: var(--paper); }
 @keyframes ring { from { stroke-dashoffset: 100; } to { stroke-dashoffset: 0; } }
 @keyframes take { from { transform: scaleX(0); } to { transform: scaleX(1); } }
-.knob.drums { grid-column: 1 / -1; order: 1; } .knob.tone { order: 1; } .knob.swing { order: 2; } .knob.music { grid-column: 1 / -1; order: 2; } .knob.acts { order: 3; }
+.knob.drums { grid-column: 1 / -1; order: 1; } .knob.tone { order: 1; } .knob.vox { grid-column: 1 / -1; order: 1; } .knob.vox[hidden] { display: none; } .knob.swing { order: 2; } .knob.music { grid-column: 1 / -1; order: 2; } .knob.acts { order: 3; }
 .knobs { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px 14px; align-items: end; background: var(--bg); border-radius: 18px; }
 .knob { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
 .knob .k { font-size: 14px; color: var(--grey); padding-left: 4px; }
