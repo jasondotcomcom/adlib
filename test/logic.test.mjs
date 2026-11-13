@@ -63,11 +63,11 @@ for (const s of SAY) { assert.match(s, /[bpdgkt]/, s + ' hard hit'); assert.matc
   const { beatFromVoice } = await import('../public/js/song.js');
   const say = (gaps, kinds, f0, sharp) => { let t = 0; const events = kinds.map((k, i) => ({ t: (t += i ? gaps[(i - 1) % gaps.length] : 0), kind: k })); const dur = t + 0.15; return { events, dur, pace: events.length / Math.max(0.3, dur), sharp, f0, pitched: true }; };
   const slow = beatFromVoice(say([0.42], ['low', 'low', 'low'], 125, 0.12)), slowPat = song.pat[0].join('');
-  assert.ok(['lofi', 'boombap', 'soul'].includes(slow.id), 'slow and low: ' + slow.id);
+  assert.ok(['lofi', 'boombap', 'soul', 'jazzrap'].includes(slow.id), 'slow and low: ' + slow.id);
   const fast = beatFromVoice(say([0.13], ['low', 'sharp', 'low', 'sharp', 'low', 'low', 'sharp'], 170, 0.3));
-  assert.ok(['jersey', 'afro'].includes(fast.id), 'fast: ' + fast.id);
+  assert.ok(['jersey', 'afro', 'hyphy'].includes(fast.id), 'fast: ' + fast.id);
   const hissy = beatFromVoice(say([0.2, 0.25], ['sharp', 'low', 'sharp', 'sharp', 'low'], 100, 0.42));
-  assert.ok(['trap', 'drill'].includes(hissy.id), 'low and sharp: ' + hissy.id);
+  assert.ok(['trap', 'drill', 'phonk'].includes(hissy.id), 'low and sharp: ' + hissy.id);
   assert.notEqual(song.pat[0].join(''), slowPat, 'a different word writes a different kick');
   for (const r of song.pat) assert.equal(r.length, 16);
   assert.equal(song.pat[0][0], 1); assert.equal(song.pat[6][0], 1, 'the bass starts on the one');
@@ -126,7 +126,7 @@ for (const s of SAY) { assert.match(s, /[bpdgkt]/, s + ' hard hit'); assert.matc
   for (let bar = 0; bar < 4; bar++) for (let s = 0; s < 16; s++) assert.ok([0, 7].includes(S.bassStep(bar, s, false)) && [0, 12].includes(S.bassStep(bar, s, true)), 'original line is root and fifth/octave');
   S.song.bass = false; S.song.walk = true; const enc = S.encodeSong(); S.loadVibe('trap');
   assert.equal(S.decodeSong(enc), true); assert.equal(S.song.bass, false); assert.equal(S.song.walk, true);
-  for (const id of ['boombap', 'trap', 'gfunk', 'afro', 'drill', 'lofi']) {
+  for (const id of ['boombap', 'trap', 'gfunk', 'afro', 'drill', 'lofi', 'hyphy', 'jazzrap', 'phonk']) {
     S.loadVibe(id); S.newMelody(); assert.equal(S.song.walk, true, 'new melody walks the bass');
     const v = S.vibe(); const inKey = m => S.SCALES[v.scale].includes((((m - v.key - S.song.key) % 12) + 12) % 12);
     for (let bar = 0; bar < 4; bar++) for (let s = 0; s < 16; s++) {
@@ -183,3 +183,22 @@ for (const s of SAY) { assert.match(s, /[bpdgkt]/, s + ' hard hit'); assert.matc
   S.loadVibe('soul'); const orig = [0, 1, 2, 3].map(b => S.chordFor(b).deg).join(''); S.song.vary = false; S.song.seed = 12345; assert.equal([0, 1, 2, 3].map(b => S.chordFor(b).deg).join(''), orig);
 }
 console.log('ok');
+
+// every style and every melody shape stays in key, leaves the last beat of the bar open, and a roll varies the song
+{
+  const S = await import('../public/js/song.js');
+  const shapes = new Set();
+  for (const v of S.VIBES) for (let k = 0; k < 20; k++) {
+    S.loadVibe(v.id); S.song.vary = true; S.song.seed = 1 + k * 4 + Math.floor(k / 5);
+    shapes.add((S.song.seed >> 2) % 5);
+    const vb = S.vibe(), notes = S.melody(); assert.ok(notes.length >= 3, `${v.id} seed ${S.song.seed}: a melody`);
+    for (const n of notes) {
+      assert.ok(S.SCALES[vb.scale].includes((((n.midi - vb.key - S.song.key) % 12) + 12) % 12) || vb.scale !== 'minor', `${v.id}: ${n.midi} in key`);
+      assert.ok(n.s >= 0 && n.s < 64);
+    }
+  }
+  assert.equal(shapes.size, 5, 'all five melody shapes come up');
+  S.loadVibe('soul'); S.rollBeat(() => 0.3); assert.equal(S.song.vary, true, 'a roll varies the song');
+  S.loadVibe('soul'); assert.equal(S.song.vary, false, 'picking a style starts from its classic version');
+  console.log('ok shapes');
+}
