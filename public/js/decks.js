@@ -2,20 +2,19 @@
 // The top record is your voice: hold it and your phrase plays on the beat a sixteenth at a
 // time, in place of the beat's own hook. Turn it to move through the phrase faster or
 // slower, up or down in pitch, or backward; flick it and the slice stutters.
-// The bottom record is adlib's mouth, and it holds the drums and bass: hold it and the beat
-// you grabbed repeats as a roll, turn it to move through the bar so the drums land in a new
-// order, pull it back to run them in reverse, flick it to stutter.
-// Everything starts on the grid, so whatever the hands do lands in the groove.
-// "keep it" keeps the last bar: the voice moves loop in the beat until tapped off, and the
-// beat moves are written into the beat itself.
+// The bottom record is adlib's mouth, and it changes what the drums are made of without
+// touching when they play. Each notch slides every voice drum one syllable along the
+// phrase (the kick that said "butt" says "pea", then "nut", then "ter"); on a regular kit
+// each notch tunes the drums a semitone. It stays where you leave it, like a knob.
+// "keep it" keeps the last bar of voice moves looping in the beat until tapped off.
 // The drawing is in stage.js; both use layout() so the record you see is the record you touch.
-import { getCtx, nodes as N, isPlaying, on as onBeat, stepDur, decksHook, beatDeck } from './engine.js';
-import { voice } from './voicekit.js';
-import { song, STEPS } from './song.js';
+import { getCtx, nodes as N, isPlaying, on as onBeat, stepDur, decksHook, drumTune } from './engine.js';
+import { voice, voiceShift, syllables } from './voicekit.js';
+import { song } from './song.js';
 
 const TURN = 1.8;                 // seconds of sound per full turn: a 33⅓ record
 const rec = () => ({ angle: 0, held: false, speed: 0, turned: 0, lastA: 0, lastMove: 0, pointer: null, used: -99 });
-export const deck = { on: false, ready: false, kept: false, hits: [], voice: rec(), beat: rec() };
+export const deck = { on: false, ready: false, kept: false, hits: [], notchAt: 0, voice: rec(), beat: rec() };
 
 // The voice record is big and up top. The beat record is adlib's mouth, small at the
 // bottom where his face always sits; its touch area reaches well past what's drawn.
@@ -92,26 +91,17 @@ function onStep(abs, t) {
   else slice(t, ev.at, ev.rate, sd);
 }
 
-// The beat record. While held, each step of the drums and bass plays from somewhere else in
-// the bar: a one-beat window from where you grabbed it, repeating (a roll), slid along the
-// bar as you turn the record (a full turn is a whole bar), played backward when you pull
-// back, stuttered when you flick.
-let anchor = 0, since = 0, lastBend = 1;
-// the hand's speed as a rate for the drums and bass: still is normal, forward is faster
-// and higher, back is slower and lower, a hard pull runs backward. Not snapped: a scratch slides.
-export function bendFor(speed) { let r = 1 + speed * 1.2; if (Math.abs(r) < 0.35) r = r < 0 ? -0.35 : 0.35; return Math.max(-2.5, Math.min(2.5, r)); }
-const recentBeat = [];
-function beatMap(abs) {
-  const b = deck.beat, s = abs % STEPS;
-  if (!b.held) { recentBeat[s] = null; return null; }
-  if (since < 0) { since = 0; anchor = s - (s % 4); }
-  const w = since++ % 4, back = b.speed < -0.4;
-  const off = Math.round((b.turned / (2 * Math.PI)) * STEPS);
-  const src = ((anchor + off + (back ? 3 - w : w)) % STEPS + STEPS) % STEPS;
-  const r1 = bendFor(b.speed), r0 = lastBend; lastBend = r1;
-  const ev = { src, stut: isFlick(b.speed), r0, r1 };
-  recentBeat[s] = ev; b.used = abs;
-  return ev;
+// The bottom record, as a knob with notches. Where it was left, plus how far it's turned now.
+const NOTCH = Math.PI / 3;                   // a sixth of a turn per notch
+let setAt = 0, notch = 0;
+const ownKit = () => song.kit === 'you' && voice.ready && syllables() > 1;
+function turnBeat() {
+  const n = Math.round((setAt + deck.beat.turned) / NOTCH);
+  if (n === notch) return;
+  notch = n;
+  if (ownKit()) voiceShift(n);
+  else drumTune.semis = Math.max(-12, Math.min(12, n));
+  deck.notchAt = performance.now();
 }
 
 // ------------------------------------------------------------------ on and off
@@ -121,27 +111,20 @@ export async function startDeck(el, btn, rewrote) {
   if (rewrote) onRewrite = rewrote;
   const b = await sound();
   if (b && b !== srcBuf) { srcBuf = b; prepare(b); deck.kept = false; kept.length = 0; }
-  deck.ready = !!fwd; deck.on = true; beatDeck.map = beatMap;
+  deck.ready = !!fwd; deck.on = true;
+  notch = ownKit() ? voice.shift : drumTune.semis; setAt = notch * NOTCH;
   if (!el.dataset.wired) { wire(el); onBeat('step', onStep); el.dataset.wired = '1'; }
   keepBtn = btn; if (btn && !btn.dataset.wired) { btn.addEventListener('click', keep); btn.dataset.wired = '1'; }
   sync();
 }
-export function stopDeck() { deck.on = false; release('voice'); release('beat'); beatDeck.map = null; deck.kept = false; kept.length = 0; sync(); }
+export function stopDeck() { deck.on = false; release('voice'); release('beat'); deck.kept = false; kept.length = 0; sync(); }
 
-// keep the last bar of whichever records were played in it
+// keep the last bar of voice moves; tap again to let it go
 function keep() {
-  const now = lastStep(), fresh = r => now - deck[r].used <= STEPS;
-  let did = false;
-  if (fresh('beat') && recentBeat.some(Boolean)) {
-    // the drums and bass, rewritten in the order you just played them
-    const old = song.pat.map(row => row.slice());
-    for (let s = 0; s < STEPS; s++) { const ev = recentBeat[s]; if (ev) for (let r = 0; r < 7; r++) song.pat[r][s] = old[r][ev.src]; }
-    recentBeat.length = 0; deck.beat.used = -99; did = true; onRewrite();
-  }
-  if (deck.kept && !did) { deck.kept = false; kept.length = 0; return sync(); }
-  if (fresh('voice') && recent.some(Boolean)) { for (let s = 0; s < 16; s++) kept[s] = recent[s] || null; deck.kept = true; did = true; }
-  if (did) flash();
-  sync();
+  if (deck.kept) { deck.kept = false; kept.length = 0; return sync(); }
+  if (lastStep() - deck.voice.used > 16 || !recent.some(Boolean)) return;
+  for (let s = 0; s < 16; s++) kept[s] = recent[s] || null;
+  deck.kept = true; flash(); sync();
 }
 let stepNow = 0; onBeat('step', abs => { stepNow = abs; });
 const lastStep = () => stepNow;
@@ -167,7 +150,6 @@ function wire(el) {
     e.preventDefault(); d.pointer = e.pointerId; try { el.setPointerCapture(e.pointerId); } catch {}
     d.lastA = angleAt(e, r); d.lastMove = performance.now(); d.held = true; d.speed = 0; d.turned = 0;
     if (r === 'voice') pos = 0;                   // every touch starts the phrase from the top
-    else { since = -1; lastBend = 1; }             // and the beat from the beat you're on
     sync();
   });
   el.addEventListener('pointermove', e => {
@@ -180,12 +162,14 @@ function wire(el) {
       const now = performance.now(), dt = Math.max(1, now - d.lastMove); d.lastMove = now;
       d.speed = d.speed * 0.6 + (da / (2 * Math.PI) * TURN) / (dt / 1000) * 0.4;   // seconds of sound per second
     }
+    if (r === 'beat') turnBeat();
   });
   const end = e => { const r = owner(e.pointerId); if (r) release(r); };
   el.addEventListener('pointerup', end); el.addEventListener('pointercancel', end);
 }
 function release(r) {
   const d = deck[r]; if (d.pointer === null) return;
+  if (r === 'beat') { setAt += d.turned; d.turned = 0; }
   d.pointer = null; d.held = false; d.speed = 0; sync();
 }
 

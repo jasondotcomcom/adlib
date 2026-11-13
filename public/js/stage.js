@@ -173,10 +173,13 @@ function frame(ts) {
     mouth += ((bd.held ? 1 : 0) - mouth) * Math.min(1, dt * 16);
     const MR = B.R * (1 + 0.45 * mouth);
     ring(B.cx, B.cy, MR, 0.5 * F * (1 + 0.3 * mouth));
-    // his eyes: upright while he listens, squeezed into > < when the beat record is flicked
-    yell += ((Math.abs(bd.speed) > 2.2 ? 1 : 0) - yell) * Math.min(1, dt * 14);
+    // his eyes: upright while he listens
+    // his eyes squeeze shut for a moment each time the drums change, so you feel the notch
+    const blink = performance.now() - deck.notchAt < 140;
+    yell += ((blink ? 1 : 0) - yell) * Math.min(1, dt * 24);
+    if (blink && now - scratchAt > 0.1 && !reduced) { scratchAt = now; wave(0.6, 1, 900, 2); }
     const spread = Math.max(MR * 0.62, 2.1 * F) + F * 0.65 * yell, eh = F * (0.6 + 0.4 * yell), ey = B.cy - MR - 1.3 * F - eh;
-    // his whole face turns with your thumb, like a label on the record, and springs back upright
+    // his whole face turns with your thumb, like a knob, and springs back upright
     spin += ((bd.held ? bd.turned : 0) - spin) * Math.min(1, dt * (bd.held ? 30 : 8));
     const cs = Math.cos(spin), sn = Math.sin(spin), rot = (x, y) => [B.cx + (x - B.cx) * cs - (y - B.cy) * sn, B.cy + (x - B.cx) * sn + (y - B.cy) * cs];
     for (const side of [-1, 1]) {

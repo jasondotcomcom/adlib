@@ -2,7 +2,7 @@
 // One short recording is cut into a drum kit: the sharp consonants become the
 // hats and snare, the hardest hit is pitched down into the kick, and the vowel
 // is stretched across notes for the bass and the melody. Nothing leaves the browser.
-import { getCtx, nodes as N, mtof , bendParam, bendAt } from './engine.js';
+import { getCtx, nodes as N, mtof , tuneRatio } from './engine.js';
 
 // Things to say. Each has a hard hit (b p d g k t), something sharp (s sh ch t k z j f)
 // and an open vowel, so every part of the kit has something to be made from.
@@ -22,7 +22,7 @@ export const SAY = [
 let lastSay = -1;
 export function rollSay() { let i; do { i = Math.floor(Math.random() * SAY.length); } while (i === lastSay); lastSay = i; return SAY[i]; }
 
-export const voice = { ready: false, f0: 140, pitched: false, parts: null, bufs: {}, pcm: null, id: null, half: 0.5 };
+export const voice = { ready: false, f0: 140, pitched: false, parts: null, bufs: {}, pcm: null, id: null, half: 0.5, shift: 0 };
 
 // ------------------------------------------------------------------ one format for a take, so a shared link rebuilds the same kit
 // Every take is turned into 16-bit mono at 32 kHz before anything is cut from it.
@@ -146,17 +146,39 @@ export function halfCut(parts, sr) {
 }
 
 // ------------------------------------------------------------------ building the kit
+// one slice of the take, levelled and faded so it doesn't click
+function cutBuf(data, a, b, sr, name) {
+  const len = b - a, out = new Float32Array(len); let pk = 0;
+  for (let i = 0; i < len; i++) { out[i] = data[a + i]; pk = Math.max(pk, Math.abs(out[i])); }
+  const g = pk > 0.001 ? Math.min(20, 0.9 / pk) : 1, fin = Math.min(len >> 2, Math.round(sr * 0.003)), fout = Math.min(len >> 2, Math.round(sr * (name === 'vowel' ? 0.02 : 0.012)));
+  for (let i = 0; i < len; i++) { let w = 1; if (i < fin) w = i / fin; else if (i > len - fout) w = (len - i) / fout; out[i] *= g * w; }
+  const buf = getCtx().createBuffer(1, len, sr); buf.copyToChannel(out, 0); return buf;
+}
+let take = null;
+// How many syllables the drums can slide between (0 or 1 means there's nothing to slide to).
+export const syllables = () => (voice.parts ? voice.parts.events.length : 0);
+// Slide every drum k syllables along the phrase: the kick that said "butt" can say "pea",
+// "nut" or "ter". Each drum keeps its own length, so the kit stays varied.
+export function voiceShift(k) {
+  if (!take || !voice.parts) return;
+  const { data, sr } = take, p = voice.parts, on = p.events.map(e => Math.round(e.t * sr)), n = on.length;
+  if (n < 2) return;
+  for (const name of ['kick', 'perc', 'hat', 'ohat', 'snare']) {
+    const [a, b] = p[name], len = b - a;
+    let i = 0; for (let j = 1; j < n; j++) if (Math.abs(on[j] - a) < Math.abs(on[i] - a)) i = j;
+    const na = on[(((i + k) % n) + n) % n], nb = Math.min(data.length, na + len);
+    if (nb - na >= 64) voice.bufs[name] = cutBuf(data, na, nb, sr, name);
+  }
+  voice.shift = k;
+}
 export function buildVoice(data, sr) {
   const parts = analyze(data, sr); if (!parts) return false;
   const ctx = getCtx(), bufs = {};
   for (const name of ['kick', 'perc', 'hat', 'ohat', 'snare', 'vowel', 'word']) {
-    const [a, b] = parts[name], len = b - a; if (len < 64) return false;
-    const out = new Float32Array(len); let pk = 0;
-    for (let i = 0; i < len; i++) { out[i] = data[a + i]; pk = Math.max(pk, Math.abs(out[i])); }
-    const g = pk > 0.001 ? Math.min(20, 0.9 / pk) : 1, fin = Math.min(len >> 2, Math.round(sr * 0.003)), fout = Math.min(len >> 2, Math.round(sr * (name === 'vowel' ? 0.02 : 0.012)));
-    for (let i = 0; i < len; i++) { let w = 1; if (i < fin) w = i / fin; else if (i > len - fout) w = (len - i) / fout; out[i] *= g * w; }
-    const buf = ctx.createBuffer(1, len, sr); buf.copyToChannel(out, 0); bufs[name] = buf;
+    const [a, b] = parts[name]; if (b - a < 64) return false;
+    bufs[name] = cutBuf(data, a, b, sr, name);
   }
+  take = { data, sr }; voice.shift = 0;
   const fwd = bufs.word.getChannelData(0), rev = ctx.createBuffer(1, fwd.length, sr), rd = rev.getChannelData(0);
   for (let i = 0; i < fwd.length; i++) rd[i] = fwd[fwd.length - 1 - i];
   bufs.rev = rev;
@@ -171,8 +193,8 @@ export function buildVoice(data, sr) {
 function shot(buf, t, { rate = 1, gain = 1, type, freq, q = 0.7, dest = N.drums, glide }) {
   const ctx = getCtx(), src = ctx.createBufferSource(), g = ctx.createGain();
   src.buffer = buf;
-  if (dest === N.drums || dest === N.bass) bendParam(src.playbackRate, rate, t); else src.playbackRate.setValueAtTime(rate, t);   // the beat record bends voice drums too
-  if (glide && !((dest === N.drums || dest === N.bass) && bendAt(t))) src.playbackRate.exponentialRampToValueAtTime(glide, t + 0.07);
+  src.playbackRate.setValueAtTime(dest === N.drums ? rate * tuneRatio() : rate, t);
+  if (glide) src.playbackRate.exponentialRampToValueAtTime(dest === N.drums ? glide * tuneRatio() : glide, t + 0.07);
   g.gain.value = gain;
   if (type) { const f = ctx.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = q; src.connect(f).connect(g); } else src.connect(g);
   g.connect(dest); src.start(t);
