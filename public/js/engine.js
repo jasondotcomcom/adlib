@@ -27,6 +27,21 @@ export const decksHook = { on: false };
 // while the beat record is held, it decides which step of the bar the drums and bass play
 // from: map(abs) returns { src, stut } or null for the beat as written
 export const beatDeck = { map: null };
+// ...and how fast the hand is turning it: hits in that step are played faster or slower,
+// higher or lower, sweeping from r0 to r1 across the step; a negative rate plays them backward
+let bend = null;
+export const bendAt = t => (bend && t >= bend.t0 - 0.002 && t < bend.t1 ? bend : null);
+// set a playback-rate param for a hit at t, bent by the beat record. Returns true if the
+// hit should play backward.
+export function bendParam(param, base, t) {
+  const b = bendAt(t); if (!b) { param.setValueAtTime(base, t); return false; }
+  const f = (t - b.t0) / (b.t1 - b.t0), now = b.r0 + (b.r1 - b.r0) * f;
+  param.setValueAtTime(base * Math.max(0.2, Math.abs(now)), t);
+  param.linearRampToValueAtTime(base * Math.max(0.2, Math.abs(b.r1)), b.t1);
+  return now < 0;
+}
+const revKit = {};
+const reversed = name => { if (!revKit[name] && kit[name]) { const b = kit[name], r = ctx.createBuffer(b.numberOfChannels, b.length, b.sampleRate); for (let c = 0; c < b.numberOfChannels; c++) r.copyToChannel(b.getChannelData(c).slice().reverse(), c); revKit[name] = r; } return revKit[name]; };
 
 // Recent kick/snare times, so the ears can tell our own beat from a voice.
 export const drumLog = [];
@@ -237,6 +252,7 @@ function scheduleStep(abs, time) {
 
   // ---- drums
   const bm = beatDeck.map ? beatDeck.map(abs) : null, ps = bm ? bm.src : s;
+  bend = bm && (bm.r0 !== 1 || bm.r1 !== 1) ? { t0: t, t1: t + sd, r0: bm.r0, r1: bm.r1 } : null;
   for (let r = 0; r < 6; r++) {
     let hit = song.pat[r][ps];
     if (r === 1 && !bm && fill && s === 15 && !hit && song.pat[1].some(Boolean) && hash(bar, 15, song.seed) < 0.45) hit = 0.55;   // ghost snare into the turn
@@ -290,7 +306,8 @@ function scheduleStep(abs, time) {
 // ------------------------------------------------------------------ drums
 const DRUM_SAMPLE = ['kick', 'snare', 'clap', 'hat', 'ohat', 'rim'];
 function sample(name, t, vel, rate, dest) {
-  const src = ctx.createBufferSource(); src.buffer = kit[name]; src.playbackRate.value = rate;
+  const src = ctx.createBufferSource();
+  src.buffer = bendParam(src.playbackRate, rate, t) ? reversed(name) || kit[name] : kit[name];
   const g = gain(vel); src.connect(g).connect(dest); src.start(t);
   return { src, g };
 }
@@ -355,6 +372,7 @@ export function audition(row) {
 // ------------------------------------------------------------------ bass
 let lastBass = null;
 function bass808(midi, t, dur, vel, glide) {
+  const bb = bendAt(t); if (bb) { midi += 12 * Math.log2(Math.max(0.3, Math.abs(bb.r0))); dur = Math.min(dur, bb.t1 - t + 0.05); glide = true; }
   const f = mtof(midi), o = ctx.createOscillator(), g = gain(0);
   o.type = 'sine';
   const ringing = lastBass && lastBass.end > t + 0.005;
@@ -367,11 +385,13 @@ function bass808(midi, t, dur, vel, glide) {
   const hold = Math.max(0.12, dur * 0.85);
   g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vel * 0.95, t + 0.004);
   g.gain.setValueAtTime(vel * 0.95, t + hold * 0.5); g.gain.setTargetAtTime(0, t + hold * 0.5, Math.max(0.06, hold * 0.3));
+  if (bb) o.frequency.linearRampToValueAtTime(f * Math.max(0.3, Math.abs(bb.r1)) / Math.max(0.3, Math.abs(bb.r0)), bb.t1);   // the hand drags the 808
   o.connect(g).connect(N.bass);
   o.start(t); const end = t + hold + 0.9; o.stop(end);
   lastBass = { o, g, f, end: t + hold };
 }
 function bassRound(midi, t, dur, glide) {
+  const bb = bendAt(t); if (bb) midi += 12 * Math.log2(Math.max(0.3, Math.abs(bb.r0)));
   const f = mtof(midi), o1 = ctx.createOscillator(), o2 = ctx.createOscillator(), lp = ctx.createBiquadFilter(), g = gain(0);
   o1.type = 'sawtooth'; o2.type = 'sine';
   if (glide && lastBass && lastBass.f !== f && lastBass.end > t - 0.12) {

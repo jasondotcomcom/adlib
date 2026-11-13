@@ -96,7 +96,10 @@ function onStep(abs, t) {
 // the bar: a one-beat window from where you grabbed it, repeating (a roll), slid along the
 // bar as you turn the record (a full turn is a whole bar), played backward when you pull
 // back, stuttered when you flick.
-let anchor = 0, since = 0;
+let anchor = 0, since = 0, lastBend = 1;
+// the hand's speed as a rate for the drums and bass: still is normal, forward is faster
+// and higher, back is slower and lower, a hard pull runs backward. Not snapped: a scratch slides.
+export function bendFor(speed) { let r = 1 + speed * 1.2; if (Math.abs(r) < 0.35) r = r < 0 ? -0.35 : 0.35; return Math.max(-2.5, Math.min(2.5, r)); }
 const recentBeat = [];
 function beatMap(abs) {
   const b = deck.beat, s = abs % STEPS;
@@ -105,7 +108,8 @@ function beatMap(abs) {
   const w = since++ % 4, back = b.speed < -0.4;
   const off = Math.round((b.turned / (2 * Math.PI)) * STEPS);
   const src = ((anchor + off + (back ? 3 - w : w)) % STEPS + STEPS) % STEPS;
-  const ev = { src, stut: isFlick(b.speed) };
+  const r1 = bendFor(b.speed), r0 = lastBend; lastBend = r1;
+  const ev = { src, stut: isFlick(b.speed), r0, r1 };
   recentBeat[s] = ev; b.used = abs;
   return ev;
 }
@@ -163,7 +167,7 @@ function wire(el) {
     e.preventDefault(); d.pointer = e.pointerId; try { el.setPointerCapture(e.pointerId); } catch {}
     d.lastA = angleAt(e, r); d.lastMove = performance.now(); d.held = true; d.speed = 0; d.turned = 0;
     if (r === 'voice') pos = 0;                   // every touch starts the phrase from the top
-    else since = -1;                              // and the beat from the beat you're on
+    else { since = -1; lastBend = 1; }             // and the beat from the beat you're on
     sync();
   });
   el.addEventListener('pointermove', e => {

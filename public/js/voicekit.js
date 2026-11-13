@@ -2,7 +2,7 @@
 // One short recording is cut into a drum kit: the sharp consonants become the
 // hats and snare, the hardest hit is pitched down into the kick, and the vowel
 // is stretched across notes for the bass and the melody. Nothing leaves the browser.
-import { getCtx, nodes as N, mtof } from './engine.js';
+import { getCtx, nodes as N, mtof , bendParam, bendAt } from './engine.js';
 
 // Things to say. Each has a hard hit (b p d g k t), something sharp (s sh ch t k z j f)
 // and an open vowel, so every part of the kit has something to be made from.
@@ -170,8 +170,9 @@ export function buildVoice(data, sr) {
 // ------------------------------------------------------------------ playing it
 function shot(buf, t, { rate = 1, gain = 1, type, freq, q = 0.7, dest = N.drums, glide }) {
   const ctx = getCtx(), src = ctx.createBufferSource(), g = ctx.createGain();
-  src.buffer = buf; src.playbackRate.setValueAtTime(rate, t);
-  if (glide) src.playbackRate.exponentialRampToValueAtTime(glide, t + 0.07);
+  src.buffer = buf;
+  if (dest === N.drums || dest === N.bass) bendParam(src.playbackRate, rate, t); else src.playbackRate.setValueAtTime(rate, t);   // the beat record bends voice drums too
+  if (glide && !((dest === N.drums || dest === N.bass) && bendAt(t))) src.playbackRate.exponentialRampToValueAtTime(glide, t + 0.07);
   g.gain.value = gain;
   if (type) { const f = ctx.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = q; src.connect(f).connect(g); } else src.connect(g);
   g.connect(dest); src.start(t);

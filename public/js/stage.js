@@ -13,7 +13,7 @@ const NR = 8, NC = 20, ND = 24, NW = 8;
 const reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 let canvas, gl, U = {}, burstsEl, tickerEl, markSpace, W = 0, H = 0, dpr = 1, ok = false;
-let decking = false, scratchAt = 0;
+let decking = false, scratchAt = 0, spin = 0;
 let performing = false, phase = 0, phaseTo = 0, markBump = 0, level = 0, chain = 0, chainAt = 0;
 let mouth = 0, yell = 0, speakUntil = 0, yellUntil = 0;      // his face: how open, how loud
 const rings = new Float32Array(NR * 4), caps = new Float32Array(NC * 4), capR = new Float32Array(NC * 2), discs = new Float32Array(ND * 3), wavesU = new Float32Array(NW * 4);
@@ -176,9 +176,12 @@ function frame(ts) {
     // his eyes: upright while he listens, squeezed into > < when the beat record is flicked
     yell += ((Math.abs(bd.speed) > 2.2 ? 1 : 0) - yell) * Math.min(1, dt * 14);
     const spread = Math.max(MR * 0.62, 2.1 * F) + F * 0.65 * yell, eh = F * (0.6 + 0.4 * yell), ey = B.cy - MR - 1.3 * F - eh;
+    // his whole face turns with your thumb, like a label on the record, and springs back upright
+    spin += ((bd.held ? bd.turned : 0) - spin) * Math.min(1, dt * (bd.held ? 30 : 8));
+    const cs = Math.cos(spin), sn = Math.sin(spin), rot = (x, y) => [B.cx + (x - B.cx) * cs - (y - B.cy) * sn, B.cy + (x - B.cx) * sn + (y - B.cy) * cs];
     for (const side of [-1, 1]) {
       const ex = B.cx + side * (spread + 0.95 * F * yell), vx = B.cx + side * (spread - 0.95 * F * yell);
-      cap(ex, ey - eh, vx, ey, 0.5 * F, 3); cap(vx, ey, ex, ey + eh, 0.5 * F, 3);
+      cap(...rot(ex, ey - eh), ...rot(vx, ey), 0.5 * F, 3); cap(...rot(vx, ey), ...rot(ex, ey + eh), 0.5 * F, 3);
     }
     document.documentElement.style.setProperty('--face', Math.round(H - (B.cy - B.R * 1.45 - 2.3 * F - 2 * eh)) + 'px');
     gap = 0.38 * F;
