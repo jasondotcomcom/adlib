@@ -355,6 +355,7 @@ function boot() {
   engine.setOwnKit({ ready: () => voice.ready, drum: voiceDrum, note: voiceNote, tag: voiceTag, chop: voiceChop, riser: voiceRiser });
   buildVibes(); buildGrid(); buildTape(); wireControls(); render(); initStage(); playhead(); debugLoop(); watchBeats();
   if (new URLSearchParams(location.search).has('debug')) $('debug').hidden = false;
+  if (/^\/testdj\/?$/.test(location.pathname)) $('decksLink').hidden = false;   // the decks are only reachable here while they're being tested
   window.adlib = { song, engine, ears, words, hype, feed, voice, buildVoice, deck };
 }
 boot();
