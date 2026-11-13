@@ -114,4 +114,25 @@ for (const s of SAY) { assert.match(s, /[bpdgkt]/, s + ' hard hit'); assert.matc
   p = p.filter(x => !f.remove.includes(x)); assert.equal(tally(p, r).n, START + 4, 'clearing folded days changes nothing'); p.push(f.write); assert.equal(tally(p, r).n, START + 4);
   assert.equal(fold(['beats/total/2026-11-14_70'], r, '2026-11-20').write, null, 'a quiet day writes nothing');
 }
+// the bass: old links keep the original line; the on/off and walking flags round-trip;
+// a walking line never leaves the key
+{
+  const S = await import('../public/js/song.js');
+  S.loadVibe('boombap'); S.song.seed = 4321;
+  const old = '2.boombap.90.58.12.' + (4321).toString(36) + '.1.3.' + '0'.repeat(28);
+  assert.equal(S.decodeSong(old), true); assert.equal(S.song.bass, true, 'old links have bass'); assert.equal(S.song.walk, false, 'old links keep the original line');
+  assert.equal(S.encodeSong(), old, 'an old link encodes back to itself');
+  for (let bar = 0; bar < 4; bar++) for (let s = 0; s < 16; s++) assert.ok([0, 7].includes(S.bassStep(bar, s, false)) && [0, 12].includes(S.bassStep(bar, s, true)), 'original line is root and fifth/octave');
+  S.song.bass = false; S.song.walk = true; const enc = S.encodeSong(); S.loadVibe('trap');
+  assert.equal(S.decodeSong(enc), true); assert.equal(S.song.bass, false); assert.equal(S.song.walk, true);
+  for (const id of ['boombap', 'trap', 'gfunk', 'afro', 'drill', 'lofi']) {
+    S.loadVibe(id); S.newMelody(); assert.equal(S.song.walk, true, 'new melody walks the bass');
+    const v = S.vibe(); const inKey = m => S.SCALES[v.scale].includes((((m - v.key - S.song.key) % 12) + 12) % 12);
+    for (let bar = 0; bar < 4; bar++) for (let s = 0; s < 16; s++) {
+      const n = S.chordFor(bar).bassRound + S.bassStep(bar, s, false);
+      assert.ok(inKey(n), `${id} bar ${bar} step ${s}: ${n} is in the key`);
+      if (s === 0) assert.equal(S.bassStep(bar, s, false), 0, 'the one is the root');
+    }
+  }
+}
 console.log('ok');

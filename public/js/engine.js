@@ -1,6 +1,6 @@
 // engine.js — the sound. One AudioContext, a real mix bus, a sample-accurate
 // clock, and instruments that read the song in song.js.
-import { song, vibe, chordFor, melody, hash, ROWS, STEPS } from './song.js';
+import { song, vibe, chordFor, melody, hash, bassStep, ROWS, STEPS } from './song.js';
 
 let ctx = null;
 const N = {};            // audio nodes by name
@@ -188,12 +188,21 @@ function tick() {
     nextTime += stepDur(); nextStep++;
   }
 }
+// Play picks up where a pause left off; after a stop it starts from the top.
+let paused = false;
+export const isPaused = () => paused;
 export function play() {
   if (!ctx || playing) return;
-  nextStep = 0; nextTime = ctx.currentTime + 0.06; playing = true; lastBass = null; arcFrom = 0; tick();
+  if (!paused) { nextStep = 0; arcFrom = 0; }
+  nextTime = ctx.currentTime + 0.06; playing = true; paused = false; lastBass = null; tick();
+}
+export function pause() {
+  if (!playing) return;
+  playing = false; paused = true;
+  if (ctx) { const t = ctx.currentTime; N.beat.gain.cancelScheduledValues(t); N.beat.gain.setValueAtTime(1, t); }
 }
 export function stop() {
-  playing = false;
+  playing = false; paused = false;
   if (ctx) { const t = ctx.currentTime; N.beat.gain.cancelScheduledValues(t); N.beat.gain.setValueAtTime(1, t); }
 }
 
@@ -262,12 +271,12 @@ function scheduleStep(abs, time) {
   if (landing) { crash(t, 0.5); if (kit.deep) sample('deep', t, 0.7, 1, N.drums); }
 
   // ---- bass
-  if (song.pat[6][s] && !dropping) {
+  if (song.bass && song.pat[6][s] && !dropping) {
     let len = 1; while (len < 8 && !song.pat[6][(s + len) % STEPS]) len++;
-    const ch = chordFor(bar), alt = s % 4 !== 0 && hash(bar % 4, s, song.seed + 11) < 0.22;
-    if (you) { if (stage >= 1 && !bare) own.note((v.bass === '808' ? ch.bass808 + 12 : ch.bassRound) + (alt ? 7 : 0), t, Math.min(len, 4) * sd, 'bass'); }
-    else if (v.bass === '808') bass808(ch.bass808 + (alt ? 12 : 0), t, len * sd, 1, v.glide);
-    else bassRound(ch.bassRound + (alt ? 7 : 0), t, Math.min(len, 3) * sd, v.glide);
+    const ch = chordFor(bar), is808 = v.bass === '808';
+    if (you) { if (stage >= 1 && !bare) own.note((is808 ? ch.bass808 + 12 : ch.bassRound) + bassStep(bar, s, false), t, Math.min(len, 4) * sd, 'bass'); }
+    else if (is808) bass808(ch.bass808 + bassStep(bar, s, true), t, len * sd, 1, v.glide);
+    else bassRound(ch.bassRound + bassStep(bar, s, false), t, Math.min(len, 3) * sd, v.glide);
   }
 
   // ---- keys

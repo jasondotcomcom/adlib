@@ -5,7 +5,7 @@ export const ROWS = ['kick', 'snare', 'clap', 'hat', 'ohat', 'perc', 'bass'];
 export const ROW_LABELS = ['Kick', 'Snare', 'Clap', 'Hat', 'Open', 'Rim', 'Bass'];
 export const STEPS = 16;
 
-const SCALES = {
+export const SCALES = {
   minor: [0, 2, 3, 5, 7, 8, 10],
   major: [0, 2, 4, 5, 7, 9, 11],
   dorian: [0, 2, 3, 5, 7, 9, 10],
@@ -75,7 +75,7 @@ export const vibeById = id => VIBES.find(v => v.id === id) || VIBES[2];
 // The one live song. Everything else reads this.
 export const song = {
   vibe: 'boombap', bpm: 90, swing: 58, key: 0, seed: 1, kit: 'dusty',
-  keys: true, lead: true,
+  keys: true, lead: true, bass: true, walk: false,
   pat: ROWS.map(() => new Array(STEPS).fill(0)),
 };
 
@@ -86,7 +86,7 @@ export function loadVibe(id) {
   const v = vibeById(id);
   song.vibe = v.id; song.bpm = v.bpm; song.swing = v.swing; song.kit = v.kit; song.key = 0;
   song.pat = v.pat.map(r => r.slice());
-  song.keys = true; song.lead = true;
+  song.keys = true; song.lead = true; song.bass = true;
   melodyCache = null;
 }
 
@@ -120,6 +120,23 @@ export function chordFor(bar) {
     pad: [fold(r, 48, 59), fold(tone(2), 55, 66), fold(tone(4), 55, 66)],
     tones: [tone(0), tone(2), tone(4)],
   };
+}
+
+// The bassline's note for a hit, as semitones above the chord's root. The original line is
+// the root with the odd fifth (or octave on an 808). A walking line, which New melody turns
+// on, moves through tones that fit the chord: root on the one, chord tones on the beats,
+// and passing scale steps on the weak sixteenths. Seeded, so a link plays the same line.
+export function bassStep(bar, s, is808) {
+  const h = hash(((bar % 4) + 4) % 4, s, song.seed + 11);
+  if (!song.walk) return s % 4 !== 0 && h < 0.22 ? (is808 ? 12 : 7) : 0;
+  if (s === 0) return 0;
+  const v = vibe(), sc = SCALES[v.scale], root = v.key + song.key, deg = v.prog[((bar % 4) + 4) % 4];
+  const tone = k => { const d = deg + k; return root + sc[((d % 7) + 7) % 7] + 12 * Math.floor(d / 7); };
+  const r = tone(0), off = k => tone(k) - r;
+  const strong = [0, 0, off(4), 12, off(2), off(6)];          // root, fifth, octave, third, seventh
+  const pass = [off(1), off(3), off(-1) + 12, off(5)];          // steps between them
+  const pool = s % 2 ? pass.concat(strong) : strong;
+  return pool[Math.floor(hash(bar % 4, s, song.seed + 29) * pool.length)];
 }
 
 // 4-bar lead line: a 2-bar motif, then the same motif with a new ending.
@@ -193,13 +210,13 @@ export function diceAll(r = Math.random) {
   song.seed = 1 + Math.floor(r() * 46655);
   melodyCache = null;
 }
-export function newMelody(r = Math.random) { song.seed = 1 + Math.floor(r() * 46655); melodyCache = null; }
+export function newMelody(r = Math.random) { song.seed = 1 + Math.floor(r() * 46655); song.walk = true; melodyCache = null; }
 
 // ---------- share links ----------
 const rowHex = row => parseInt(row.join(''), 2).toString(16).padStart(4, '0');
 export function encodeSong() {
   return ['2', song.vibe, song.bpm, song.swing, song.key + 12, song.seed.toString(36), KITS.indexOf(song.kit),
-    (song.keys ? 1 : 0) + (song.lead ? 2 : 0), song.pat.map(rowHex).join('')].join('.');
+    (song.keys ? 1 : 0) + (song.lead ? 2 : 0) + (song.bass ? 0 : 4) + (song.walk ? 8 : 0), song.pat.map(rowHex).join('')].join('.');
 }
 export function decodeSong(str) {
   try {
@@ -213,7 +230,7 @@ export function decodeSong(str) {
       const n = parseInt(hex.slice(i * 4, i * 4 + 4), 16); if (Number.isNaN(n)) return false;
       pat.push(n.toString(2).padStart(16, '0').split('').map(Number));
     }
-    Object.assign(song, { vibe: v.id, bpm, swing, key, seed, kit, keys: !!(flags & 1), lead: !!(flags & 2), pat });
+    Object.assign(song, { vibe: v.id, bpm, swing, key, seed, kit, keys: !!(flags & 1), lead: !!(flags & 2), bass: !(flags & 4), walk: !!(flags & 8), pat });
     melodyCache = null;
     return true;
   } catch { return false; }
