@@ -21,13 +21,13 @@ export const VIBES = [
   {
     id: 'lofi', name: 'Lo-Fi', bpm: 76, swing: 62, key: 51, scale: 'major', prog: [1, 4, 0, 5],
     kit: 'dusty', bass: 'round', lead: 'keys', pad: false, lazy: true, crackle: true, leadDensity: 0.5,
-    comp: [[0, 7, 0.8], [10, 5, 0.55]],
+    chords: 'ep', comp: [[0, 7, 0.8], [10, 5, 0.55]],
     pat: ['x......x..x.....', '....x.......x...', '................', 'x.x.x.x.x.x.x.x.', '...........x....', '..............x.', 'x......x..x.....'],
   },
   {
     id: 'soul', name: 'Soul', bpm: 84, swing: 58, key: 51, scale: 'dorian', prog: [0, 5, 3, 4],
     kit: 'dusty', bass: 'round', lead: 'keys', pad: false, lazy: true, leadDensity: 0.6,
-    comp: [[0, 6, 0.8], [6, 2, 0.5], [11, 4, 0.7]],
+    chords: 'organ', comp: [[0, 6, 0.8], [6, 2, 0.5], [11, 4, 0.7]],
     pat: ['x.........x..x..', '....x.......x...', '................', 'x.x.x.x.x.x.x.x.', '.............x..', '..x...........x.', 'x.....x...x.....'],
   },
   {
@@ -39,13 +39,13 @@ export const VIBES = [
   {
     id: 'gfunk', name: 'G-Funk', bpm: 94, swing: 57, key: 56, scale: 'minor', prog: [0, 0, 5, 4],
     kit: 'clean', bass: 'round', glide: true, lead: 'whistle', pad: false, leadDensity: 0.45,
-    comp: [[0, 12, 0.7], [14, 2, 0.5]],
+    chords: 'synth', comp: [[0, 12, 0.7], [14, 2, 0.5]],
     pat: ['x.......x..x....', '....x.......x..x', '....x.......x...', 'x.x.x.x.x.x.x.x.', '.......x........', '...x............', 'x..x....x..x..x.'],
   },
   {
     id: 'afro', name: 'Afro', bpm: 106, swing: 54, key: 55, scale: 'major', prog: [5, 3, 0, 4],
     kit: 'clean', bass: 'round', lead: 'pluck', pad: false, leadDensity: 0.7,
-    comp: [[2, 2, 0.7], [6, 2, 0.6], [10, 2, 0.7], [14, 2, 0.6]],
+    chords: 'pluck', comp: [[2, 2, 0.7], [6, 2, 0.6], [10, 2, 0.7], [14, 2, 0.6]],
     pat: ['x..x..x...x..x..', '....x.......x...', '................', 'x.x.x.x.x.x.x.x.', '.......x........', '..x......x.x....', 'x..x..x...x.....'],
   },
   {
@@ -57,16 +57,46 @@ export const VIBES = [
   {
     id: 'drill', name: 'Drill', bpm: 71, half: true, swing: 50, key: 47, scale: 'minor', prog: [0, 5, 4, 0],
     kit: 'clean', bass: '808', glide: true, lead: 'bell', pad: true, rolls: true, leadDensity: 0.4,
-    comp: [],
+    chords: 'strings', comp: [],
     pat: ['x..x..x...x.....', '....x.........x.', '............x...', 'x.xx.xx.x.xx.xx.', '...............x', '.........x......', 'x..x..x...x..x..'],
   },
   {
     id: 'jersey', name: 'Jersey', bpm: 135, swing: 50, key: 50, scale: 'minor', prog: [0, 3, 0, 4],
     kit: 'crunch', bass: '808', lead: 'pluck', pad: true, rolls: true, leadDensity: 0.6,
-    comp: [[0, 2, 0.7], [3, 2, 0.6], [6, 2, 0.6], [10, 2, 0.7], [13, 2, 0.6]],
+    chords: 'stab', comp: [[0, 2, 0.7], [3, 2, 0.6], [6, 2, 0.6], [10, 2, 0.7], [13, 2, 0.6]],
     pat: ['x...x...x..x..x.', '................', '....x.......x...', 'x.x.x.x.x.x.x.x.', '..x...x...x...x.', '.x.......x......', 'x...x...x..x..x.'],
   },
+  {
+    id: 'hyphy', name: 'Hyphy', bpm: 100, swing: 52, key: 51, scale: 'minor', prog: [0, 0, 3, 4],
+    kit: 'clean', bass: '808', glide: true, lead: 'pluck', pad: false, leadDensity: 0.55, chords: 'stab',
+    comp: [[0, 1, 0.8], [3, 1, 0.6], [8, 1, 0.8], [11, 1, 0.6]],
+    pat: ['x..x....x.x.....', '....x.......x...', '....x.......x...', 'x.x.x.x.x.x.x.x.', '..............x.', '......x.......x.', 'x..x....x.x...x.'],
+  },
+  {
+    id: 'jazzrap', name: 'Jazz Rap', bpm: 88, swing: 61, key: 50, scale: 'dorian', prog: [1, 4, 0, 0],
+    kit: 'dusty', bass: 'round', lead: 'horn', pad: false, lazy: true, crackle: true, leadDensity: 0.45, chords: 'ep',
+    comp: [[0, 4, 0.7], [6, 2, 0.5], [10, 4, 0.6]],
+    pat: ['x.........x.....', '....x.......x...', '................', 'x.xx.xx.x.xx.xx.', '..............x.', '..x.......x.....', 'x...x.x...x.x...'],
+  },
+  {
+    id: 'phonk', name: 'Phonk', bpm: 68, half: true, swing: 50, key: 49, scale: 'minor', prog: [0, 0, 5, 6],
+    kit: 'crunch', bass: '808', glide: true, lead: 'bell', pad: true, rolls: true, cowbell: true, leadDensity: 0.4, chords: 'strings',
+    comp: [],
+    pat: ['x.....x...x.....', '................', '....x.......x...', 'x.x.x.x.x.x.x.xx', '................', 'x..x..x...x..x..', 'x.....x...x.....'],
+  },
 ].map(v => ({ ...v, pat: v.pat.map(p) }));
+
+// More than one chord rhythm per style; the first is each style's original
+export const COMPS = {
+  lofi: [[[0, 7, 0.8], [10, 5, 0.55]], [[0, 4, 0.7], [8, 4, 0.6]], [[2, 3, 0.7], [10, 3, 0.6]], [[0, 12, 0.7]]],
+  soul: [[[0, 6, 0.8], [6, 2, 0.5], [11, 4, 0.7]], [[0, 2, 0.8], [3, 2, 0.6], [8, 2, 0.8], [11, 4, 0.6]], [[0, 8, 0.7], [8, 8, 0.6]]],
+  boombap: [[[0, 3, 0.9], [7, 2, 0.6], [10, 4, 0.7]], [[0, 2, 0.9], [6, 2, 0.6], [12, 3, 0.7]], [[0, 8, 0.8]], [[4, 2, 0.7], [12, 2, 0.7]]],
+  gfunk: [[[0, 12, 0.7], [14, 2, 0.5]], [[0, 6, 0.7], [8, 6, 0.6]], [[0, 3, 0.7], [4, 3, 0.5], [8, 3, 0.7], [12, 3, 0.5]]],
+  afro: [[[2, 2, 0.7], [6, 2, 0.6], [10, 2, 0.7], [14, 2, 0.6]], [[0, 2, 0.7], [3, 2, 0.6], [8, 2, 0.7], [11, 2, 0.6]], [[2, 1, 0.7], [6, 1, 0.6], [9, 1, 0.6], [13, 1, 0.7]]],
+  jersey: [[[0, 2, 0.7], [3, 2, 0.6], [6, 2, 0.6], [10, 2, 0.7], [13, 2, 0.6]], [[0, 1, 0.8], [4, 1, 0.7], [7, 1, 0.7], [10, 1, 0.8]], [[2, 2, 0.7], [6, 2, 0.7], [14, 2, 0.7]]],
+  hyphy: [[[0, 1, 0.8], [3, 1, 0.6], [8, 1, 0.8], [11, 1, 0.6]], [[0, 1, 0.8], [6, 1, 0.6], [8, 1, 0.8], [14, 1, 0.6]], [[3, 1, 0.7], [6, 1, 0.7], [11, 1, 0.7], [14, 1, 0.7]]],
+  jazzrap: [[[0, 4, 0.7], [6, 2, 0.5], [10, 4, 0.6]], [[0, 2, 0.7], [3, 3, 0.5], [8, 2, 0.7], [12, 3, 0.5]], [[0, 8, 0.6], [8, 8, 0.5]]],
+};
 
 export const KITS = ['clean', 'dusty', 'crunch', 'you'];      // 'you' is a kit cut from the player's own voice
 
@@ -116,6 +146,9 @@ const PROGS = {
   trap: [[0, 0, 5, 4], [0, 5, 0, 6], [0, 2, 5, 4], [0, 0, 6, 5]],
   drill: [[0, 5, 4, 0], [0, 6, 5, 4], [0, 0, 5, 6], [0, 3, 5, 4]],
   jersey: [[0, 3, 0, 4], [0, 5, 3, 4], [0, 4, 5, 0], [0, 3, 5, 6]],
+  hyphy: [[0, 0, 3, 4], [0, 5, 0, 4], [0, 3, 5, 4], [0, 0, 6, 5]],
+  jazzrap: [[1, 4, 0, 0], [1, 4, 0, 5], [0, 5, 1, 4], [2, 5, 1, 4]],
+  phonk: [[0, 0, 5, 6], [0, 1, 0, 5], [0, 5, 6, 5], [0, 6, 0, 1]],
 };
 export function chordFor(bar) {
   const v = vibe(), sc = SCALES[v.scale], root = v.key + song.key;
@@ -143,7 +176,7 @@ export function bassStep(bar, s, is808) {
   const h = hash(((bar % 4) + 4) % 4, s, song.seed + 11);
   if (!song.walk) return s % 4 !== 0 && h < 0.22 ? (is808 ? 12 : 7) : 0;
   if (s === 0) return 0;
-  const v = vibe(), sc = SCALES[v.scale], root = v.key + song.key, deg = v.prog[((bar % 4) + 4) % 4];
+  const v = vibe(), sc = SCALES[v.scale], root = v.key + song.key, deg = chordFor(bar).deg;
   const tone = k => { const d = deg + k; return root + sc[((d % 7) + 7) % 7] + 12 * Math.floor(d / 7); };
   const r = tone(0), off = k => tone(k) - r;
   const strong = [0, 0, off(4), 12, off(2), off(6)];          // root, fifth, octave, third, seventh
@@ -163,11 +196,14 @@ export function harmonyAbove(midi) {
 // 4-bar lead line: a 2-bar motif, then the same motif with a new ending.
 let melodyCache = null;
 export function melody() {
-  const sig = [song.vibe, song.seed, song.key].join('|');
+  const sig = [song.vibe, song.seed, song.key, song.vary].join('|');
   if (melodyCache && melodyCache.sig === sig) return melodyCache.notes;
   const v = vibe(), sc = SCALES[v.scale], pent = PENTA[v.scale], root = v.key + song.key + 12;
   const r = rng(song.seed * 7919 + 13);
   const pitch = i => { const o = Math.floor(i / 5), d = pent[((i % 5) + 5) % 5]; return root + sc[d] + 12 * o; };
+  // Beats made from a phrase pick one of five shapes; older beats keep the original walk
+  const shape = song.vary ? (song.seed >> 2) % 5 : 0;
+  if (shape) { const notes = shapedMelody(shape, r, pitch, v); melodyCache = { sig, notes }; return notes; }
   const motif = [];
   let idx = 2 + Math.floor(r() * 3);
   for (let s = 0; s < 32; s++) {
@@ -223,6 +259,7 @@ export function rollBeat(r = Math.random) {
     if (mine) song.kit = 'you';
   }
   diceAll(r);
+  song.vary = true;                                       // a roll gets its own chords, build and melody shape
 }
 export function diceAll(r = Math.random) {
   for (let i = 0; i < ROWS.length; i++) diceRow(i, r);
@@ -231,7 +268,31 @@ export function diceAll(r = Math.random) {
   song.seed = 1 + Math.floor(r() * 46655);
   melodyCache = null;
 }
-export function newMelody(r = Math.random) { song.seed = 1 + Math.floor(r() * 46655); song.walk = true; melodyCache = null; }
+export function newMelody(r = Math.random) { song.seed = 1 + Math.floor(r() * 46655); song.walk = true; song.vary = true; melodyCache = null; }
+
+// The other melody shapes: a repeating riff, call and response, a few long notes, and a
+// rolling arpeggio through the chords. Each leaves room at the end of the bar for the rapper.
+function shapedMelody(shape, r, pitch, v) {
+  const out = [];
+  if (shape === 1) {                                   // riff: one short figure, repeated, changed in the last bar
+    const fig = []; let idx = 2 + Math.floor(r() * 3);
+    for (let s = 0; s < 8; s++) if (s === 0 || r() < 0.4) { idx = Math.max(0, Math.min(8, idx + [-1, 1, 2, -2, 0][Math.floor(r() * 5)])); fig.push({ s, i: idx, len: 1 + Math.floor(r() * 2) }); }
+    for (let b = 0; b < 8; b++) for (const n of fig) { const s = b * 8 + n.s; if (s % 16 > 13) continue; out.push({ s, i: b >= 6 ? n.i + (b === 7 ? -1 : 1) : n.i, len: n.len }); }
+  } else if (shape === 2) {                            // call and response: a line, space, the line again higher, then an answer
+    const call = []; let idx = 2 + Math.floor(r() * 2);
+    for (let s = 0; s < 12; s++) if (s === 0 || (s % 2 === 0 && r() < 0.55)) { idx = Math.max(0, Math.min(7, idx + [-1, 1, 1, 2, -1][Math.floor(r() * 5)])); call.push({ s, i: idx, len: 2 }); }
+    for (const n of call) { out.push({ ...n }); out.push({ ...n, s: n.s + 32, i: Math.min(8, n.i + 2) }); }
+    out.push({ s: 18, i: call[call.length - 1].i, len: 4 });
+    let a = call[call.length - 1].i + 1; for (const s of [48, 50, 52, 56]) { a = Math.max(0, a - 1); out.push({ s, i: a, len: s === 56 ? 4 : 2 }); }
+  } else if (shape === 3) {                            // sparse: a few long notes on the strong beats
+    let idx = 3; for (let s = 0; s < 64; s += 8) if (s % 16 === 0 || r() < 0.4) { idx = Math.max(0, Math.min(8, idx + [-1, 1, -2, 2, 0][Math.floor(r() * 5)])); out.push({ s, i: idx, len: 6 }); }
+  } else {                                             // arpeggio: eighth notes through the bar's chord, up or down
+    const up = r() < 0.5;
+    for (let b = 0; b < 4; b++) { const tones = chordFor(b).tones; for (let k = 0; k < 6; k++) { const j = up ? k : 5 - k; out.push({ s: b * 16 + k * 2, midi: fold(tones[j % 3] + 12 * Math.floor(j / 3) + 12, 60, 84), len: 2 }); } }
+    return out;
+  }
+  return out.map(n => ({ s: n.s, midi: pitch(n.i), len: n.len }));
+}
 
 // ---------- share links ----------
 const rowHex = row => parseInt(row.join(''), 2).toString(16).padStart(4, '0');
@@ -266,8 +327,9 @@ export function decodeSong(str) {
 const HOME = {
   lofi:    [2.4, 0.08, 0.012, 2], soul:  [3.0, 0.12, 0.019, 3], boombap: [3.6, 0.22, 0.016, 3], gfunk: [3.9, 0.15, 0.026, 4],
   afro:    [4.8, 0.14, 0.023, 5],  trap:  [4.2, 0.36, 0.019, 3], drill:   [5.0, 0.32, 0.014, 4],  jersey: [6.2, 0.28, 0.028, 6],
+  hyphy:   [4.6, 0.25, 0.022, 4],  jazzrap: [2.8, 0.15, 0.017, 3], phonk: [4.0, 0.3, 0.015, 3],
 };
-const PITCH_HOME = { lofi: 130, soul: 190, boombap: 120, gfunk: 210, afro: 180, trap: 110, drill: 95, jersey: 170 };
+const PITCH_HOME = { lofi: 130, soul: 190, boombap: 120, gfunk: 210, afro: 180, trap: 110, drill: 95, jersey: 170, hyphy: 150, jazzrap: 140, phonk: 100 };
 export function beatFromVoice(v) {
   const f0 = v.pitched ? v.f0 : 140, ev = v.events && v.events.length ? v.events : [{ t: 0, kind: 'low', amp: 1, len: 0.3 }];
   const sylls = ev.filter(e => e.kind === 'low').length, bright = v.bright != null ? v.bright : 0.019;
