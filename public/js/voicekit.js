@@ -190,25 +190,29 @@ export function buildVoice(data, sr) {
 }
 
 // ------------------------------------------------------------------ playing it
-function shot(buf, t, { rate = 1, gain = 1, type, freq, q = 0.7, dest = N.drums, glide }) {
+function shot(buf, t, { rate = 1, gain = 1, type, freq, q = 0.7, dest = N.drums, glide, len }) {
   const ctx = getCtx(), src = ctx.createBufferSource(), g = ctx.createGain();
   src.buffer = buf;
   src.playbackRate.setValueAtTime(dest === N.drums ? rate * tuneRatio() : rate, t);
   if (glide) src.playbackRate.exponentialRampToValueAtTime(dest === N.drums ? glide * tuneRatio() : glide, t + 0.07);
   g.gain.value = gain;
+  if (len) { g.gain.setValueAtTime(gain, t + len * 0.6); g.gain.setTargetAtTime(0, t + len * 0.6, len * 0.15); }   // cut short
   if (type) { const f = ctx.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = q; src.connect(f).connect(g); } else src.connect(g);
   g.connect(dest); src.start(t);
+  if (len) src.stop(t + len * 2);
 }
 // rows: 0 kick, 1 snare, 2 clap, 3 hat, 4 open hat, 5 rim
 export function voiceDrum(r, t, vel) {
   const b = voice.bufs, ctx = getCtx(), wob = 0.97 + Math.random() * 0.06;
   if (r === 0) {
-    shot(b.kick, t, { rate: 0.85, glide: 0.42, gain: 1.7 * vel, type: 'lowpass', freq: 280, q: 1 });       // your voice, dropped an octave
-    shot(b.perc, t, { rate: 1, gain: 0.3 * vel, type: 'highpass', freq: 700 });                             // the consonant, for the click
-    const o = ctx.createOscillator(), g = ctx.createGain();                                                 // a little floor under it
-    o.frequency.setValueAtTime(120, t); o.frequency.exponentialRampToValueAtTime(50, t + 0.08);
-    g.gain.setValueAtTime(0.45 * vel, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
-    o.connect(g).connect(N.drums); o.start(t); o.stop(t + 0.22);
+    // The kick is a drum first: a fast-falling sine for the body, with your voice only as the
+    // front of the hit. The voice is cut short and filtered low so its pitch doesn't read as a note.
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.frequency.setValueAtTime(155, t); o.frequency.exponentialRampToValueAtTime(46, t + 0.06);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(1.15 * vel, t + 0.003); g.gain.exponentialRampToValueAtTime(0.001, t + 0.32);
+    o.connect(g).connect(N.drums); o.start(t); o.stop(t + 0.34);
+    shot(b.kick, t, { rate: 0.7, glide: 0.3, gain: 1.1 * vel, type: 'lowpass', freq: 180, q: 0.5, len: 0.07 });   // your voice, just the thud of it
+    shot(b.perc, t, { rate: 1, gain: 0.38 * vel, type: 'highpass', freq: 900 });                            // the consonant, for the click
   } else if (r === 1) shot(b.snare, t, { rate: voice.parts.ownSnare ? 1 : 0.72, gain: 1.1 * vel, type: 'highpass', freq: 500 });
   else if (r === 2) { shot(b.snare, t, { rate: 1.2, gain: 0.7 * vel, type: 'bandpass', freq: 1700, q: 0.6 }); shot(b.snare, t + 0.013, { rate: 1.25, gain: 0.6 * vel, type: 'bandpass', freq: 1900, q: 0.6 }); }
   else if (r === 3) shot(b.hat, t, { rate: 1.1 * wob, gain: 0.55 * vel, type: 'highpass', freq: 4200 });
