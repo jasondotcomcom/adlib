@@ -17,10 +17,13 @@ const TURN = 1.8;                 // seconds of sound per full turn: a 33⅓ rec
 const rec = () => ({ angle: 0, held: false, speed: 0, turned: 0, lastA: 0, lastMove: 0, pointer: null, used: -99 });
 export const deck = { on: false, ready: false, kept: false, hits: [], voice: rec(), beat: rec() };
 
+// The voice record is big and up top. The beat record is adlib's mouth, small at the
+// bottom where his face always sits; its touch area reaches well past what's drawn.
 export function layout(w, h) {
-  const T = Math.max(14, Math.min(30, Math.min(w, h) * 0.045));
-  const R = Math.max(4 * T, Math.min(w * 0.36, h * 0.17));
-  return { T, R, voice: { cx: w / 2, cy: h * 0.25 }, beat: { cx: w / 2, cy: h * 0.69 } };
+  const T = Math.max(15, Math.min(34, Math.min(w, h) * 0.05));
+  const R = Math.max(5 * T, Math.min(w * 0.44, h * 0.27));
+  const F = T * 0.62, by = h - 34 - 3.2 * F;
+  return { T, F, voice: { cx: w / 2, cy: h * 0.4, R, hit: R * 1.18 }, beat: { cx: w / 2, cy: by, R: 2.2 * F, hit: Math.max(44, 4.4 * F) } };
 }
 
 let fwd = null, rev = null, fallback = null, srcBuf = null;
@@ -147,7 +150,7 @@ function sync() {
 // ------------------------------------------------------------------ the hands
 const which = e => {
   const L = layout(innerWidth, innerHeight);
-  for (const r of ['voice', 'beat']) if (Math.hypot(e.clientX - L[r].cx, e.clientY - L[r].cy) < L.R * 1.2) return r;
+  for (const r of ['voice', 'beat']) if (Math.hypot(e.clientX - L[r].cx, e.clientY - L[r].cy) < L[r].hit) return r;
   return null;
 };
 const angleAt = (e, r) => { const L = layout(innerWidth, innerHeight); return Math.atan2(e.clientY - L[r].cy, e.clientX - L[r].cx); };

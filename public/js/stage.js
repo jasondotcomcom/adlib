@@ -165,20 +165,22 @@ function frame(ts) {
     // stripe on each label shows it turning.
     const L = deckLayout(W, H); T = L.T;
     const V = L.voice, B = L.beat, vd = deck.voice, bd = deck.beat;
-    ring(V.cx, V.cy, L.R - 0.5 * T, (vd.held || deck.kept ? 0.62 : 0.5) * T);
-    ring(B.cx, B.cy, L.R - 0.5 * T, (bd.held ? 0.62 : 0.5) * T);
-    for (const [P, d] of [[V, vd], [B, bd]]) {
-      disc(P.cx, P.cy, 0.8 * T);
-      const c = Math.cos(d.angle), si = Math.sin(d.angle);
-      cap(P.cx + c * 1.8 * T, P.cy + si * 1.8 * T, P.cx + c * Math.min(3.2 * T, L.R - 2.2 * T) , P.cy + si * Math.min(3.2 * T, L.R - 2.2 * T), 0.45 * T);
-    }
+    ring(V.cx, V.cy, V.R - 0.5 * T, (vd.held || deck.kept ? 0.62 : 0.5) * T);
+    disc(V.cx, V.cy, 0.85 * T);
+    { const c = Math.cos(vd.angle), si = Math.sin(vd.angle); cap(V.cx + c * 1.9 * T, V.cy + si * 1.9 * T, V.cx + c * 3.4 * T, V.cy + si * 3.4 * T, 0.5 * T); }
+    // his mouth is the beat record: it opens wide while you hold it
+    const F = L.F;
+    mouth += ((bd.held ? 1 : 0) - mouth) * Math.min(1, dt * 16);
+    const MR = B.R * (1 + 0.45 * mouth);
+    ring(B.cx, B.cy, MR, 0.5 * F * (1 + 0.3 * mouth));
     // his eyes: upright while he listens, squeezed into > < when the beat record is flicked
     yell += ((Math.abs(bd.speed) > 2.2 ? 1 : 0) - yell) * Math.min(1, dt * 14);
-    const F = Math.max(T * 0.6, L.R * 0.15), spread = L.R * 0.42 + F * 0.65 * yell, ey = B.cy - L.R - 0.6 * T - F, eh = F * (0.6 + 0.4 * yell);
+    const spread = Math.max(MR * 0.62, 2.1 * F) + F * 0.65 * yell, eh = F * (0.6 + 0.4 * yell), ey = B.cy - MR - 1.3 * F - eh;
     for (const side of [-1, 1]) {
       const ex = B.cx + side * (spread + 0.95 * F * yell), vx = B.cx + side * (spread - 0.95 * F * yell);
       cap(ex, ey - eh, vx, ey, 0.5 * F, 3); cap(vx, ey, ex, ey + eh, 0.5 * F, 3);
     }
+    document.documentElement.style.setProperty('--face', Math.round(H - (B.cy - B.R * 1.45 - 2.3 * F - 2 * eh)) + 'px');
     gap = 0.38 * F;
     // every slice of your phrase sends rings out of the top record (blue when it runs
     // backward); the held beat record pushes rings out of his mouth on every kick
