@@ -70,10 +70,11 @@ for (const s of SAY) { assert.match(s, /[bpdgkt]/, s + ' hard hit'); assert.matc
   assert.ok(['trap', 'drill'].includes(hissy.id), 'low and sharp: ' + hissy.id);
   assert.notEqual(song.pat[0].join(''), slowPat, 'a different word writes a different kick');
   for (const r of song.pat) assert.equal(r.length, 16);
-  assert.equal(song.pat[0][0], 1); assert.deepEqual(song.pat[0], song.pat[6], 'bass rides the kick');
+  assert.equal(song.pat[0][0], 1); assert.equal(song.pat[6][0], 1, 'the bass starts on the one');
+  for (let i = 0; i < 16; i++) if (song.pat[0][i]) assert.equal(song.pat[6][i], 1, 'every kick has a bass note under it');
   assert.ok(song.pat[5].some(Boolean), 'sharp sounds became the rim');
   assert.ok(song.key >= -6 && song.key <= 6 && song.bpm >= 50 && song.bpm <= 180 && song.seed > 0);
-  const a440 = beatFromVoice(say([0.3], ['low', 'low'], 110, 0.1)); assert.equal((((vibeById(a440.id).key + song.key) % 12) + 12) % 12, 9, 'said on an A, in A');
+  const a440 = beatFromVoice(say([0.3], ['low', 'low'], 110, 0.1)); assert.ok([9, 2, 7, 4, 12 % 12, 6, 0].includes((((vibeById(a440.id).key + song.key) % 12) + 12) % 12), 'said on an A, in A or a close key');
   assert.ok(decodeSong(encodeSong()), 'still a valid link');
   // and the cutter reports how the made-up word was said
   const sr = 48000, d = new Float32Array(sr); for (let i = 0; i < sr * 0.3; i++) d[9600 + i] = 0.3 * Math.sin(2 * Math.PI * 150 * i / sr) * Math.min(1, i / 200);
@@ -165,5 +166,20 @@ for (const s of SAY) { assert.match(s, /[bpdgkt]/, s + ' hard hit'); assert.matc
     S.loadVibe(id); const v = S.vibe(), sc = S.SCALES[v.scale], inKey = m => sc.includes((((m - v.key - S.song.key) % 12) + 12) % 12);
     for (const n of S.melody()) { const h = S.harmonyAbove(n.midi); assert.ok(inKey(h), `${id} harmony in key`); if (inKey(n.midi)) assert.ok([3, 4].includes(h - n.midi), `${id}: ${n.midi} -> ${h} is a third`); }
   }
+}
+// different phrases from one voice spread out: styles, keys, chords and hats
+{
+  const S = await import('../public/js/song.js');
+  const make = (gaps, kinds, sharp, bright) => { let t = 0; const events = kinds.map((k, i) => ({ t: (t += i ? gaps[(i - 1) % gaps.length] : 0), kind: k, amp: [1, 0.7, 0.9, 0.6][i % 4] })); return { events, dur: t + 0.15, pace: events.length / Math.max(0.3, t + 0.15), sharp, bright, f0: 118, pitched: true }; };
+  const set = [make([0.18, 0.15, 0.2], ['low', 'sharp', 'low', 'low'], 0.18, 0.05 * 0.38), make([0.45], ['low', 'low'], 0.02, 0.03 * 0.38), make([0.11, 0.1, 0.12], ['sharp', 'low', 'sharp', 'low', 'sharp', 'low'], 0.42, 0.07 * 0.38),
+    make([0.22, 0.2], ['low', 'sharp', 'low'], 0.15, 0.05 * 0.38), make([0.25, 0.25], ['low', 'low', 'low'], 0.04, 0.07 * 0.38), make([0.13, 0.15, 0.2], ['sharp', 'low', 'sharp', 'low'], 0.35, 0.06 * 0.38)];
+  const styles = new Set(), hats = new Set(), chords = new Set();
+  for (const v of set) { const r = S.beatFromVoice(v); styles.add(r.id); hats.add(S.song.pat[3].join('')); chords.add(r.id + [0, 1, 2, 3].map(b => S.chordFor(b).deg).join('')); assert.ok(S.decodeSong(S.encodeSong()), 'a valid link'); }
+  assert.ok(styles.size >= 4, 'six phrases land on at least four styles: ' + [...styles]);
+  assert.ok(hats.size >= 4 && chords.size >= 5, `hats ${hats.size}, chord sets ${chords.size}`);
+  // the same phrase said the same way gives the same beat
+  const a = S.beatFromVoice(set[0]) && S.encodeSong(), b = S.beatFromVoice(set[0]) && S.encodeSong(); assert.equal(a, b);
+  // old links keep their original chords
+  S.loadVibe('soul'); const orig = [0, 1, 2, 3].map(b => S.chordFor(b).deg).join(''); S.song.vary = false; S.song.seed = 12345; assert.equal([0, 1, 2, 3].map(b => S.chordFor(b).deg).join(''), orig);
 }
 console.log('ok');

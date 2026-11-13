@@ -120,14 +120,18 @@ export function analyze(data, sr) {
     const c = cls(i); if (c) actN++; if (c === 2) sharpN++;
     const steady = i + 1 > last || cls(i + 1) === c, jump = i >= 2 ? rms[i] - rms[i - 2] : rms[i];
     const fresh = c === 1 && prevC === 1 && jump > peak * 0.3;                 // a new syllable inside a run of voice
-    if (c && steady && (c !== prevC || fresh)) { const t = (i * hop) / sr; if (t - lastT >= 0.07) { events.push({ t, kind: c === 2 ? 'sharp' : 'low' }); lastT = t; } }
+    if (c && steady && (c !== prevC || fresh)) { const t = (i * hop) / sr; if (t - lastT >= 0.07) { let a = 0; for (let k = i; k < Math.min(n, i + 6); k++) a = Math.max(a, rms[k]); events.push({ t, kind: c === 2 ? 'sharp' : 'low', amp: a / peak }); lastT = t; } }
     if (steady) prevC = c;
   }
   const dur = ((last - first) * hop) / sr;
+  // how bright the vowels are: zero crossings while the voice is round (an "ee" is brighter than an "oo")
+  let zb = 0, zn = 0; for (let i = first; i <= last; i++) if (act(i) && zcr[i] < 0.12) { zb += zcr[i]; zn++; }
+  const bright = zn ? zb / zn : 0.05;
+  for (let i = 0; i < events.length; i++) events[i].len = (i + 1 < events.length ? events[i + 1].t : dur + (first * hop) / sr) - events[i].t;
 
   const hatStart = at(back(iH), 0.006), kickStart = at(iK, 0.01);
   return {
-    events, dur, pace: events.length / Math.max(0.3, dur), sharp: actN ? sharpN / actN : 0,
+    events, dur, pace: events.length / Math.max(0.3, dur), sharp: actN ? sharpN / actN : 0, bright,
     word: [at(first, 0.01), Math.min(data.length, last * hop + win)],
     f0, pitched, ownSnare,
     kick: cut(kickStart, 0.18), perc: cut(kickStart, 0.035),
