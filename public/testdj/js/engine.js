@@ -63,11 +63,11 @@ export async function initAudio() {
 
   // filters for cleaning up the low end, so the mix holds up on big speakers, not just phones
   const eq = (type, freq, q = 0.7, g = 0) => { const f = ctx.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = q; f.gain.value = g; return f; };
-  N.master = gain(0.62);
+  N.master = gain(0.37);
   N.limiter = ctx.createDynamicsCompressor();
   Object.assign(N.limiter.threshold, { value: -5 }); N.limiter.knee.value = 3; N.limiter.ratio.value = 18;
   N.limiter.attack.value = 0.002; N.limiter.release.value = 0.14;
-  N.out = gain(0.8);
+  N.out = gain(0.9);   // after the limiter, so a little louder costs nothing in crunch
   N.analyser = ctx.createAnalyser(); N.analyser.fftSize = 1024; N.analyser.smoothingTimeConstant = 0.7;
   // the master: a dip where boxy low-mids collect, a little air on top
   N.masterMud = eq('peaking', 300, 1, -2.5); N.masterAir = eq('highshelf', 9000, 0.7, 2.5);
@@ -75,7 +75,7 @@ export async function initAudio() {
   // soft clipper that rounds off anything over the top, so the whole thing can be louder
   N.glue = ctx.createDynamicsCompressor();
   Object.assign(N.glue.threshold, { value: -18 }); N.glue.knee.value = 10; N.glue.ratio.value = 2; N.glue.attack.value = 0.03; N.glue.release.value = 0.25;
-  N.glueIn = gain(1); N.glueBy = gain(0); N.glueMake = gain(1.5);
+  N.glueIn = gain(1); N.glueBy = gain(0); N.glueMake = gain(1.12);
   N.clip = ctx.createWaveShaper(); N.clip.oversample = '4x';
   { const c = new Float32Array(4097), knee = 0.8, top = 0.97; for (let i = 0; i < c.length; i++) { const x = i / 2048 - 1, a = Math.abs(x); c[i] = Math.sign(x) * (a <= knee ? a : knee + (top - knee) * Math.tanh((a - knee) / (top - knee))); } N.clip.curve = c; }   // straight line until 0.8, then a soft shoulder
   N.preClip = gain(1);
