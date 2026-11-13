@@ -61,13 +61,17 @@ export async function initAudio() {
   const AC = window.AudioContext || window.webkitAudioContext;
   ctx = new AC({ latencyHint: 'interactive' });
 
+  // filters for cleaning up the low end, so the mix holds up on big speakers, not just phones
+  const eq = (type, freq, q = 0.7, g = 0) => { const f = ctx.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = q; f.gain.value = g; return f; };
   N.master = gain(0.62);
   N.limiter = ctx.createDynamicsCompressor();
   Object.assign(N.limiter.threshold, { value: -5 }); N.limiter.knee.value = 3; N.limiter.ratio.value = 18;
   N.limiter.attack.value = 0.002; N.limiter.release.value = 0.14;
   N.out = gain(0.8);
   N.analyser = ctx.createAnalyser(); N.analyser.fftSize = 1024; N.analyser.smoothingTimeConstant = 0.7;
-  N.master.connect(N.limiter).connect(N.out).connect(ctx.destination);
+  // the master: a dip where boxy low-mids collect, a little air on top
+  N.masterMud = eq('peaking', 300, 1, -2.5); N.masterAir = eq('highshelf', 9000, 0.7, 2.5);
+  N.master.connect(N.masterMud).connect(N.masterAir).connect(N.limiter).connect(N.out).connect(ctx.destination);
   N.out.connect(N.analyser);
 
   N.beat = gain(1);                        // everything that is "the beat"
@@ -81,30 +85,34 @@ export async function initAudio() {
   N.drumComp.threshold.value = -16; N.drumComp.knee.value = 8; N.drumComp.ratio.value = 3.5;
   N.drumComp.attack.value = 0.012; N.drumComp.release.value = 0.16;
   N.drumOut = gain(1.1);
-  N.drums.connect(N.drumSat).connect(N.drumTone).connect(N.drumComp).connect(N.drumOut).connect(N.beat);
+  N.drumLow = eq('highpass', 32);                // rumble nobody hears but every speaker spends power on
+  N.drums.connect(N.drumLow).connect(N.drumSat).connect(N.drumTone).connect(N.drumComp).connect(N.drumOut).connect(N.beat);
 
   // music: sidechain duck -> filter that opens with heat
-  N.music = gain(0.8);
+  N.music = gain(0.95);
   N.duck = gain(1);
   N.musicFilter = ctx.createBiquadFilter(); N.musicFilter.type = 'lowpass'; N.musicFilter.frequency.value = 16000; N.musicFilter.Q.value = 0.5;
-  N.music.connect(N.duck).connect(N.musicFilter).connect(N.beat);
+  N.musicLow = eq('highpass', 170);              // chords and lead leave the bottom to the kick and bass
+  N.music.connect(N.duck).connect(N.musicFilter).connect(N.musicLow).connect(N.beat);
   N.lead = gain(1); N.lead.connect(N.music);
 
   // bass: its own saturation so an 808 still reads on a phone speaker
-  N.bass = gain(0.9);
+  N.bass = gain(0.55);
   N.bassSat = ctx.createWaveShaper(); N.bassSat.curve = tanhCurve(2.6); N.bassSat.oversample = '2x';
   N.bassDuck = gain(1);
-  N.bass.connect(N.bassSat).connect(N.bassDuck).connect(N.beat);
+  N.bassLow = eq('highpass', 30); N.bassMud = eq('peaking', 230, 1.1, -3.5);    // no sub-rumble, and less boom where it muddies
+  N.bass.connect(N.bassSat).connect(N.bassLow).connect(N.bassMud).connect(N.bassDuck).connect(N.beat);
 
   // reverb send
   N.rev = ctx.createConvolver(); N.rev.buffer = makeIR(1.7, 0.35);
-  N.revOut = gain(0.9); N.rev.connect(N.revOut).connect(N.beat);
-  N.musicSend = gain(0.16); N.musicFilter.connect(N.musicSend).connect(N.rev);
+  N.revOut = gain(0.9); N.revLow = eq('highpass', 300);   // reverb with no low end, so it adds space, not mud
+  N.rev.connect(N.revLow).connect(N.revOut).connect(N.beat);
+  N.musicSend = gain(0.16); N.musicLow.connect(N.musicSend).connect(N.rev);
   N.leadSend = gain(0.3); N.lead.connect(N.leadSend).connect(N.rev);
   N.drumSend = gain(0.05); N.drumOut.connect(N.drumSend).connect(N.rev);
 
   // the hype man's own bus: never ducked, never filtered
-  N.hype = gain(1); N.hype.connect(N.master);
+  N.hype = gain(1); N.hypeLow = eq('highpass', 110); N.hype.connect(N.hypeLow).connect(N.master);
   N.hypeSend = gain(0.12); N.hype.connect(N.hypeSend).connect(N.rev);
 
   // vinyl crackle bed
