@@ -320,7 +320,7 @@ async function decks() {
   openUp(); await wake();
   if (!engine.isPlaying()) { engine.play(); syncPlay(); }
   view = 'decks'; document.body.dataset.view = 'decks'; scrollTo(0, 0); setDecks(true);
-  await startDeck($('decks'));
+  await startDeck($('decks'), $('keepBtn'));
 }
 function leaveDecks() {
   view = 'build'; document.body.dataset.view = 'build';

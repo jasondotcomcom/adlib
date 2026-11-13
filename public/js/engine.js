@@ -22,6 +22,8 @@ export function restartArc() { arcFrom = Math.floor(Math.max(0, nextStep) / STEP
 
 // What the performance is doing right now. The hype brain writes this.
 export const perf = { on: false, heat: 0, rapping: false, dropUntilStep: -1 };
+// while the decks hold the phrase, the beat's own hook steps aside for them
+export const decksHook = { on: false };
 
 // Recent kick/snare times, so the ears can tell our own beat from a voice.
 export const drumLog = [];
@@ -216,7 +218,7 @@ function scheduleStep(abs, time) {
     // Your phrase is the hook. Whole at the top and alone in the breakdown. In between it
     // comes back on the one every four bars: whole when the keys arrive and on the first
     // drop, then trading front half and whole. It stays out while someone is rapping.
-    if (s === 0) {
+    if (s === 0 && !decksHook.on) {
       const c = ab >= 8 ? (ab - 8) % 16 : -1;
       if (ab === 0 || bare) own.tag(t);
       else if (!perf.on) {

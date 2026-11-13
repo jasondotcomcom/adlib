@@ -163,14 +163,15 @@ function frame(ts) {
     // the decks: one big record. Its rim is ring 0, so waves can come out of it; the rings
     // inside the rim are its grooves. A stripe on the label shows it turning.
     const L = deckLayout(W, H); T = L.T;
-    ring(L.cx, L.cy, L.R - 0.5 * T, (deck.held ? 0.62 : 0.5) * T);
+    ring(L.cx, L.cy, L.R - 0.5 * T, (deck.held || deck.kept ? 0.62 : 0.5) * T);
     gap = face(L.cx, T);
     disc(L.cx, L.cy, 0.85 * T);
     const a = deck.angle, c = Math.cos(a), si = Math.sin(a);
     cap(L.cx + c * 1.9 * T, L.cy + si * 1.9 * T, L.cx + c * 3.4 * T, L.cy + si * 3.4 * T, 0.5 * T);
     // a scratch sends rings out of the record, harder the faster the hand
-    const sp = Math.abs(deck.speed);
-    if (deck.held && sp > 0.25 && now - scratchAt > 0.07 && !reduced) { scratchAt = now; wave(Math.min(0.9, 0.25 + sp * 0.2), deck.speed > 0 ? 0 : 2, 1000, 1); }
+    // every slice of the phrase sends rings out of the record; backward ones are blue
+    while (deck.hits.length && deck.hits[0] <= now) { deck.hits.shift(); if (!reduced) wave(0.45 + Math.min(0.4, Math.abs(deck.speed) * 0.15), deck.speed < -0.4 ? 2 : 0, 1000, 1); }
+    if (deck.hits.length > 64) deck.hits.splice(0, deck.hits.length - 64);
     fade = 1e5; dim = 1;
   } else if (!performing) {
     // build view: the name up top, rings fading out behind the drum machine
