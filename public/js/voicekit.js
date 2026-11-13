@@ -190,25 +190,29 @@ export function buildVoice(data, sr) {
 }
 
 // ------------------------------------------------------------------ playing it
-function shot(buf, t, { rate = 1, gain = 1, type, freq, q = 0.7, dest = N.drums, glide }) {
+function shot(buf, t, { rate = 1, gain = 1, type, freq, q = 0.7, dest = N.drums, glide, len }) {
   const ctx = getCtx(), src = ctx.createBufferSource(), g = ctx.createGain();
   src.buffer = buf;
   src.playbackRate.setValueAtTime(dest === N.drums ? rate * tuneRatio() : rate, t);
   if (glide) src.playbackRate.exponentialRampToValueAtTime(dest === N.drums ? glide * tuneRatio() : glide, t + 0.07);
   g.gain.value = gain;
+  if (len) { g.gain.setValueAtTime(gain, t + len * 0.6); g.gain.setTargetAtTime(0, t + len * 0.6, len * 0.15); }   // cut short
   if (type) { const f = ctx.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = q; src.connect(f).connect(g); } else src.connect(g);
   g.connect(dest); src.start(t);
+  if (len) src.stop(t + len * 2);
 }
 // rows: 0 kick, 1 snare, 2 clap, 3 hat, 4 open hat, 5 rim
 export function voiceDrum(r, t, vel) {
   const b = voice.bufs, ctx = getCtx(), wob = 0.97 + Math.random() * 0.06;
   if (r === 0) {
-    shot(b.kick, t, { rate: 0.85, glide: 0.42, gain: 1.7 * vel, type: 'lowpass', freq: 280, q: 1 });       // your voice, dropped an octave
-    shot(b.perc, t, { rate: 1, gain: 0.3 * vel, type: 'highpass', freq: 700 });                             // the consonant, for the click
-    const o = ctx.createOscillator(), g = ctx.createGain();                                                 // a little floor under it
-    o.frequency.setValueAtTime(120, t); o.frequency.exponentialRampToValueAtTime(50, t + 0.08);
-    g.gain.setValueAtTime(0.45 * vel, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
-    o.connect(g).connect(N.drums); o.start(t); o.stop(t + 0.22);
+    // The kick is a drum first: a fast-falling sine for the body, with your voice only as the
+    // front of the hit. The voice is cut short and filtered low so its pitch doesn't read as a note.
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.frequency.setValueAtTime(155, t); o.frequency.exponentialRampToValueAtTime(46, t + 0.06);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(1.15 * vel, t + 0.003); g.gain.exponentialRampToValueAtTime(0.001, t + 0.32);
+    o.connect(g).connect(N.drums); o.start(t); o.stop(t + 0.34);
+    shot(b.kick, t, { rate: 0.7, glide: 0.3, gain: 1.1 * vel, type: 'lowpass', freq: 180, q: 0.5, len: 0.07 });   // your voice, just the thud of it
+    shot(b.perc, t, { rate: 1, gain: 0.38 * vel, type: 'highpass', freq: 900 });                            // the consonant, for the click
   } else if (r === 1) shot(b.snare, t, { rate: voice.parts.ownSnare ? 1 : 0.72, gain: 1.1 * vel, type: 'highpass', freq: 500 });
   else if (r === 2) { shot(b.snare, t, { rate: 1.2, gain: 0.7 * vel, type: 'bandpass', freq: 1700, q: 0.6 }); shot(b.snare, t + 0.013, { rate: 1.25, gain: 0.6 * vel, type: 'bandpass', freq: 1900, q: 0.6 }); }
   else if (r === 3) shot(b.hat, t, { rate: 1.1 * wob, gain: 0.55 * vel, type: 'highpass', freq: 4200 });
@@ -216,12 +220,53 @@ export function voiceDrum(r, t, vel) {
   else shot(b.perc, t, { rate: 1.5 * wob, gain: 0.8 * vel, type: 'highpass', freq: 900 });
 }
 // the vowel, pitched to a note. role: 'bass' or 'lead'
+// The voice bass. Slowing the vowel down to reach a low note drags the mouth shape down
+// with it (the monster-tape sound). Instead, cut short windowed grains from the vowel at its
+// own pitch and lay them down at the new note's rate (PSOLA): the pitch drops, the vowel
+// stays. One buffer per note, built once. Add ?oldvoicebass to the address to hear the old way.
+const OLD_VOICE_BASS = typeof location !== 'undefined' && /[?&]oldvoicebass\b/.test(location.search);
+const PSOLA_LEAD = typeof location !== 'undefined' && /[?&]psolalead\b/.test(location.search);
+const PSOLA_BASS = typeof location !== 'undefined' && /[?&]psolabass\b/.test(location.search);
+const psolaCache = new Map();
+export function psola(data, sr, f0, loop, target, secs = 1.2) {
+  const T0 = sr / f0, Tt = sr / target, L = Math.max(16, Math.round(2 * T0)), N = Math.round(secs * sr);
+  let a = Math.round(loop[0] * sr), b = Math.round(loop[1] * sr) - L;
+  if (b - a < T0) { a = 0; b = data.length - L; }
+  const win = new Float32Array(L); for (let i = 0; i < L; i++) win[i] = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / (L - 1));
+  const out = new Float32Array(N);
+  let src = a;
+  for (let pos = 0; pos < N; pos += Tt) {
+    const o = Math.round(pos) - (L >> 1), sI = Math.round(src);
+    for (let i = 0; i < L; i++) { const k = o + i; if (k >= 0 && k < N) out[k] += data[sI + i] * win[i]; }
+    src += Tt; src = a + Math.round((src - a) / T0) * T0;       // move on through the vowel in whole periods
+    if (src > b) src = a + ((src - a) % Math.max(T0, b - a));
+  }
+  let pk = 0; for (let i = 0; i < N; i++) pk = Math.max(pk, Math.abs(out[i]));
+  if (pk > 0) for (let i = 0; i < N; i++) out[i] *= 0.9 / pk;
+  return out;
+}
+function bassBuf(midi) {
+  const key = midi + '|' + voice.f0 + '|' + voice.loop.join(',');
+  if (!psolaCache.has(key)) {
+    if (psolaCache.size > 48) psolaCache.clear();
+    const vb = voice.bufs.vowel, d = psola(vb.getChannelData(0), vb.sampleRate, voice.f0, voice.loop, mtof(midi));
+    const buf = getCtx().createBuffer(1, d.length, vb.sampleRate); buf.copyToChannel(d, 0); psolaCache.set(key, buf);
+  }
+  return psolaCache.get(key);
+}
 export function voiceNote(midi, t, dur, role) {
+  // The voice melody: keep the note within an octave of the voice's own pitch, so it's never
+  // sped up into chipmunk range (it used to run 3-4x fast, which is what screeched)
+  if (role === 'lead' && voice.f0) { const home = 12 * Math.log2(voice.f0 / 440) + 69; while (midi > home + 10) midi -= 12; while (midi < home - 5) midi += 12; }
+  // The bass stays the original way, the vowel slowed down: building it from grains buzzed
+  // when the voice dropped that far (the grains end up with gaps between them). ?psolabass to compare.
+  if (role === 'bass' && PSOLA_BASS && voice.pitched && voice.loop) return voiceBass(midi, t, dur);
+  if (role === 'lead' && PSOLA_LEAD && voice.pitched && voice.loop) return voiceLead(midi, t, dur);   // grain lead only with ?psolalead
   const ctx = getCtx(), src = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain();
   src.buffer = voice.bufs.vowel; src.playbackRate.value = Math.max(0.2, Math.min(4, mtof(midi) / voice.f0));
   src.loop = true; src.loopStart = voice.loop[0]; src.loopEnd = voice.loop[1];
-  const bass = role === 'bass', level = bass ? 0.95 : 0.4;
-  f.type = bass ? 'lowpass' : 'highpass'; f.frequency.value = bass ? 520 : 260; f.Q.value = 0.7;
+  const bass = role === 'bass', level = bass ? 0.95 : 0.3;
+  f.type = bass ? 'lowpass' : 'bandpass'; f.frequency.value = bass ? 520 : 900; f.Q.value = bass ? 0.7 : 0.45;   // the melody: no rumble, no hiss
   g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(level, t + 0.006);
   g.gain.setTargetAtTime(0, t + Math.max(0.06, dur * (bass ? 0.8 : 0.9)), bass ? 0.05 : 0.07);
   src.connect(f).connect(g).connect(bass ? N.bass : N.lead);
@@ -270,4 +315,30 @@ export function voiceRiser(tEnd, room) {
   const t = tEnd - len;
   g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.6, tEnd - 0.01); g.gain.linearRampToValueAtTime(0, tEnd + 0.01);
   src.connect(f).connect(g).connect(N.lead); src.start(t, buf.duration - len); src.stop(tEnd + 0.05);
+}
+
+function voiceBass(midi, t, dur) {
+  const ctx = getCtx(), src = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain();
+  src.buffer = bassBuf(midi);
+  f.type = 'lowpass'; f.frequency.value = 900; f.Q.value = 0.7;
+  const len = Math.min(dur, src.buffer.duration - 0.05);
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.85, t + 0.008);
+  g.gain.setTargetAtTime(0, t + Math.max(0.06, len * 0.8), 0.05);
+  src.connect(f).connect(g).connect(N.bass); src.start(t); src.stop(t + len + 0.4);
+  // a quiet sine underneath, for weight
+  const o = ctx.createOscillator(), og = ctx.createGain(); o.frequency.value = mtof(midi - 12 * (midi > 52 ? 1 : 0));
+  og.gain.setValueAtTime(0, t); og.gain.linearRampToValueAtTime(0.32, t + 0.01); og.gain.setTargetAtTime(0, t + Math.max(0.06, len * 0.8), 0.06);
+  o.connect(og).connect(N.bass); o.start(t); o.stop(t + len + 0.45);
+}
+
+// The voice lead, made the same way: grains of the vowel laid at the note's rate, so a high
+// note sounds like you singing higher, not a sped-up tape.
+function voiceLead(midi, t, dur) {
+  const ctx = getCtx(), src = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain();
+  src.buffer = bassBuf(midi);
+  f.type = 'highpass'; f.frequency.value = 260; f.Q.value = 0.7;
+  const len = Math.min(dur, src.buffer.duration - 0.05);
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.38, t + 0.012);
+  g.gain.setTargetAtTime(0, t + Math.max(0.06, len * 0.9), 0.07);
+  src.connect(f).connect(g).connect(N.lead); src.start(t); src.stop(t + len + 0.5);
 }

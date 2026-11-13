@@ -85,10 +85,11 @@ function render() {
   $('swing').value = song.swing; $('swingVal').textContent = song.swing === 50 ? 'straight' : `${song.swing}%`;
   $('key').textContent = NOTE[((chordFor(0).root % 12) + 12) % 12] + (v.scale === 'major' ? '' : 'm');
   for (const b of $('kit').children) { b.setAttribute('aria-pressed', b.dataset.kit === song.kit); if (b.dataset.kit === 'you') b.hidden = !voice.ready; }
-  $('keysBtn').setAttribute('aria-pressed', song.keys); $('leadBtn').setAttribute('aria-pressed', song.lead);
+  for (const b of $('tone').children) b.setAttribute('aria-pressed', b.dataset.tone === song.tone);
+  $('bassBtn').setAttribute('aria-pressed', song.bass); $('keysBtn').setAttribute('aria-pressed', song.keys); $('leadBtn').setAttribute('aria-pressed', song.lead);
   if (!/^didn't/.test($('sayLine').textContent)) tell();
 }
-function syncPlay() { const on = engine.isPlaying(); $('playBtn').textContent = on ? 'Stop' : 'Play'; $('playBtn').setAttribute('aria-pressed', on); }
+function syncPlay() { const on = engine.isPlaying(); $('playBtn').setAttribute('aria-label', on ? 'Pause' : 'Play'); $('playBtn').setAttribute('aria-pressed', on); }
 const withVoice = () => song.kit === 'you' && voice.ready && voice.id;
 function saveHash() { try { history.replaceState(null, '', '#b=' + encodeSong() + (withVoice() ? '&v=' + voice.id : '')); } catch {} }
 
@@ -130,7 +131,8 @@ async function wake() {
 }
 
 function wireControls() {
-  $('playBtn').addEventListener('click', async () => { await wake(); engine.isPlaying() ? engine.stop() : engine.play(); syncPlay(); });
+  $('playBtn').addEventListener('click', async () => { await wake(); engine.isPlaying() ? engine.pause() : engine.play(); syncPlay(); });
+  $('stopBtn').addEventListener('click', () => { engine.stop(); syncPlay(); });
   const tempo = d => { song.bpm = Math.max(50, Math.min(180, song.bpm + d)); render(); saveHash(); };
   hold($('bpmDown'), () => tempo(-1)); hold($('bpmUp'), () => tempo(1));
   $('swing').addEventListener('input', e => { song.swing = +e.target.value; render(); }); $('swing').addEventListener('change', saveHash);
@@ -143,9 +145,11 @@ function wireControls() {
     b.addEventListener('click', async () => { await wake(); song.kit = k; engine.applyKit(); if (k === 'you') engine.restartArc(); render(); saveHash(); });
     $('kit').appendChild(b);
   }
+  for (const b of $('tone').children) b.addEventListener('click', () => { song.tone = b.dataset.tone; render(); saveHash(); });
+  $('bassBtn').addEventListener('click', () => { song.bass = !song.bass; render(); saveHash(); });
   $('keysBtn').addEventListener('click', () => { song.keys = !song.keys; render(); saveHash(); });
   $('leadBtn').addEventListener('click', () => { song.lead = !song.lead; render(); saveHash(); });
-  $('melodyBtn').addEventListener('click', async () => { await wake(); newMelody(); song.lead = true; render(); saveHash(); });
+  $('melodyBtn').addEventListener('click', async () => { await wake(); newMelody(); song.lead = true; song.bass = true; render(); saveHash(); });
   $('rollBtn').addEventListener('click', async () => { await wake(); const was = song.vibe; rollBeat(); engine.applyKit(); tell('i rolled', song.vibe === was); render(); saveHash(); if (!engine.isPlaying()) { engine.play(); syncPlay(); } });
   $('clearBtn').addEventListener('click', () => { song.pat = ROWS.map(() => new Array(STEPS).fill(0)); render(); saveHash(); });
   $('shareBtn').addEventListener('click', share);
@@ -261,10 +265,10 @@ async function sayIt() {
   catch { line.textContent = 'the mic is blocked. allow it and try again.'; taking = false; if (was) { engine.play(); syncPlay(); } return; }
   await sleep(350);                                          // let the mic settle
   const t0 = ctx.currentTime;
-  btn.style.setProperty('--take', TAKE + 's'); btn.classList.add('live'); btn.textContent = 'Go'; line.textContent = 'say it';
+  btn.style.setProperty('--take', TAKE + 's'); btn.classList.add('live'); line.textContent = 'say it';
   await sleep(TAKE * 1000);
   const data = slice(t0, ctx.currentTime), sr = micRate();
-  stopEars(); btn.classList.remove('live'); btn.textContent = 'Record';
+  stopEars(); btn.classList.remove('live');
   const pcm = data && packTake(data, sr), ok = pcm && buildVoice(unpack(pcm), TAKE_RATE);
   if (ok) { voice.pcm = pcm; voice.id = null; }
   if (ok) { const made = beatFromVoice(voice.parts); takeNo++; song.kit = 'you'; engine.applyKit(); openUp(); told = 'i heard'; again = false; line.textContent = `i heard ${made.name.toLowerCase()}. ${made.bpm} bpm.`; }
@@ -355,7 +359,18 @@ function boot() {
   engine.setOwnKit({ ready: () => voice.ready, drum: voiceDrum, note: voiceNote, tag: voiceTag, chop: voiceChop, riser: voiceRiser });
   buildVibes(); buildGrid(); buildTape(); wireControls(); render(); initStage(); playhead(); debugLoop(); watchBeats();
   if (new URLSearchParams(location.search).has('debug')) $('debug').hidden = false;
-  if (/^\/testdj\/?$/.test(location.pathname)) $('decksLink').hidden = false;   // the decks are only reachable here while they're being tested
+  if (/^\/testdj\/?$/.test(location.pathname)) $('decksLink').hidden = false;
+  // /testdj?mix: switches for each mix stage, so Jason can hear what each one does
+  if (/[?&]mix\b/.test(location.search)) {
+    const box = document.createElement('div'); box.className = 'mixbox';
+    const names = { duck: 'gentle duck', bed: 'chord bed', pan: 'chords drift', space: 'new reverb', room: 'snare room', punch: 'drum punch', spread: 'drum spread', weight: 'bass weight', master: 'glue + loud' };
+    for (const k in names) {
+      const b = document.createElement('button'); b.type = 'button'; b.textContent = names[k]; b.setAttribute('aria-pressed', engine.mix[k]);
+      b.addEventListener('click', () => { engine.mix[k] = !engine.mix[k]; b.setAttribute('aria-pressed', engine.mix[k]); engine.applyMix(); });
+      box.appendChild(b);
+    }
+    document.body.appendChild(box);
+  }   // the decks are only reachable here while they're being tested
   window.adlib = { song, engine, ears, words, hype, feed, voice, buildVoice, deck };
 }
 boot();

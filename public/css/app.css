@@ -73,11 +73,18 @@ body:is([data-view='perform'], [data-view='decks']) #build { display: none; }
 /* the phrase always shows whole: main.js shrinks it to fit one line, and past 16px it wraps instead */
 #sayWord { font: inherit; font-size: 21px; line-height: 1.15; display: block; width: 100%; min-width: 0; padding: 0; margin: 0; border: 0; border-radius: 0; background: none; outline: none; resize: none; overflow: hidden; color: var(--yellow); caret-color: var(--paper); text-transform: lowercase; overflow-wrap: anywhere; -webkit-user-select: text; user-select: text; }
 .sayrow:has(#sayWord:focus) { border-color: var(--paper); }
-#sayBtn { height: 46px; padding: 0 clamp(14px, 4.6vw, 22px); border-radius: 999px; background: var(--red); color: var(--paper); font-size: 17px; position: relative; overflow: hidden; }
-#sayBtn.live { background: var(--paper); color: var(--bg); }
-#sayBtn.live::after { content: ''; position: absolute; inset: 0; background: rgba(253, 45, 85, 0.55); transform-origin: left; animation: take var(--take, 2.4s) linear forwards; }
+/* record: a red dot. During a take a ring closes around it. */
+#sayBtn { width: 50px; height: 50px; padding: 0; border-radius: 50%; display: grid; place-items: center; }
+#sayBtn svg { width: 50px; height: 50px; overflow: visible; }
+#sayBtn .rec-dot { fill: var(--red); transition: r 0.2s; }
+#sayBtn:active .rec-dot { r: 9.5; }
+#sayBtn .rec-ring { fill: none; stroke: var(--paper); stroke-width: 3.5; stroke-linecap: round; stroke-dasharray: 100; stroke-dashoffset: 100; opacity: 0.35; transform: rotate(-90deg); transform-origin: 24px 24px; }
+#sayBtn:not(.live) .rec-ring { stroke-dashoffset: 0; }
+#sayBtn.live .rec-ring { opacity: 1; stroke: var(--red); animation: ring var(--take, 2.4s) linear forwards; }
+#sayBtn.live .rec-dot { fill: var(--paper); }
+@keyframes ring { from { stroke-dashoffset: 100; } to { stroke-dashoffset: 0; } }
 @keyframes take { from { transform: scaleX(0); } to { transform: scaleX(1); } }
-.knob.drums { grid-column: 1 / -1; order: 1; } .knob.swing, .knob.music { order: 2; } .knob.acts { order: 3; }
+.knob.drums { grid-column: 1 / -1; order: 1; } .knob.tone { order: 1; } .knob.swing { order: 2; } .knob.music { grid-column: 1 / -1; order: 2; } .knob.acts { order: 3; }
 .knobs { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px 14px; align-items: end; background: var(--bg); border-radius: 18px; }
 .knob { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
 .knob .k { font-size: 14px; color: var(--grey); padding-left: 4px; }
@@ -112,10 +119,25 @@ body.opened .dock { animation: rise 0.5s 0.55s cubic-bezier(0.2, 0.8, 0.2, 1) bo
 @keyframes rise { from { opacity: 0; translate: 0 30px; } }
 
 .dock {
-  position: fixed; left: 0; right: 0; bottom: 0; z-index: 6; display: grid; grid-template-columns: 1fr 2.2fr 1fr; gap: 14px; align-items: center;
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 6; display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center;
   padding: 18px 16px calc(16px + env(safe-area-inset-bottom)); background: linear-gradient(to top, var(--bg) 72%, transparent);
 }
-.dock > button { height: 52px; font-size: 15px; }
+.dock > button { height: 52px; font-size: 15px; white-space: nowrap; }
+.dock > .cta { font-size: clamp(16px, 4.8vw, 20px); padding: 0 12px; }
+#shareBtn { padding: 0 14px; }
+/* play/pause and stop: round icon buttons, no words */
+.transport { display: flex; align-items: center; gap: 8px; }
+.icon { display: grid; place-items: center; width: 52px; height: 52px; padding: 0; border-radius: 50%; border: 2px solid var(--grey); background: var(--bg); color: var(--paper); }
+.icon.small { width: 42px; height: 42px; }
+.icon svg { width: 24px; height: 24px; }
+.icon.small svg { width: 18px; height: 18px; }
+#playBtn .i-pause { display: none; }
+#playBtn[aria-pressed='true'] .i-play { display: none; }
+#playBtn[aria-pressed='true'] .i-pause { display: inline; }
+#playBtn[aria-pressed='true'] { background: var(--paper); border-color: var(--paper); color: var(--bg); }
+.cta .mic { width: 20px; height: 20px; margin-right: 6px; vertical-align: -3px; }
+/* the bass row sits with the music, set apart from the drums */
+.row[data-row='bass'] { margin-top: 8px; padding-top: 8px; border-top: 2px solid var(--line); }
 .cta, .dock > .cta { height: 52px; font-size: 20px; background: var(--yellow); border: 0; border-radius: 999px; color: var(--bg); box-shadow: var(--rings); }
 .cta:active { transform: scale(0.97); }
 
@@ -157,6 +179,13 @@ body[data-view='perform'] #perform { display: block; }
 #toast.show { opacity: 1; transform: translate(-50%, 0); }
 #debug { position: fixed; left: 8px; bottom: 96px; z-index: 9; max-width: calc(100vw - 16px); font: 11px/1.35 ui-monospace, Menlo, monospace; background: rgba(0, 0, 0, 0.88); color: #9f9; padding: 8px 10px; white-space: pre-wrap; pointer-events: none; }
 
+/* phones: tighter transport, and Share beat may take two lines rather than run off */
+@media (max-width: 430px) {
+  .dock { gap: 6px; padding-left: 10px; padding-right: 10px; } .transport { gap: 6px; }
+  .icon { width: 46px; height: 46px; } .icon.small { width: 36px; height: 36px; }
+  .cta .mic { display: none; }
+  #shareBtn { white-space: normal; font-size: 14px; padding: 0 10px; line-height: 1.1; }
+}
 @media (min-width: 700px) {
   body { font-size: 17px; }
   #build { padding: 10px 24px 132px; gap: 20px; }
@@ -164,7 +193,7 @@ body[data-view='perform'] #perform { display: block; }
   .row { grid-template-columns: 64px 1fr 40px; gap: 10px; } .label { font-size: 17px; }
   .cell { height: 44px; } .cell.on::before { width: min(100% - 6px, 30px); }
   .knobs { grid-template-columns: 1fr 1fr 1.3fr 1.5fr; }
-  .knob.swing, .knob.music { order: 0; } .knob.drums { grid-column: span 2; order: 2; } .knob.acts { grid-column: span 2; order: 3; align-self: end; flex-wrap: nowrap; }
+  .knob.swing, .knob.music { order: 0; grid-column: auto; } .knob.tone { order: 2; } .knob.drums { grid-column: span 2; order: 2; } .knob.acts { grid-column: 1 / -1; order: 3; align-self: end; flex-wrap: nowrap; }
   #sayWord { font-size: 26px; } .say .k { font-size: 17px; }
   .dock { left: 50%; right: auto; width: min(760px, 100%); transform: translateX(-50%); padding-left: 24px; padding-right: 24px; }
   .top button { font-size: 15px; }
@@ -184,3 +213,7 @@ body[data-view='decks'] { overflow: hidden; overscroll-behavior: none; }
 #keepBtn[aria-pressed='true'] { background: var(--yellow); color: var(--bg); border-color: var(--yellow); }
 #keepBtn.kept { animation: kept 0.5s cubic-bezier(0.2, 0.8, 0.2, 1); }
 @keyframes kept { 30% { transform: translateX(-50%) scale(1.12); } }
+/* the mix switches at /testdj?mix (a testing aid, not part of the site) */
+.mixbox { position: fixed; top: 8px; left: 8px; right: 8px; z-index: 20; display: flex; flex-wrap: wrap; gap: 6px; padding: 8px; background: rgba(12, 11, 14, 0.92); border: 2px solid var(--line); border-radius: 18px; }
+.mixbox button { font-size: 13px; padding: 6px 10px; border-radius: 999px; border: 2px solid var(--grey); color: var(--grey); }
+.mixbox button[aria-pressed='true'] { background: var(--yellow); border-color: var(--yellow); color: var(--bg); }

@@ -114,4 +114,56 @@ for (const s of SAY) { assert.match(s, /[bpdgkt]/, s + ' hard hit'); assert.matc
   p = p.filter(x => !f.remove.includes(x)); assert.equal(tally(p, r).n, START + 4, 'clearing folded days changes nothing'); p.push(f.write); assert.equal(tally(p, r).n, START + 4);
   assert.equal(fold(['beats/total/2026-11-14_70'], r, '2026-11-20').write, null, 'a quiet day writes nothing');
 }
+// the bass: old links keep the original line; the on/off and walking flags round-trip;
+// a walking line never leaves the key
+{
+  const S = await import('../public/js/song.js');
+  S.loadVibe('boombap'); S.song.seed = 4321;
+  const old = '2.boombap.90.58.12.' + (4321).toString(36) + '.1.3.' + '0'.repeat(28);
+  assert.equal(S.decodeSong(old), true); assert.equal(S.song.bass, true, 'old links have bass'); assert.equal(S.song.walk, false, 'old links keep the original line');
+  assert.equal(S.encodeSong(), old, 'an old link encodes back to itself');
+  for (let bar = 0; bar < 4; bar++) for (let s = 0; s < 16; s++) assert.ok([0, 7].includes(S.bassStep(bar, s, false)) && [0, 12].includes(S.bassStep(bar, s, true)), 'original line is root and fifth/octave');
+  S.song.bass = false; S.song.walk = true; const enc = S.encodeSong(); S.loadVibe('trap');
+  assert.equal(S.decodeSong(enc), true); assert.equal(S.song.bass, false); assert.equal(S.song.walk, true);
+  for (const id of ['boombap', 'trap', 'gfunk', 'afro', 'drill', 'lofi']) {
+    S.loadVibe(id); S.newMelody(); assert.equal(S.song.walk, true, 'new melody walks the bass');
+    const v = S.vibe(); const inKey = m => S.SCALES[v.scale].includes((((m - v.key - S.song.key) % 12) + 12) % 12);
+    for (let bar = 0; bar < 4; bar++) for (let s = 0; s < 16; s++) {
+      const n = S.chordFor(bar).bassRound + S.bassStep(bar, s, false);
+      assert.ok(inKey(n), `${id} bar ${bar} step ${s}: ${n} is in the key`);
+      if (s === 0) assert.equal(S.bassStep(bar, s, false), 0, 'the one is the root');
+    }
+  }
+}
+// bass sound: old links are Classic and encode back unchanged; Full round-trips
+{
+  const S = await import('../public/js/song.js');
+  const old = '2.trap.140.50.12.' + (999).toString(36) + '.0.3.' + '8'.repeat(28);
+  assert.equal(S.decodeSong(old), true); assert.equal(S.song.tone, 'classic', 'old links are Classic'); assert.equal(S.encodeSong(), old, 'and encode back to themselves');
+  S.song.tone = 'full'; const enc = S.encodeSong(); assert.ok(enc.endsWith('.f'));
+  S.song.tone = 'classic'; assert.equal(S.decodeSong(enc), true); assert.equal(S.song.tone, 'full', 'Full round-trips');
+}
+// the voice bass: grains of a 150 Hz vowel laid at 70 Hz come out at 70 Hz
+{
+  globalThis.location = { search: '' };
+  const { psola } = await import('../public/js/voicekit.js');
+  const sr = 32000, f0 = 150, d = new Float32Array(sr);
+  for (let i = 0; i < d.length; i++) { const ph = (i * f0) / sr; d[i] = 0.5 * Math.sin(2 * Math.PI * ph) + 0.3 * Math.sin(2 * Math.PI * 3 * ph) + 0.2 * Math.sin(2 * Math.PI * 5 * ph); }
+  for (const target of [70, 98, 55]) {
+    const out = psola(d, sr, f0, [0.1, 0.6], target, 0.6);
+    // autocorrelation peak between 40 and 400 Hz
+    let best = 0, bl = 0; const seg = out.subarray(4000, 12000);
+    for (let lag = Math.round(sr / 400); lag < Math.round(sr / 40); lag++) { let c = 0; for (let i = 0; i < seg.length - lag; i++) c += seg[i] * seg[i + lag]; if (c > best) { best = c; bl = lag; } }
+    const got = sr / bl; assert.ok(Math.abs(got - target) / target < 0.04, `voice bass at ${target} Hz came out at ${got.toFixed(1)}`);
+    assert.ok(Math.max(...out) <= 0.91, 'never clips');
+  }
+}
+// harmonies: always in key, and a third (3 or 4 semitones) above
+{
+  const S = await import('../public/js/song.js');
+  for (const id of ['boombap', 'trap', 'gfunk', 'afro', 'jersey']) {
+    S.loadVibe(id); const v = S.vibe(), sc = S.SCALES[v.scale], inKey = m => sc.includes((((m - v.key - S.song.key) % 12) + 12) % 12);
+    for (const n of S.melody()) { const h = S.harmonyAbove(n.midi); assert.ok(inKey(h), `${id} harmony in key`); if (inKey(n.midi)) assert.ok([3, 4].includes(h - n.midi), `${id}: ${n.midi} -> ${h} is a third`); }
+  }
+}
 console.log('ok');

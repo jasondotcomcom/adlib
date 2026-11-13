@@ -45,7 +45,7 @@
     <div class="sayrow">
       <button type="button" id="sayRoll" class="dice" aria-label="Roll something else to say"></button>
       <textarea id="sayWord" rows="1" maxlength="40" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="done" aria-label="What to say. Roll for one or type your own.">boots and cats</textarea>
-      <button type="button" id="sayBtn">Record</button>
+      <button type="button" id="sayBtn" aria-label="Record"><svg viewBox="0 0 48 48" aria-hidden="true"><circle class="rec-dot" cx="24" cy="24" r="11"/><circle class="rec-ring" cx="24" cy="24" r="20" pathLength="100"/></svg></button>
     </div>
   </section>
   <button type="button" id="skipBtn" class="skip">or start with a beat</button>
@@ -71,9 +71,17 @@
       <span class="k">Drums</span>
       <div class="seg" id="kit" role="group" aria-label="Drum sound"></div>
     </div>
+    <div class="knob tone">
+      <span class="k">Sound</span>
+      <div class="seg" id="tone" role="group" aria-label="Sound">
+        <button type="button" data-tone="classic">Classic</button>
+        <button type="button" data-tone="full">Full</button>
+      </div>
+    </div>
     <div class="knob music">
       <span class="k">Music</span>
       <div class="seg" role="group" aria-label="Music layers">
+        <button type="button" id="bassBtn" aria-pressed="true">Bass</button>
         <button type="button" id="keysBtn" aria-pressed="true">Chords</button>
         <button type="button" id="leadBtn" aria-pressed="true">Melody</button>
       </div>
@@ -85,13 +93,16 @@
     </div>
   </section>
 
-  <p class="fine"><a href="https://adlib.beehiiv.com" target="_blank" rel="noopener">get the newsletter</a> <a href="classic">the first version</a> <a href="#decks" id="decksLink" hidden>decks</a></p>
+  <p class="fine"><a href="https://adlib.beehiiv.com" target="_blank" rel="noopener">get the newsletter</a> <a href="classic">the first version</a> <a href="#decks" id="decksLink" hidden>hit the decks</a></p>
   <p class="fine credit">another toy by <a href="https://jasondotcom.com" target="_blank" rel="noopener">jasondotcom.com</a></p>
   <p class="fine credit" id="beatCount" hidden></p>
 
   <footer class="dock">
-    <button type="button" id="playBtn" aria-pressed="false">Play</button>
-    <button type="button" id="micBtn" class="cta">Grab the mic</button>
+    <div class="transport">
+      <button type="button" id="playBtn" class="icon" aria-label="Play" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path class="i-play" d="M8 5.5v13l10.5-6.5z" fill="currentColor"/><g class="i-pause"><path d="M8.5 6v12M15.5 6v12"/></g></svg></button>
+      <button type="button" id="stopBtn" class="icon small" aria-label="Stop"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><rect x="6.5" y="6.5" width="11" height="11" rx="2.5" fill="currentColor"/></svg></button>
+    </div>
+    <button type="button" id="micBtn" class="cta"><svg class="mic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><circle cx="12" cy="8" r="5" fill="currentColor" stroke="none"/><path d="M12 13.5v7"/></svg>Grab the mic</button>
     <button type="button" id="shareBtn">Share beat</button>
   </footer>
 </main>
