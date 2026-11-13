@@ -1,6 +1,6 @@
 // engine.js — the sound. One AudioContext, a real mix bus, a sample-accurate
 // clock, and instruments that read the song in song.js.
-import { song, vibe, chordFor, melody, hash, bassStep, ROWS, STEPS } from './song.js';
+import { song, vibe, chordFor, melody, hash, bassStep, harmonyAbove, ROWS, STEPS } from './song.js';
 
 let ctx = null;
 const N = {};            // audio nodes by name
@@ -94,7 +94,20 @@ export async function initAudio() {
   N.musicFilter = ctx.createBiquadFilter(); N.musicFilter.type = 'lowpass'; N.musicFilter.frequency.value = 16000; N.musicFilter.Q.value = 0.5;
   N.musicLow = eq('highpass', 170);              // chords and lead leave the bottom to the kick and bass
   N.music.connect(N.duck).connect(N.musicFilter).connect(N.musicLow).connect(N.beat);
+  // Full sound: a chorus spreads the chords and lead out to the sides (two short, slowly
+  // wobbling delays, one panned each way); the kick, bass and voices stay in the middle.
+  N.chorus = gain(0); N.musicLow.connect(N.chorus);
+  for (const [ms, rate, pan] of [[13, 0.31, -0.85], [19, 0.43, 0.85]]) {
+    const d = ctx.createDelay(0.05), lfo = ctx.createOscillator(), depth = gain(0.0025), p = ctx.createStereoPanner();
+    d.delayTime.value = ms / 1000; lfo.frequency.value = rate; lfo.connect(depth).connect(d.delayTime); lfo.start();
+    p.pan.value = pan; N.chorus.connect(d).connect(p).connect(N.beat);
+  }
   N.lead = gain(1); N.lead.connect(N.music);
+  // and an echo on the lead, a dotted eighth long, kept out of the lows and the highs
+  N.echo = gain(0); N.echoDelay = ctx.createDelay(2); N.echoFb = gain(0.32);
+  const eLp = eq('lowpass', 3200), eHp = eq('highpass', 350), ePan = ctx.createStereoPanner(); ePan.pan.value = 0.3;
+  N.lead.connect(N.echo).connect(N.echoDelay).connect(eLp).connect(eHp).connect(N.echoFb).connect(N.echoDelay);
+  eHp.connect(ePan).connect(N.music);
 
   // bass: its own saturation so an 808 still reads on a phone speaker
   N.bass = gain(0.55);
@@ -221,6 +234,9 @@ function scheduleStep(abs, time) {
   const t = time + (s % 2 ? swingOffset() : 0);
   emit('step', abs, t);
 
+  { const full = song.tone === 'full', at = ctx.currentTime;
+    N.chorus.gain.setTargetAtTime(full ? 0.5 : 0, at, 0.05); N.echo.gain.setTargetAtTime(full ? 0.24 : 0, at, 0.05);
+    N.echoDelay.delayTime.setTargetAtTime(Math.min(1.9, sd * 3), at, 0.05); }
   const heat = perf.on ? perf.heat : 0;
   // punchline space: at the end of every 4th bar, when it is hot, the drums step back
   const dropping = perf.on && heat > 55 && b4 === 3 && s >= 14;
@@ -298,7 +314,12 @@ function scheduleStep(abs, time) {
   // ---- lead (4-bar line)
   if (song.lead && stage >= 3 && !bare) {
     const at = b4 * STEPS + s;
-    for (const n of melody()) if (n.s === at) lead(n.midi, t, n.len * sd, v.lead);
+    for (const n of melody()) if (n.s === at) {
+      lead(n.midi, t, n.len * sd, v.lead);
+      // Full sound: a harmony a third above, in the key, on the longer notes and through the
+      // last bar of each phrase, so it lifts in the right places instead of all the time
+      if (song.tone === 'full' && !mine() && (n.len >= 3 || b4 === 3)) lead(harmonyAbove(n.midi), t, n.len * sd, v.lead, 0.55);
+    }
   }
 }
 
@@ -477,6 +498,49 @@ function fullBass(id, midi, t, dur, glide) {
 }
 export { fullBass };
 
+
+// ------------------------------------------------------------------ full lead
+// The Classic lead is one plain waveform per note, the way old game consoles made music.
+// Full layers detuned copies so the note has width and movement, adds a breath of noise
+// at the start, and lets the filter and pitch drift a little.
+function fullLead(type, midi, t, dur, vel) {
+  const up = type === 'whistle' ? 12 : 12, f = mtof(midi + up), out = gain(0), lp = ctx.createBiquadFilter(), oscs = [];
+  lp.type = 'lowpass'; lp.Q.value = 0.8;
+  let atk = 0.006, len = Math.max(0.25, dur + 0.2), level = 0.16 * vel;
+  const voice = (wave, detune, l) => { const o = ctx.createOscillator(); o.type = wave; o.frequency.value = f; o.detune.value = detune; o.connect(gain(l)).connect(lp); oscs.push(o); return o; };
+  if (type === 'bell') {
+    // a soft electric piano bell: two FM pairs a few cents apart, plus a sine an octave down
+    for (const d of [-6, 6]) {
+      const car = voice('sine', d, 0.5), mod = ctx.createOscillator(), idx = gain(0);
+      mod.frequency.value = f * 2; mod.detune.value = d; idx.gain.setValueAtTime(f * 1.6, t); idx.gain.exponentialRampToValueAtTime(f * 0.05, t + 0.5);
+      mod.connect(idx).connect(car.frequency); oscs.push(mod);
+    }
+    const low = voice('sine', 0, 0.35); low.frequency.value = f / 2;
+    lp.frequency.value = 6000; len = 1.1; level = 0.22 * vel;
+  } else if (type === 'whistle') {
+    // the g-funk lead: a sine and a soft triangle, a little apart, with a slow vibrato that eases in
+    const a = voice('sine', -4, 0.6), b = voice('triangle', 5, 0.35), vib = ctx.createOscillator(), vd = gain(0);
+    vib.frequency.value = 5.4; vd.gain.setValueAtTime(0, t); vd.gain.linearRampToValueAtTime(9, t + 0.25);
+    vib.connect(vd); vd.connect(a.detune); vd.connect(b.detune); oscs.push(vib);
+    lp.frequency.value = 3500; atk = 0.03; len = dur + 0.12; level = 0.2 * vel;
+  } else {
+    // the pluck: three detuned saws through a filter that closes, like a plucked synth string
+    voice('sawtooth', -9, 0.33); voice('sawtooth', 0, 0.33); voice('sawtooth', 9, 0.33);
+    lp.frequency.setValueAtTime(5200, t); lp.frequency.exponentialRampToValueAtTime(900, t + 0.22);
+    level = 0.15 * vel;
+  }
+  // a breath of noise at the very start
+  const n = ctx.createBufferSource(), nf = eq2('bandpass', f * 3, 1.2), ng = gain(0);
+  n.buffer = bassNoise(); ng.gain.setValueAtTime(0.06 * vel, t); ng.gain.exponentialRampToValueAtTime(0.0005, t + 0.03);
+  n.connect(nf).connect(ng).connect(N.lead); n.start(t); n.stop(t + 0.05);
+  out.gain.setValueAtTime(0, t); out.gain.linearRampToValueAtTime(level, t + atk);
+  if (type === 'whistle') { out.gain.setValueAtTime(level, t + Math.max(atk, len - 0.1)); out.gain.linearRampToValueAtTime(0, t + len); }
+  else out.gain.exponentialRampToValueAtTime(0.0005, t + len);
+  lp.connect(out).connect(N.lead);
+  for (const o of oscs) { o.start(t); o.stop(t + len + 0.05); }
+}
+const eq2 = (type, freq, q) => { const f = ctx.createBiquadFilter(); f.type = type; f.frequency.value = Math.min(18000, freq); f.Q.value = q; return f; };
+
 // ------------------------------------------------------------------ keys, pad, lead
 function key(midi, t, dur, vel, dest = N.music) {
   const base = midi < 54 ? 48 : midi < 66 ? 60 : 72, buf = kit['keys_' + base];
@@ -532,8 +596,9 @@ function whistleNote(midi, t, dur) {
   // retire the oscillator once it has been quiet for a while
   clearTimeout(w.timer); w.timer = setTimeout(() => { if (whistle === w && ctx.currentTime > w.dead) { try { w.o.stop(); w.lfo.stop(); } catch {} whistle = null; } }, (dur + 1.2) * 1000 + Math.max(0, (t - ctx.currentTime) * 1000));
 }
-function lead(midi, t, dur, type) {
+function lead(midi, t, dur, type, vel = 1) {
   if (mine()) return own.note(midi, t, dur + 0.05, 'lead');
+  if (song.tone === 'full' && type !== 'keys') return fullLead(type, midi, t, dur, vel);
   if (type === 'bell') bell(midi + 12, t, 0.9);
   else if (type === 'whistle') whistleNote(midi, t, dur);
   else if (type === 'keys') key(midi + 12, t, dur + 0.15, 0.75, N.lead);

@@ -139,6 +139,14 @@ export function bassStep(bar, s, is808) {
   return pool[Math.floor(hash(bar % 4, s, song.seed + 29) * pool.length)];
 }
 
+// The note a third above, in the key: two scale steps up from the nearest scale tone.
+export function harmonyAbove(midi) {
+  const v = vibe(), sc = SCALES[v.scale], root = v.key + song.key;
+  const rel = (((midi - root) % 12) + 12) % 12, oct = midi - rel;
+  let i = 0; for (let k = 1; k < sc.length; k++) if (Math.abs(sc[k] - rel) < Math.abs(sc[i] - rel)) i = k;
+  const j = i + 2; return oct + sc[j % sc.length] + 12 * Math.floor(j / sc.length);
+}
+
 // 4-bar lead line: a 2-bar motif, then the same motif with a new ending.
 let melodyCache = null;
 export function melody() {

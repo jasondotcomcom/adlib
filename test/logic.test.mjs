@@ -158,4 +158,12 @@ for (const s of SAY) { assert.match(s, /[bpdgkt]/, s + ' hard hit'); assert.matc
     assert.ok(Math.max(...out) <= 0.91, 'never clips');
   }
 }
+// harmonies: always in key, and a third (3 or 4 semitones) above
+{
+  const S = await import('../public/js/song.js');
+  for (const id of ['boombap', 'trap', 'gfunk', 'afro', 'jersey']) {
+    S.loadVibe(id); const v = S.vibe(), sc = S.SCALES[v.scale], inKey = m => sc.includes((((m - v.key - S.song.key) % 12) + 12) % 12);
+    for (const n of S.melody()) { const h = S.harmonyAbove(n.midi); assert.ok(inKey(h), `${id} harmony in key`); if (inKey(n.midi)) assert.ok([3, 4].includes(h - n.midi), `${id}: ${n.midi} -> ${h} is a third`); }
+  }
+}
 console.log('ok');
