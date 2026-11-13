@@ -85,6 +85,7 @@ function render() {
   $('swing').value = song.swing; $('swingVal').textContent = song.swing === 50 ? 'straight' : `${song.swing}%`;
   $('key').textContent = NOTE[((chordFor(0).root % 12) + 12) % 12] + (v.scale === 'major' ? '' : 'm');
   for (const b of $('kit').children) { b.setAttribute('aria-pressed', b.dataset.kit === song.kit); if (b.dataset.kit === 'you') b.hidden = !voice.ready; }
+  for (const b of $('tone').children) b.setAttribute('aria-pressed', b.dataset.tone === song.tone);
   $('bassBtn').setAttribute('aria-pressed', song.bass); $('keysBtn').setAttribute('aria-pressed', song.keys); $('leadBtn').setAttribute('aria-pressed', song.lead);
   if (!/^didn't/.test($('sayLine').textContent)) tell();
 }
@@ -144,6 +145,7 @@ function wireControls() {
     b.addEventListener('click', async () => { await wake(); song.kit = k; engine.applyKit(); if (k === 'you') engine.restartArc(); render(); saveHash(); });
     $('kit').appendChild(b);
   }
+  for (const b of $('tone').children) b.addEventListener('click', () => { song.tone = b.dataset.tone; render(); saveHash(); });
   $('bassBtn').addEventListener('click', () => { song.bass = !song.bass; render(); saveHash(); });
   $('keysBtn').addEventListener('click', () => { song.keys = !song.keys; render(); saveHash(); });
   $('leadBtn').addEventListener('click', () => { song.lead = !song.lead; render(); saveHash(); });

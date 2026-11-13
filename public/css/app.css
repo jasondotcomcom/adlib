@@ -84,7 +84,7 @@ body:is([data-view='perform'], [data-view='decks']) #build { display: none; }
 #sayBtn.live .rec-dot { fill: var(--paper); }
 @keyframes ring { from { stroke-dashoffset: 100; } to { stroke-dashoffset: 0; } }
 @keyframes take { from { transform: scaleX(0); } to { transform: scaleX(1); } }
-.knob.drums { grid-column: 1 / -1; order: 1; } .knob.swing { order: 2; } .knob.music { grid-column: 1 / -1; order: 2; } .knob.acts { order: 3; }
+.knob.drums { grid-column: 1 / -1; order: 1; } .knob.tone { order: 1; } .knob.swing { order: 2; } .knob.music { grid-column: 1 / -1; order: 2; } .knob.acts { order: 3; }
 .knobs { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px 14px; align-items: end; background: var(--bg); border-radius: 18px; }
 .knob { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
 .knob .k { font-size: 14px; color: var(--grey); padding-left: 4px; }
@@ -179,8 +179,8 @@ body[data-view='perform'] #perform { display: block; }
 #toast.show { opacity: 1; transform: translate(-50%, 0); }
 #debug { position: fixed; left: 8px; bottom: 96px; z-index: 9; max-width: calc(100vw - 16px); font: 11px/1.35 ui-monospace, Menlo, monospace; background: rgba(0, 0, 0, 0.88); color: #9f9; padding: 8px 10px; white-space: pre-wrap; pointer-events: none; }
 
-/* narrow phones: tighter transport, and Share beat may take two lines rather than run off */
-@media (max-width: 380px) {
+/* phones: tighter transport, and Share beat may take two lines rather than run off */
+@media (max-width: 430px) {
   .dock { gap: 6px; padding-left: 10px; padding-right: 10px; } .transport { gap: 6px; }
   .icon { width: 46px; height: 46px; } .icon.small { width: 36px; height: 36px; }
   .cta .mic { display: none; }
@@ -193,7 +193,7 @@ body[data-view='perform'] #perform { display: block; }
   .row { grid-template-columns: 64px 1fr 40px; gap: 10px; } .label { font-size: 17px; }
   .cell { height: 44px; } .cell.on::before { width: min(100% - 6px, 30px); }
   .knobs { grid-template-columns: 1fr 1fr 1.3fr 1.5fr; }
-  .knob.swing, .knob.music { order: 0; grid-column: auto; } .knob.drums { grid-column: span 2; order: 2; } .knob.acts { grid-column: span 2; order: 3; align-self: end; flex-wrap: nowrap; }
+  .knob.swing, .knob.music { order: 0; grid-column: auto; } .knob.tone { order: 2; } .knob.drums { grid-column: span 2; order: 2; } .knob.acts { grid-column: 1 / -1; order: 3; align-self: end; flex-wrap: nowrap; }
   #sayWord { font-size: 26px; } .say .k { font-size: 17px; }
   .dock { left: 50%; right: auto; width: min(760px, 100%); transform: translateX(-50%); padding-left: 24px; padding-right: 24px; }
   .top button { font-size: 15px; }

@@ -135,4 +135,27 @@ for (const s of SAY) { assert.match(s, /[bpdgkt]/, s + ' hard hit'); assert.matc
     }
   }
 }
+// bass sound: old links are Classic and encode back unchanged; Full round-trips
+{
+  const S = await import('../public/js/song.js');
+  const old = '2.trap.140.50.12.' + (999).toString(36) + '.0.3.' + '8'.repeat(28);
+  assert.equal(S.decodeSong(old), true); assert.equal(S.song.tone, 'classic', 'old links are Classic'); assert.equal(S.encodeSong(), old, 'and encode back to themselves');
+  S.song.tone = 'full'; const enc = S.encodeSong(); assert.ok(enc.endsWith('.f'));
+  S.song.tone = 'classic'; assert.equal(S.decodeSong(enc), true); assert.equal(S.song.tone, 'full', 'Full round-trips');
+}
+// the voice bass: grains of a 150 Hz vowel laid at 70 Hz come out at 70 Hz
+{
+  globalThis.location = { search: '' };
+  const { psola } = await import('../public/js/voicekit.js');
+  const sr = 32000, f0 = 150, d = new Float32Array(sr);
+  for (let i = 0; i < d.length; i++) { const ph = (i * f0) / sr; d[i] = 0.5 * Math.sin(2 * Math.PI * ph) + 0.3 * Math.sin(2 * Math.PI * 3 * ph) + 0.2 * Math.sin(2 * Math.PI * 5 * ph); }
+  for (const target of [70, 98, 55]) {
+    const out = psola(d, sr, f0, [0.1, 0.6], target, 0.6);
+    // autocorrelation peak between 40 and 400 Hz
+    let best = 0, bl = 0; const seg = out.subarray(4000, 12000);
+    for (let lag = Math.round(sr / 400); lag < Math.round(sr / 40); lag++) { let c = 0; for (let i = 0; i < seg.length - lag; i++) c += seg[i] * seg[i + lag]; if (c > best) { best = c; bl = lag; } }
+    const got = sr / bl; assert.ok(Math.abs(got - target) / target < 0.04, `voice bass at ${target} Hz came out at ${got.toFixed(1)}`);
+    assert.ok(Math.max(...out) <= 0.91, 'never clips');
+  }
+}
 console.log('ok');

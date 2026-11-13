@@ -75,7 +75,7 @@ export const vibeById = id => VIBES.find(v => v.id === id) || VIBES[2];
 // The one live song. Everything else reads this.
 export const song = {
   vibe: 'boombap', bpm: 90, swing: 58, key: 0, seed: 1, kit: 'dusty',
-  keys: true, lead: true, bass: true, walk: false,
+  keys: true, lead: true, bass: true, walk: false, tone: 'full',
   pat: ROWS.map(() => new Array(STEPS).fill(0)),
 };
 
@@ -216,7 +216,7 @@ export function newMelody(r = Math.random) { song.seed = 1 + Math.floor(r() * 46
 const rowHex = row => parseInt(row.join(''), 2).toString(16).padStart(4, '0');
 export function encodeSong() {
   return ['2', song.vibe, song.bpm, song.swing, song.key + 12, song.seed.toString(36), KITS.indexOf(song.kit),
-    (song.keys ? 1 : 0) + (song.lead ? 2 : 0) + (song.bass ? 0 : 4) + (song.walk ? 8 : 0), song.pat.map(rowHex).join('')].join('.');
+    (song.keys ? 1 : 0) + (song.lead ? 2 : 0) + (song.bass ? 0 : 4) + (song.walk ? 8 : 0), song.pat.map(rowHex).join('')].concat(song.tone === 'full' ? ['f'] : []).join('.');
 }
 export function decodeSong(str) {
   try {
@@ -230,7 +230,7 @@ export function decodeSong(str) {
       const n = parseInt(hex.slice(i * 4, i * 4 + 4), 16); if (Number.isNaN(n)) return false;
       pat.push(n.toString(2).padStart(16, '0').split('').map(Number));
     }
-    Object.assign(song, { vibe: v.id, bpm, swing, key, seed, kit, keys: !!(flags & 1), lead: !!(flags & 2), bass: !(flags & 4), walk: !!(flags & 8), pat });
+    Object.assign(song, { vibe: v.id, bpm, swing, key, seed, kit, keys: !!(flags & 1), lead: !!(flags & 2), bass: !(flags & 4), walk: !!(flags & 8), tone: f[9] === 'f' ? 'full' : 'classic', pat });   // links from before the Full bass were Classic
     melodyCache = null;
     return true;
   } catch { return false; }

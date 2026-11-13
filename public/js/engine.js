@@ -275,6 +275,7 @@ function scheduleStep(abs, time) {
     let len = 1; while (len < 8 && !song.pat[6][(s + len) % STEPS]) len++;
     const ch = chordFor(bar), is808 = v.bass === '808';
     if (you) { if (stage >= 1 && !bare) own.note((is808 ? ch.bass808 + 12 : ch.bassRound) + bassStep(bar, s, false), t, Math.min(len, 4) * sd, 'bass'); }
+    else if (song.tone === 'full') fullBass(v.id, (is808 ? ch.bass808 : ch.bassRound) + bassStep(bar, s, is808), t, (is808 ? len : Math.min(len, 3)) * sd, v.glide);
     else if (is808) bass808(ch.bass808 + bassStep(bar, s, true), t, len * sd, 1, v.glide);
     else bassRound(ch.bassRound + bassStep(bar, s, false), t, Math.min(len, 3) * sd, v.glide);
   }
@@ -391,6 +392,82 @@ function bassRound(midi, t, dur, glide) {
   const end = t + d + 0.5; o1.start(t); o2.start(t); o1.stop(end); o2.stop(end);
   lastBass = { o: o1, g, f, end: t + d };
 }
+
+
+// ------------------------------------------------------------------ full bass
+// One instrument per style, picked with the Bass sound control. Classic is bass808 and
+// bassRound above. These are starting recipes, tuned by ear.
+let noiseBuf = null, driveCurve = null;   // for the Full bass
+function bassNoise() {
+  if (!noiseBuf) { noiseBuf = ctx.createBuffer(1, Math.round(ctx.sampleRate * 0.05), ctx.sampleRate); const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; }
+  return noiseBuf;
+}
+function thump(t, freq, len, level) {                  // a short burst of filtered noise, for the attack
+  const s = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = gain(0);
+  s.buffer = bassNoise(); f.type = freq > 1000 ? 'highpass' : 'lowpass'; f.frequency.value = freq;
+  g.gain.setValueAtTime(level, t); g.gain.exponentialRampToValueAtTime(0.001, t + len);
+  s.connect(f).connect(g).connect(N.bass); s.start(t); s.stop(t + len + 0.01);
+}
+const osc = (type, f, t) => { const o = ctx.createOscillator(); o.type = type; o.frequency.setValueAtTime(f, t); return o; };
+function fullBass(id, midi, t, dur, glide) {
+  const f = mtof(midi), oscs = [], out = gain(0);
+  const ringing = lastBass && lastBass.end > t + 0.005, from = lastBass ? lastBass.f : f;
+  if (lastBass) { lastBass.g.gain.cancelScheduledValues(t); lastBass.g.gain.setTargetAtTime(0, t, 0.012); for (const o of lastBass.os || [lastBass.o]) o.stop(t + 0.15); }
+  const slide = (o, mul = 1) => { if (glide && ringing && from !== f) { o.frequency.setValueAtTime(from * mul, t); o.frequency.exponentialRampToValueAtTime(f * mul, t + 0.08); } };
+  let hold = Math.max(0.12, dur * 0.85), tail = 0.08, level = 0.8;
+  if (id === 'trap') {
+    // 808 with drive: a sharp knock down to the note, a click, a long tail
+    const o = osc('sine', f, t), sh = ctx.createWaveShaper();
+    if (!driveCurve) driveCurve = tanhCurve(4);
+    sh.curve = driveCurve; sh.oversample = '2x';
+    if (glide && ringing && from !== f) slide(o); else { o.frequency.setValueAtTime(f * 3.2, t); o.frequency.exponentialRampToValueAtTime(f, t + 0.03); }
+    o.connect(sh).connect(out); oscs.push(o); thump(t, 3000, 0.006, 0.35);
+    hold = Math.max(0.2, dur * 0.95); tail = 0.32; level = 0.72;
+  } else if (id === 'drill' || id === 'jersey') {
+    // detuned saws growling through a moving filter, with a sine under them
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = 3;
+    lp.frequency.setValueAtTime(1500, t); lp.frequency.exponentialRampToValueAtTime(380, t + 0.25);
+    for (const c of [-12, 12]) { const o = osc('sawtooth', f, t); o.detune.value = c; slide(o); const g = gain(0.28); o.connect(g).connect(lp); oscs.push(o); }
+    const sub = osc('sine', f, t); slide(sub); sub.connect(gain(0.7)).connect(out); oscs.push(sub);
+    lp.connect(out); tail = 0.12; level = 0.75;
+  } else if (id === 'gfunk') {
+    // the Moog-style lead bass: saw and square through a resonant, sweeping filter
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = 9;
+    lp.frequency.setValueAtTime(2400, t); lp.frequency.exponentialRampToValueAtTime(480, t + 0.2);
+    for (const [ty, l] of [['sawtooth', 0.32], ['square', 0.2]]) { const o = osc(ty, f, t); slide(o); o.connect(gain(l)).connect(lp); oscs.push(o); }
+    const sub = osc('sine', f, t); slide(sub); sub.connect(gain(0.5)).connect(out); oscs.push(sub);
+    lp.connect(out); tail = 0.1; level = 0.7;
+  } else if (id === 'boombap' || id === 'soul') {
+    // a finger bass: a soft thump, then a round note that closes fast
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = 1;
+    lp.frequency.setValueAtTime(1300, t); lp.frequency.exponentialRampToValueAtTime(340, t + 0.08);
+    const o = osc('sine', f, t), tri = osc('triangle', f, t); slide(o); slide(tri);
+    o.connect(lp); tri.connect(gain(0.35)).connect(lp); lp.connect(out); oscs.push(o, tri);
+    thump(t, 280, 0.018, 0.5); hold = Math.min(hold, 0.5); tail = 0.07; level = 0.95;
+  } else if (id === 'lofi') {
+    // rounder and woodier: a sine with a soft second harmonic, a slow start and a little wobble
+    const o = osc('sine', f, t), h = osc('sine', f * 2, t), lfo = osc('sine', 5, t), dep = gain(f * 0.0035);
+    lfo.connect(dep); dep.connect(o.frequency); dep.connect(h.frequency);
+    slide(o); slide(h, 2);
+    o.connect(out); h.connect(gain(0.15)).connect(out); oscs.push(o, h, lfo);
+    tail = 0.12; level = 0.9;
+    out.gain.setValueAtTime(0, t); out.gain.linearRampToValueAtTime(level, t + 0.025);
+  } else {
+    // afro: a log drum, a hollow knock that drops in pitch and dies quickly
+    const o = osc('sine', f * 1.7, t), hol = osc('triangle', f * 2, t);
+    o.frequency.exponentialRampToValueAtTime(f, t + 0.05);
+    hol.frequency.exponentialRampToValueAtTime(f * 1.5, t + 0.08);
+    o.connect(out); hol.connect(gain(0.18)).connect(out); oscs.push(o, hol);
+    thump(t, 900, 0.01, 0.25); hold = Math.min(hold, 0.14); tail = 0.09; level = 0.95;
+  }
+  if (id !== 'lofi') { out.gain.setValueAtTime(0, t); out.gain.linearRampToValueAtTime(level, t + 0.004); }
+  out.gain.setValueAtTime(level, t + hold * 0.5); out.gain.setTargetAtTime(0, t + hold * 0.5, Math.max(0.03, tail));
+  out.connect(N.bass);
+  const end = t + hold + tail * 6 + 0.1;
+  for (const o of oscs) { o.start(t); o.stop(end); }
+  lastBass = { o: oscs[0], os: oscs, g: out, f, end: t + hold };
+}
+export { fullBass };
 
 // ------------------------------------------------------------------ keys, pad, lead
 function key(midi, t, dur, vel, dest = N.music) {
