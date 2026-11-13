@@ -7,11 +7,13 @@ import { getCtx, on as onBeat, stepDur } from './engine.js';
 import { ears, onEar } from './ears.js';
 import { onShow, hype } from './hype.js';
 import { onWord, isContent } from './words.js';
+import { deck, layout as deckLayout, tickDeck } from './decks.js';
 
 const NR = 8, NC = 20, ND = 24, NW = 8;
 const reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 let canvas, gl, U = {}, burstsEl, tickerEl, markSpace, W = 0, H = 0, dpr = 1, ok = false;
+let decking = false, scratchAt = 0;
 let performing = false, phase = 0, phaseTo = 0, markBump = 0, level = 0, chain = 0, chainAt = 0;
 let mouth = 0, yell = 0, speakUntil = 0, yellUntil = 0;      // his face: how open, how loud
 const rings = new Float32Array(NR * 4), caps = new Float32Array(NC * 4), capR = new Float32Array(NC * 2), discs = new Float32Array(ND * 3), wavesU = new Float32Array(NW * 4);
@@ -80,6 +82,7 @@ export function initStage() {
   onWord(addWord);
   requestAnimationFrame(frame);
 }
+export function setDecks(on) { decking = on; waves.length = 0; mouth = yell = 0; speakUntil = yellUntil = 0; }
 export function setPerforming(on) {
   performing = on; chain = 0; count.n = 0; count.until = 0; waves.length = 0; pending.length = 0; mouth = yell = 0; speakUntil = yellUntil = 0;
   for (const b of bursts) b.el.remove(); bursts.length = 0;
@@ -116,6 +119,23 @@ function wordmark(cx, baseline, T) {
 }
 
 // ------------------------------------------------------------------ frame
+// adlib's face, drawn at the bottom of a scene. Returns the gap his eyes need.
+function face(cx, T) {
+  // adlib's face, bottom of the screen, drawn from the parts of the mark (see adlib-voice.md, "His face").
+  // The mouth is one bowl: small while he listens, wide open when he comes in. It must stay ring 1.
+  const F = T * 0.42, fx = cx, fy = H - 48 - 2.5 * F;
+  ring(fx, fy, F * (1 + mouth + markBump * 0.25), 0.5 * F);
+  // The eyes are straight lines. Short and upright while he listens; when he yells they
+  // squeeze shut into > <. They sit over the rings and have none of their own.
+  // They ride just above the mouth and move apart as it opens, so they never read as ears.
+  const top = F * (1.5 + mouth), spread = F * (1.45 + 0.55 * mouth + 0.65 * yell), ey = fy - top - 2.4 * F, eh = F * (0.5 + 0.5 * yell);
+  for (const side of [-1, 1]) {
+    const ex = fx + side * (spread + 0.95 * F * yell), vx = fx + side * (spread - 0.95 * F * yell);
+    cap(ex, ey - eh, vx, ey, 0.5 * F, 3); cap(vx, ey, ex, ey + eh, 0.5 * F, 3);
+  }
+  document.documentElement.style.setProperty('--face', Math.round(48 + 9.6 * F) + 'px');
+  return 0.38 * F;
+}
 let lastT = 0;
 function frame(ts) {
   requestAnimationFrame(frame);
@@ -134,11 +154,25 @@ function frame(ts) {
   mouth += ((now < speakUntil ? 1 : 0) - mouth) * Math.min(1, dt * (now < speakUntil ? 26 : 7));
   yell += ((now < yellUntil ? 1 : 0) - yell) * Math.min(1, dt * 14);
   level += ((ears.on ? ears.level : 0) - level) * Math.min(1, dt * 18);
+  if (decking) tickDeck(dt);
   if (!ok) return;
 
   nr = nc = nd = 0; rings.fill(0); capR.fill(0); discs.fill(0); wavesU.fill(0);
   let T, fade, dim, gap = 0;
-  if (!performing) {
+  if (decking) {
+    // the decks: one big record. Its rim is ring 0, so waves can come out of it; the rings
+    // inside the rim are its grooves. A stripe on the label shows it turning.
+    const L = deckLayout(W, H); T = L.T;
+    ring(L.cx, L.cy, L.R - 0.5 * T, (deck.held ? 0.62 : 0.5) * T);
+    gap = face(L.cx, T);
+    disc(L.cx, L.cy, 0.85 * T);
+    const a = deck.angle, c = Math.cos(a), si = Math.sin(a);
+    cap(L.cx + c * 1.9 * T, L.cy + si * 1.9 * T, L.cx + c * 3.4 * T, L.cy + si * 3.4 * T, 0.5 * T);
+    // a scratch sends rings out of the record, harder the faster the hand
+    const sp = Math.abs(deck.speed);
+    if (deck.held && sp > 0.25 && now - scratchAt > 0.07 && !reduced) { scratchAt = now; wave(Math.min(0.9, 0.25 + sp * 0.2), deck.speed > 0 ? 0 : 2, 1000, 1); }
+    fade = 1e5; dim = 1;
+  } else if (!performing) {
     // build view: the name up top, rings fading out behind the drum machine
     const b = markSpace.getBoundingClientRect();
     T = Math.max(6, Math.min(b.width / 30, b.height / 12.5));
@@ -154,20 +188,7 @@ function frame(ts) {
     else if (chain > 1) chain = 0;
     // count-in: four dots, one per beat
     if (now < count.until) for (let i = 0; i < 4; i++) disc(cx + (i - 1.5) * 2.2 * T, cy - 6 * T, (i < count.n ? 0.62 : 0.2) * T);
-    // adlib's face, bottom of the screen, drawn from the parts of the mark (see adlib-voice.md, "His face").
-    // The mouth is one bowl: small while he listens, wide open when he comes in. It must stay ring 1.
-    const F = T * 0.42, fx = cx, fy = H - 48 - 2.5 * F;
-    ring(fx, fy, F * (1 + mouth + markBump * 0.25), 0.5 * F);
-    // The eyes are straight lines. Short and upright while he listens; when he yells they
-    // squeeze shut into > <. They sit over the rings and have none of their own.
-    // They ride just above the mouth and move apart as it opens, so they never read as ears.
-    const top = F * (1.5 + mouth), spread = F * (1.45 + 0.55 * mouth + 0.65 * yell), ey = fy - top - 2.4 * F, eh = F * (0.5 + 0.5 * yell);
-    for (const side of [-1, 1]) {
-      const ex = fx + side * (spread + 0.95 * F * yell), vx = fx + side * (spread - 0.95 * F * yell);
-      cap(ex, ey - eh, vx, ey, 0.5 * F, 3); cap(vx, ey, ex, ey + eh, 0.5 * F, 3);
-    }
-    gap = 0.38 * F;
-    document.documentElement.style.setProperty('--face', Math.round(48 + 9.6 * F) + 'px');
+    gap = face(cx, T);
     // clearings for the words he throws up
     for (let i = bursts.length - 1; i >= 0; i--) {
       const s = bursts[i], age = now - s.at;

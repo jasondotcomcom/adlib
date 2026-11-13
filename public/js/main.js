@@ -5,7 +5,8 @@ import { ears, startEars, stopEars, slice, micRate } from './ears.js';
 import { voice, buildVoice, voiceDrum, voiceNote, voiceTag, voiceChop, voiceRiser, rollSay, packTake, unpack, toWav, fromWav, TAKE_RATE } from './voicekit.js';
 import { words, startWords, stopWords, onWord, feed } from './words.js';
 import { hype, startHype, stopHype, setMode } from './hype.js';
-import { initStage, setPerforming } from './stage.js';
+import { initStage, setPerforming, setDecks } from './stage.js';
+import { deck, startDeck, stopDeck } from './decks.js';
 
 const $ = id => document.getElementById(id);
 const NOTE = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
@@ -162,6 +163,8 @@ function wireControls() {
   $('sharePlain').addEventListener('click', () => { $('shareSheet').hidden = true; sendLink(true); });
   $('shareCancel').addEventListener('click', () => { $('shareSheet').hidden = true; });
   $('backBtn').addEventListener('click', backToBeat);
+  $('decksLink').addEventListener('click', e => { e.preventDefault(); decks(); });
+  $('decksBack').addEventListener('click', leaveDecks);
   $('modeBtn').addEventListener('click', () => { const m = hype.mode === 'hype' ? 'boom' : 'hype'; setMode(m); $('modeBtn').textContent = m === 'hype' ? 'Hype voice' : 'Boom voice'; });
   $('phonesBtn').addEventListener('click', async () => {
     const on = $('phonesBtn').getAttribute('aria-pressed') !== 'true'; $('phonesBtn').setAttribute('aria-pressed', on);
@@ -173,6 +176,7 @@ function wireControls() {
     if (e.target.closest('input,textarea')) return;
     if (e.code === 'Space' && !simple() && !e.target.closest('button')) { e.preventDefault(); $('playBtn').click(); }
     if (e.key === 'Escape' && view === 'perform') backToBeat();
+    if (e.key === 'Escape' && view === 'decks') leaveDecks();
     if (e.key === '`') $('debug').hidden = !$('debug').hidden;
   });
   engine.on('step', (abs, t) => { stepQueue.push({ s: abs % STEPS, t }); if (stepQueue.length > 64) stepQueue.shift(); });
@@ -311,6 +315,18 @@ function backToBeat() {
   $('micHelp').hidden = true;
 }
 
+// ------------------------------------------------------------------ decks view
+async function decks() {
+  openUp(); await wake();
+  if (!engine.isPlaying()) { engine.play(); syncPlay(); }
+  view = 'decks'; document.body.dataset.view = 'decks'; scrollTo(0, 0); setDecks(true);
+  await startDeck($('decks'));
+}
+function leaveDecks() {
+  view = 'build'; document.body.dataset.view = 'build';
+  stopDeck(); setDecks(false);
+}
+
 // ------------------------------------------------------------------ debug (press `)
 function debugLoop() {
   const el = $('debug');
@@ -339,6 +355,6 @@ function boot() {
   engine.setOwnKit({ ready: () => voice.ready, drum: voiceDrum, note: voiceNote, tag: voiceTag, chop: voiceChop, riser: voiceRiser });
   buildVibes(); buildGrid(); buildTape(); wireControls(); render(); initStage(); playhead(); debugLoop(); watchBeats();
   if (new URLSearchParams(location.search).has('debug')) $('debug').hidden = false;
-  window.adlib = { song, engine, ears, words, hype, feed, voice, buildVoice };
+  window.adlib = { song, engine, ears, words, hype, feed, voice, buildVoice, deck };
 }
 boot();
