@@ -77,7 +77,7 @@ export async function initAudio() {
   Object.assign(N.glue.threshold, { value: -18 }); N.glue.knee.value = 10; N.glue.ratio.value = 2; N.glue.attack.value = 0.03; N.glue.release.value = 0.25;
   N.glueIn = gain(1); N.glueBy = gain(0); N.glueMake = gain(1.5);
   N.clip = ctx.createWaveShaper(); N.clip.oversample = '4x';
-  { const c = new Float32Array(2049); for (let i = 0; i < c.length; i++) { const x = (i / 1024 - 1) * 1.6; c[i] = 0.95 * Math.tanh(x / 0.95); } N.clip.curve = c; }
+  { const c = new Float32Array(4097), knee = 0.8, top = 0.97; for (let i = 0; i < c.length; i++) { const x = i / 2048 - 1, a = Math.abs(x); c[i] = Math.sign(x) * (a <= knee ? a : knee + (top - knee) * Math.tanh((a - knee) / (top - knee))); } N.clip.curve = c; }   // straight line until 0.8, then a soft shoulder
   N.preClip = gain(1);
   N.master.connect(N.masterMud).connect(N.masterAir);
   N.masterAir.connect(N.glueIn).connect(N.glue).connect(N.glueMake).connect(N.limiter);
@@ -133,13 +133,13 @@ export async function initAudio() {
 
   // bass: its own saturation so an 808 still reads on a phone speaker
   N.bass = gain(0.42);
-  N.bassSat = ctx.createWaveShaper(); N.bassSat.curve = tanhCurve(2.6); N.bassSat.oversample = '2x';
+  N.bassSat = ctx.createWaveShaper(); N.bassSat.curve = tanhCurve(1.15); N.bassSat.oversample = '2x';
   N.bassDuck = gain(1);
   N.bassLow = eq('highpass', 30); N.bassMud = eq('peaking', 230, 1.1, -3.5);    // no sub-rumble, and less boom where it muddies
   N.bass.connect(N.bassSat).connect(N.bassLow).connect(N.bassMud).connect(N.bassDuck).connect(N.beat);
   // weight: a driven, band-limited copy of the bass, so its harmonics (150-500 Hz) carry the
   // line on speakers that can't play the low notes themselves
-  { const sh = ctx.createWaveShaper(); sh.curve = tanhCurve(7); sh.oversample = '2x'; const hp = eq('highpass', 150, 0.7), lp = eq('lowpass', 520, 0.7);
+  { const sh = ctx.createWaveShaper(); sh.curve = tanhCurve(2.2); sh.oversample = '4x'; const hp = eq('highpass', 180, 0.7), lp = eq('lowpass', 420, 0.7);
     N.bassHarm = gain(0); N.bass.connect(sh).connect(hp).connect(lp).connect(N.bassHarm).connect(N.bassDuck); }
 
   // reverb send
@@ -240,7 +240,7 @@ export function applyMix() {
   set(N.revOut.gain, on('space', 0.75, 0)); set(N.revOld.gain, on('space', 0, 0.9));
   set(N.roomOut.gain, on('room', 0.55));
   set(N.parOut.gain, on('punch', 0.32));
-  set(N.bassHarm.gain, on('weight', 0.22));
+  set(N.bassHarm.gain, on('weight', 0.09));
   set(N.glueIn.gain, on('master', 1, 0)); set(N.glueBy.gain, on('master', 0, 1));
 }
 export const isPlaying = () => playing;
@@ -520,7 +520,7 @@ function fullBass(id, midi, t, dur, glide) {
   if (id === 'trap') {
     // 808 with drive: a sharp knock down to the note, a click, a long tail
     const o = osc('sine', f, t), sh = ctx.createWaveShaper();
-    if (!driveCurve) driveCurve = tanhCurve(4);
+    if (!driveCurve) driveCurve = tanhCurve(1.25);
     sh.curve = driveCurve; sh.oversample = '2x';
     if (glide && ringing && from !== f) slide(o); else { o.frequency.setValueAtTime(f * 3.2, t); o.frequency.exponentialRampToValueAtTime(f, t + 0.03); }
     o.connect(sh).connect(out); oscs.push(o); thump(t, 3000, 0.006, 0.35);
