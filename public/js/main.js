@@ -359,7 +359,18 @@ function boot() {
   engine.setOwnKit({ ready: () => voice.ready, drum: voiceDrum, note: voiceNote, tag: voiceTag, chop: voiceChop, riser: voiceRiser });
   buildVibes(); buildGrid(); buildTape(); wireControls(); render(); initStage(); playhead(); debugLoop(); watchBeats();
   if (new URLSearchParams(location.search).has('debug')) $('debug').hidden = false;
-  if (/^\/testdj\/?$/.test(location.pathname)) $('decksLink').hidden = false;   // the decks are only reachable here while they're being tested
+  if (/^\/testdj\/?$/.test(location.pathname)) $('decksLink').hidden = false;
+  // /testdj?mix: switches for each mix stage, so Jason can hear what each one does
+  if (/[?&]mix\b/.test(location.search)) {
+    const box = document.createElement('div'); box.className = 'mixbox';
+    const names = { duck: 'gentle duck', bed: 'chord bed', pan: 'chords drift', space: 'new reverb', room: 'snare room', punch: 'drum punch', spread: 'drum spread', weight: 'bass weight', master: 'glue + loud' };
+    for (const k in names) {
+      const b = document.createElement('button'); b.type = 'button'; b.textContent = names[k]; b.setAttribute('aria-pressed', engine.mix[k]);
+      b.addEventListener('click', () => { engine.mix[k] = !engine.mix[k]; b.setAttribute('aria-pressed', engine.mix[k]); engine.applyMix(); });
+      box.appendChild(b);
+    }
+    document.body.appendChild(box);
+  }   // the decks are only reachable here while they're being tested
   window.adlib = { song, engine, ears, words, hype, feed, voice, buildVoice, deck };
 }
 boot();

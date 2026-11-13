@@ -254,6 +254,7 @@ function bassBuf(midi) {
 }
 export function voiceNote(midi, t, dur, role) {
   if (role === 'bass' && voice.pitched && !OLD_VOICE_BASS && voice.loop) return voiceBass(midi, t, dur);
+  if (role === 'lead' && voice.pitched && !OLD_VOICE_BASS && voice.loop) return voiceLead(midi, t, dur);
   const ctx = getCtx(), src = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain();
   src.buffer = voice.bufs.vowel; src.playbackRate.value = Math.max(0.2, Math.min(4, mtof(midi) / voice.f0));
   src.loop = true; src.loopStart = voice.loop[0]; src.loopEnd = voice.loop[1];
@@ -321,4 +322,16 @@ function voiceBass(midi, t, dur) {
   const o = ctx.createOscillator(), og = ctx.createGain(); o.frequency.value = mtof(midi - 12 * (midi > 52 ? 1 : 0));
   og.gain.setValueAtTime(0, t); og.gain.linearRampToValueAtTime(0.32, t + 0.01); og.gain.setTargetAtTime(0, t + Math.max(0.06, len * 0.8), 0.06);
   o.connect(og).connect(N.bass); o.start(t); o.stop(t + len + 0.45);
+}
+
+// The voice lead, made the same way: grains of the vowel laid at the note's rate, so a high
+// note sounds like you singing higher, not a sped-up tape.
+function voiceLead(midi, t, dur) {
+  const ctx = getCtx(), src = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain();
+  src.buffer = bassBuf(midi);
+  f.type = 'highpass'; f.frequency.value = 260; f.Q.value = 0.7;
+  const len = Math.min(dur, src.buffer.duration - 0.05);
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.38, t + 0.012);
+  g.gain.setTargetAtTime(0, t + Math.max(0.06, len * 0.9), 0.07);
+  src.connect(f).connect(g).connect(N.lead); src.start(t); src.stop(t + len + 0.5);
 }
