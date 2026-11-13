@@ -144,7 +144,7 @@ function frame(ts) {
 
   while (ctx && hits.length && hits[0].t <= now) {
     const h = hits.shift();
-    if (h.r === 0) { if (!reduced) phaseTo += 1; wave(0.75 * h.vel, 0); }     // kick: every ring steps out
+    if (h.r === 0) { if (!reduced) phaseTo += 1; wave(0.75 * h.vel, 0); if (decking && deck.beat.held) wave(0.7 * h.vel, 1, 1100, 2); }     // kick: every ring steps out
     else wave(0.7 * h.vel, 1, 1100);                                           // snare and clap: a red pulse
   }
   for (let i = pending.length - 1; i >= 0; i--) if (pending[i].at <= now + 0.02) { const ev = pending.splice(i, 1)[0]; if (performing) present(ev, now); }
@@ -160,17 +160,29 @@ function frame(ts) {
   nr = nc = nd = 0; rings.fill(0); capR.fill(0); discs.fill(0); wavesU.fill(0);
   let T, fade, dim, gap = 0;
   if (decking) {
-    // the decks: one big record. Its rim is ring 0, so waves can come out of it; the rings
-    // inside the rim are its grooves. A stripe on the label shows it turning.
+    // the decks: two records. Your voice on top is ring 0; the beat below is adlib's mouth,
+    // ring 1, with his eyes above it. The rings inside each rim are its grooves, and a
+    // stripe on each label shows it turning.
     const L = deckLayout(W, H); T = L.T;
-    ring(L.cx, L.cy, L.R - 0.5 * T, (deck.held || deck.kept ? 0.62 : 0.5) * T);
-    gap = face(L.cx, T);
-    disc(L.cx, L.cy, 0.85 * T);
-    const a = deck.angle, c = Math.cos(a), si = Math.sin(a);
-    cap(L.cx + c * 1.9 * T, L.cy + si * 1.9 * T, L.cx + c * 3.4 * T, L.cy + si * 3.4 * T, 0.5 * T);
-    // a scratch sends rings out of the record, harder the faster the hand
-    // every slice of the phrase sends rings out of the record; backward ones are blue
-    while (deck.hits.length && deck.hits[0] <= now) { deck.hits.shift(); if (!reduced) wave(0.45 + Math.min(0.4, Math.abs(deck.speed) * 0.15), deck.speed < -0.4 ? 2 : 0, 1000, 1); }
+    const V = L.voice, B = L.beat, vd = deck.voice, bd = deck.beat;
+    ring(V.cx, V.cy, L.R - 0.5 * T, (vd.held || deck.kept ? 0.62 : 0.5) * T);
+    ring(B.cx, B.cy, L.R - 0.5 * T, (bd.held ? 0.62 : 0.5) * T);
+    for (const [P, d] of [[V, vd], [B, bd]]) {
+      disc(P.cx, P.cy, 0.8 * T);
+      const c = Math.cos(d.angle), si = Math.sin(d.angle);
+      cap(P.cx + c * 1.8 * T, P.cy + si * 1.8 * T, P.cx + c * Math.min(3.2 * T, L.R - 2.2 * T) , P.cy + si * Math.min(3.2 * T, L.R - 2.2 * T), 0.45 * T);
+    }
+    // his eyes: upright while he listens, squeezed into > < when the beat record is flicked
+    yell += ((Math.abs(bd.speed) > 2.2 ? 1 : 0) - yell) * Math.min(1, dt * 14);
+    const F = Math.max(T * 0.6, L.R * 0.15), spread = L.R * 0.42 + F * 0.65 * yell, ey = B.cy - L.R - 0.6 * T - F, eh = F * (0.6 + 0.4 * yell);
+    for (const side of [-1, 1]) {
+      const ex = B.cx + side * (spread + 0.95 * F * yell), vx = B.cx + side * (spread - 0.95 * F * yell);
+      cap(ex, ey - eh, vx, ey, 0.5 * F, 3); cap(vx, ey, ex, ey + eh, 0.5 * F, 3);
+    }
+    gap = 0.38 * F;
+    // every slice of your phrase sends rings out of the top record (blue when it runs
+    // backward); the held beat record pushes rings out of his mouth on every kick
+    while (deck.hits.length && deck.hits[0] <= now) { deck.hits.shift(); if (!reduced) wave(0.45 + Math.min(0.4, Math.abs(vd.speed) * 0.15), vd.speed < -0.4 ? 2 : 0, 1000, 1); }
     if (deck.hits.length > 64) deck.hits.splice(0, deck.hits.length - 64);
     fade = 1e5; dim = 1;
   } else if (!performing) {

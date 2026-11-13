@@ -24,6 +24,9 @@ export function restartArc() { arcFrom = Math.floor(Math.max(0, nextStep) / STEP
 export const perf = { on: false, heat: 0, rapping: false, dropUntilStep: -1 };
 // while the decks hold the phrase, the beat's own hook steps aside for them
 export const decksHook = { on: false };
+// while the beat record is held, it decides which step of the bar the drums and bass play
+// from: map(abs) returns { src, stut } or null for the beat as written
+export const beatDeck = { map: null };
 
 // Recent kick/snare times, so the ears can tell our own beat from a voice.
 export const drumLog = [];
@@ -233,9 +236,10 @@ function scheduleStep(abs, time) {
   }
 
   // ---- drums
+  const bm = beatDeck.map ? beatDeck.map(abs) : null, ps = bm ? bm.src : s;
   for (let r = 0; r < 6; r++) {
-    let hit = song.pat[r][s];
-    if (r === 1 && fill && s === 15 && !hit && song.pat[1].some(Boolean) && hash(bar, 15, song.seed) < 0.45) hit = 0.55;   // ghost snare into the turn
+    let hit = song.pat[r][ps];
+    if (r === 1 && !bm && fill && s === 15 && !hit && song.pat[1].some(Boolean) && hash(bar, 15, song.seed) < 0.45) hit = 0.55;   // ghost snare into the turn
     if (r === 3 && !hit && heat > 75 && song.pat[3].some(Boolean) && s % 2) hit = 0.3;                                        // hats fill in when it is hot
     if (r === 4 && !hit && heat > 60 && fill && s === 14) hit = 0.8;
     if (!hit) continue;
@@ -247,8 +251,9 @@ function scheduleStep(abs, time) {
     if (r === 3) { vel *= HAT_ACC[s % 4] * (0.9 + Math.random() * 0.2); when += (Math.random() - 0.5) * 0.006; }
     if (r === 5) { vel *= 0.75; when += (Math.random() - 0.5) * 0.006; }
     drum(r, when, vel);
+    if (bm && bm.stut) drum(r, when + sd / 2, vel * 0.8);              // the beat record, flicked
     // hat rolls
-    if (r === 3 && v.rolls && song.pat[3][s]) {
+    if (r === 3 && v.rolls && song.pat[3][ps] && !bm) {
       const roll = hash(bar % 4, s, song.seed + 5), chance = 0.1 + heat / 220;
       if (roll < chance) {
         const n = roll < chance / 3 ? 3 : 2;
@@ -259,8 +264,9 @@ function scheduleStep(abs, time) {
   if (landing) { crash(t, 0.5); if (kit.deep) sample('deep', t, 0.7, 1, N.drums); }
 
   // ---- bass
-  if (song.pat[6][s] && !dropping) {
-    let len = 1; while (len < 8 && !song.pat[6][(s + len) % STEPS]) len++;
+  if (song.pat[6][ps] && !dropping) {
+    let len = 1; while (len < 8 && !song.pat[6][(ps + len) % STEPS]) len++;
+    if (bm) len = Math.min(len, bm.stut ? 1 : 2);
     const ch = chordFor(bar), alt = s % 4 !== 0 && hash(bar % 4, s, song.seed + 11) < 0.22;
     if (you) { if (stage >= 1 && !bare) own.note((v.bass === '808' ? ch.bass808 + 12 : ch.bassRound) + (alt ? 7 : 0), t, Math.min(len, 4) * sd, 'bass'); }
     else if (v.bass === '808') bass808(ch.bass808 + (alt ? 12 : 0), t, len * sd, 1, v.glide);

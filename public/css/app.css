@@ -180,5 +180,7 @@ body[data-view='perform'] #perform { display: block; }
 body[data-view='decks'] #decks { display: block; }
 body[data-view='decks'] { overflow: hidden; overscroll-behavior: none; }
 #decksLink[hidden] { display: none; }
-#keepBtn { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(var(--face, 130px) + 12px); height: 44px; padding: 0 22px; font-size: 17px; }
+#keepBtn { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(18px + env(safe-area-inset-bottom)); height: 44px; padding: 0 22px; font-size: 17px; }
 #keepBtn[aria-pressed='true'] { background: var(--yellow); color: var(--bg); border-color: var(--yellow); }
+#keepBtn.kept { animation: kept 0.5s cubic-bezier(0.2, 0.8, 0.2, 1); }
+@keyframes kept { 30% { transform: translateX(-50%) scale(1.12); } }
