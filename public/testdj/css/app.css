@@ -213,3 +213,7 @@ body[data-view='decks'] { overflow: hidden; overscroll-behavior: none; }
 #keepBtn[aria-pressed='true'] { background: var(--yellow); color: var(--bg); border-color: var(--yellow); }
 #keepBtn.kept { animation: kept 0.5s cubic-bezier(0.2, 0.8, 0.2, 1); }
 @keyframes kept { 30% { transform: translateX(-50%) scale(1.12); } }
+/* the mix switches at /testdj?mix (a testing aid, not part of the site) */
+.mixbox { position: fixed; top: 8px; left: 8px; right: 8px; z-index: 20; display: flex; flex-wrap: wrap; gap: 6px; padding: 8px; background: rgba(12, 11, 14, 0.92); border: 2px solid var(--line); border-radius: 18px; }
+.mixbox button { font-size: 13px; padding: 6px 10px; border-radius: 999px; border: 2px solid var(--grey); color: var(--grey); }
+.mixbox button[aria-pressed='true'] { background: var(--yellow); border-color: var(--yellow); color: var(--bg); }
