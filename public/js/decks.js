@@ -24,16 +24,26 @@ async function sound() {
   return fallback;
 }
 
+// cut the silence off both ends, so the loop has no gap in it
+function trim(d) {
+  let peak = 0; for (let i = 0; i < d.length; i++) peak = Math.max(peak, Math.abs(d[i]));
+  const th = peak * 0.04; let a = 0, z = d.length - 1;
+  while (a < z && Math.abs(d[a]) < th) a++;
+  while (z > a && Math.abs(d[z]) < th) z--;
+  const out = d.slice(Math.max(0, a - 64), Math.min(d.length, z + 256)), f = Math.min(64, out.length >> 2);
+  for (let i = 0; i < f; i++) { out[i] *= i / f; out[out.length - 1 - i] *= i / f; }
+  return out;
+}
 export async function startDeck(el) {
   const ctx = getCtx(); if (!ctx) return;
   if (!loaded) { await ctx.audioWorklet.addModule('js/scratch-worklet.js'); loaded = true; }
   if (!node) {
     node = new AudioWorkletNode(ctx, 'scratch', { numberOfInputs: 0, outputChannelCount: [1] });
-    out = ctx.createGain(); out.gain.value = 1.1;
+    out = ctx.createGain(); out.gain.value = 1.8;
     node.connect(out).connect(N.master);          // straight to the master: the beat's own effects don't touch it
   }
   const b = await sound();
-  if (b && b !== sentBuf) { sentBuf = b; node.port.postMessage({ buf: b.getChannelData(0).slice(), rate: b.sampleRate }); }
+  if (b && b !== sentBuf) { sentBuf = b; node.port.postMessage({ buf: trim(b.getChannelData(0)), rate: b.sampleRate }); }
   deck.ready = !!b; deck.on = true;
   if (!el.dataset.wired) { wire(el); el.dataset.wired = '1'; }
 }
@@ -51,8 +61,8 @@ function wire(el) {
     e.preventDefault(); pointer = e.pointerId; try { el.setPointerCapture(e.pointerId); } catch {}
     lastA = angleAt(e); turned = 0; lastMove = performance.now();
     deck.held = true; deck.speed = 0;
-    // every touch drops the needle at the top of the phrase
-    if (node) node.port.postMessage({ down: 0 });
+    // every touch starts the phrase from the top
+    if (node) node.port.postMessage({ down: true });
   });
   el.addEventListener('pointermove', e => {
     if (e.pointerId !== pointer) return;
