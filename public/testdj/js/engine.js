@@ -89,7 +89,7 @@ export async function initAudio() {
   N.drums.connect(N.drumLow).connect(N.drumSat).connect(N.drumTone).connect(N.drumComp).connect(N.drumOut).connect(N.beat);
 
   // music: sidechain duck -> filter that opens with heat
-  N.music = gain(0.95);
+  N.music = gain(1.05);
   N.duck = gain(1);
   N.musicFilter = ctx.createBiquadFilter(); N.musicFilter.type = 'lowpass'; N.musicFilter.frequency.value = 16000; N.musicFilter.Q.value = 0.5;
   N.musicLow = eq('highpass', 170);              // chords and lead leave the bottom to the kick and bass
@@ -110,7 +110,7 @@ export async function initAudio() {
   eHp.connect(ePan).connect(N.music);
 
   // bass: its own saturation so an 808 still reads on a phone speaker
-  N.bass = gain(0.55);
+  N.bass = gain(0.42);
   N.bassSat = ctx.createWaveShaper(); N.bassSat.curve = tanhCurve(2.6); N.bassSat.oversample = '2x';
   N.bassDuck = gain(1);
   N.bassLow = eq('highpass', 30); N.bassMud = eq('peaking', 230, 1.1, -3.5);    // no sub-rumble, and less boom where it muddies
