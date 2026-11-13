@@ -255,6 +255,9 @@ function bassBuf(midi) {
   return psolaCache.get(key);
 }
 export function voiceNote(midi, t, dur, role) {
+  // The voice melody: keep the note within an octave of the voice's own pitch, so it's never
+  // sped up into chipmunk range (it used to run 3-4x fast, which is what screeched)
+  if (role === 'lead' && voice.f0) { const home = 12 * Math.log2(voice.f0 / 440) + 69; while (midi > home + 10) midi -= 12; while (midi < home - 5) midi += 12; }
   // The bass stays the original way, the vowel slowed down: building it from grains buzzed
   // when the voice dropped that far (the grains end up with gaps between them). ?psolabass to compare.
   if (role === 'bass' && PSOLA_BASS && voice.pitched && voice.loop) return voiceBass(midi, t, dur);
@@ -262,8 +265,8 @@ export function voiceNote(midi, t, dur, role) {
   const ctx = getCtx(), src = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain();
   src.buffer = voice.bufs.vowel; src.playbackRate.value = Math.max(0.2, Math.min(4, mtof(midi) / voice.f0));
   src.loop = true; src.loopStart = voice.loop[0]; src.loopEnd = voice.loop[1];
-  const bass = role === 'bass', level = bass ? 0.95 : 0.4;
-  f.type = bass ? 'lowpass' : 'highpass'; f.frequency.value = bass ? 520 : 260; f.Q.value = 0.7;
+  const bass = role === 'bass', level = bass ? 0.95 : 0.3;
+  f.type = bass ? 'lowpass' : 'bandpass'; f.frequency.value = bass ? 520 : 900; f.Q.value = bass ? 0.7 : 0.45;   // the melody: no rumble, no hiss
   g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(level, t + 0.006);
   g.gain.setTargetAtTime(0, t + Math.max(0.06, dur * (bass ? 0.8 : 0.9)), bass ? 0.05 : 0.07);
   src.connect(f).connect(g).connect(bass ? N.bass : N.lead);
