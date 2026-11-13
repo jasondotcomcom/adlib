@@ -86,6 +86,8 @@ function render() {
   $('key').textContent = NOTE[((chordFor(0).root % 12) + 12) % 12] + (v.scale === 'major' ? '' : 'm');
   for (const b of $('kit').children) { b.setAttribute('aria-pressed', b.dataset.kit === song.kit); if (b.dataset.kit === 'you') b.hidden = !voice.ready; }
   for (const b of $('tone').children) b.setAttribute('aria-pressed', b.dataset.tone === song.tone);
+  for (const b of $('vox').children) b.setAttribute('aria-pressed', b.dataset.vox === song.vox);
+  $('voxKnob').hidden = !(song.kit === 'you' && voice.ready);
   $('bassBtn').setAttribute('aria-pressed', song.bass); $('keysBtn').setAttribute('aria-pressed', song.keys); $('leadBtn').setAttribute('aria-pressed', song.lead);
   if (!/^didn't/.test($('sayLine').textContent)) tell();
 }
@@ -146,6 +148,7 @@ function wireControls() {
     $('kit').appendChild(b);
   }
   for (const b of $('tone').children) b.addEventListener('click', () => { song.tone = b.dataset.tone; render(); saveHash(); });
+  for (const b of $('vox').children) b.addEventListener('click', () => { song.vox = b.dataset.vox; render(); });
   $('bassBtn').addEventListener('click', () => { song.bass = !song.bass; render(); saveHash(); });
   $('keysBtn').addEventListener('click', () => { song.keys = !song.keys; render(); saveHash(); });
   $('leadBtn').addEventListener('click', () => { song.lead = !song.lead; render(); saveHash(); });

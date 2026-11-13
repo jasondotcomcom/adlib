@@ -75,7 +75,7 @@ export const vibeById = id => VIBES.find(v => v.id === id) || VIBES[2];
 // The one live song. Everything else reads this.
 export const song = {
   vibe: 'boombap', bpm: 90, swing: 58, key: 0, seed: 1, kit: 'dusty',
-  keys: true, lead: true, bass: true, walk: false, tone: 'full',
+  keys: true, lead: true, bass: true, walk: false, tone: 'full', vox: 'chops',   // vox: how a voice beat's melody uses your phrase
   pat: ROWS.map(() => new Array(STEPS).fill(0)),
 };
 
