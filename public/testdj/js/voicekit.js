@@ -225,6 +225,7 @@ export function voiceDrum(r, t, vel) {
 // own pitch and lay them down at the new note's rate (PSOLA): the pitch drops, the vowel
 // stays. One buffer per note, built once. Add ?oldvoicebass to the address to hear the old way.
 const OLD_VOICE_BASS = typeof location !== 'undefined' && /[?&]oldvoicebass\b/.test(location.search);
+const PSOLA_BASS = typeof location !== 'undefined' && /[?&]psolabass\b/.test(location.search);
 const psolaCache = new Map();
 export function psola(data, sr, f0, loop, target, secs = 1.2) {
   const T0 = sr / f0, Tt = sr / target, L = Math.max(16, Math.round(2 * T0)), N = Math.round(secs * sr);
@@ -253,7 +254,9 @@ function bassBuf(midi) {
   return psolaCache.get(key);
 }
 export function voiceNote(midi, t, dur, role) {
-  if (role === 'bass' && voice.pitched && !OLD_VOICE_BASS && voice.loop) return voiceBass(midi, t, dur);
+  // The bass stays the original way, the vowel slowed down: building it from grains buzzed
+  // when the voice dropped that far (the grains end up with gaps between them). ?psolabass to compare.
+  if (role === 'bass' && PSOLA_BASS && voice.pitched && voice.loop) return voiceBass(midi, t, dur);
   if (role === 'lead' && voice.pitched && !OLD_VOICE_BASS && voice.loop) return voiceLead(midi, t, dur);
   const ctx = getCtx(), src = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain();
   src.buffer = voice.bufs.vowel; src.playbackRate.value = Math.max(0.2, Math.min(4, mtof(midi) / voice.f0));
