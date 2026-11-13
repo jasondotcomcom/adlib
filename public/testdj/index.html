@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<base href="/testdj/">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+
+<title>adlib: you rap, i hype</title>
+<meta name="description" content="adlib is the AI hype man for your freestyle. Build a beat, then rap. adlib listens and reacts in real time. Live at adlib.live.">
+<meta name="author" content="Jason Pickar">
+<meta name="theme-color" content="#0C0B0E">
+
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://adlib.live/">
+<meta property="og:title" content="you rap, i hype">
+<meta property="og:description" content="every chuck needs a flav. grab the mic.">
+<meta property="og:image" content="https://adlib.live/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:site_name" content="adlib">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="you rap, i hype">
+<meta name="twitter:description" content="every chuck needs a flav. grab the mic.">
+<meta name="twitter:image" content="https://adlib.live/og.png">
+
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="alternate icon" href="favicon.ico">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="preload" href="fonts/quicksand-latin-700-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body data-view="build">
+<script>if(!/[#&]b=/.test(location.hash))document.body.setAttribute("data-start","")</script>
+
+<canvas id="field" aria-hidden="true"></canvas>
+<div id="bursts" aria-hidden="true"></div>
+
+<main id="build">
+  <header class="mast">
+    <h1 id="markSpace"><span>adlib</span></h1>
+    <p class="pitch">you rap, i hype</p>
+  </header>
+
+  <section class="say" aria-label="Make the beat out of your voice">
+    <p class="k" id="sayLine">say it loud. your voice is the beat.</p>
+    <div class="sayrow">
+      <button type="button" id="sayRoll" class="dice" aria-label="Roll something else to say"></button>
+      <textarea id="sayWord" rows="1" maxlength="40" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="done" aria-label="What to say. Roll for one or type your own.">boots and cats</textarea>
+      <button type="button" id="sayBtn" aria-label="Record"><svg viewBox="0 0 48 48" aria-hidden="true"><circle class="rec-dot" cx="24" cy="24" r="11"/><circle class="rec-ring" cx="24" cy="24" r="20" pathLength="100"/></svg></button>
+    </div>
+  </section>
+  <button type="button" id="skipBtn" class="skip">or start with a beat</button>
+
+  <section id="grid" aria-label="Beat grid. Tap or drag to place hits."></section>
+
+  <nav id="vibes" aria-label="Flip it to another style"></nav>
+
+  <section class="knobs" aria-label="Beat settings">
+    <div class="knob">
+      <span class="k">Tempo</span>
+      <div class="stepper"><button type="button" id="bpmDown" aria-label="Slower">−</button><output id="bpm">90</output><button type="button" id="bpmUp" aria-label="Faster">+</button></div>
+    </div>
+    <div class="knob">
+      <span class="k">Key</span>
+      <div class="stepper"><button type="button" id="keyDown" aria-label="Key down">−</button><output id="key">Gm</output><button type="button" id="keyUp" aria-label="Key up">+</button></div>
+    </div>
+    <label class="knob swing">
+      <span class="k">Swing <em id="swingVal">58%</em></span>
+      <input type="range" id="swing" min="50" max="68" step="1" value="58">
+    </label>
+    <div class="knob drums">
+      <span class="k">Drums</span>
+      <div class="seg" id="kit" role="group" aria-label="Drum sound"></div>
+    </div>
+    <div class="knob tone">
+      <span class="k">Bass sound</span>
+      <div class="seg" id="tone" role="group" aria-label="Bass sound">
+        <button type="button" data-tone="classic">Classic</button>
+        <button type="button" data-tone="full">Full</button>
+      </div>
+    </div>
+    <div class="knob music">
+      <span class="k">Music</span>
+      <div class="seg" role="group" aria-label="Music layers">
+        <button type="button" id="bassBtn" aria-pressed="true">Bass</button>
+        <button type="button" id="keysBtn" aria-pressed="true">Chords</button>
+        <button type="button" id="leadBtn" aria-pressed="true">Melody</button>
+      </div>
+    </div>
+    <div class="knob acts">
+      <button type="button" id="melodyBtn">New melody</button>
+      <button type="button" id="rollBtn">Roll a new beat</button>
+      <button type="button" id="clearBtn">Clear</button>
+    </div>
+  </section>
+
+  <p class="fine"><a href="https://adlib.beehiiv.com" target="_blank" rel="noopener">get the newsletter</a> <a href="classic">the first version</a> <a href="#decks" id="decksLink" hidden>hit the decks</a></p>
+  <p class="fine credit">another toy by <a href="https://jasondotcom.com" target="_blank" rel="noopener">jasondotcom.com</a></p>
+  <p class="fine credit" id="beatCount" hidden></p>
+
+  <footer class="dock">
+    <div class="transport">
+      <button type="button" id="playBtn" class="icon" aria-label="Play" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path class="i-play" d="M8 5.5v13l10.5-6.5z" fill="currentColor"/><g class="i-pause"><path d="M8.5 6v12M15.5 6v12"/></g></svg></button>
+      <button type="button" id="stopBtn" class="icon small" aria-label="Stop"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><rect x="6.5" y="6.5" width="11" height="11" rx="2.5" fill="currentColor"/></svg></button>
+    </div>
+    <button type="button" id="micBtn" class="cta"><svg class="mic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><circle cx="12" cy="8" r="5" fill="currentColor" stroke="none"/><path d="M12 13.5v7"/></svg>Grab the mic</button>
+    <button type="button" id="shareBtn">Share beat</button>
+  </footer>
+</main>
+
+<section id="perform" aria-label="Rap">
+  <div class="top">
+    <button type="button" id="backBtn">Back to the beat</button>
+    <div class="toggles">
+      <button type="button" id="phonesBtn" aria-pressed="false" title="turn this on when you're wearing headphones. i hear you cleaner.">Headphones</button>
+      <button type="button" id="modeBtn" title="switch my voice">Hype voice</button>
+      <button type="button" id="wordsBtn" aria-pressed="true" title="Show your words">Words</button>
+    </div>
+    <p id="status" role="status"></p>
+  </div>
+  <div id="micHelp" hidden>
+    <p id="micHelpText"></p>
+    <button type="button" id="retryMic" class="cta">Try the mic again</button>
+  </div>
+  <div id="ticker" aria-live="off"></div>
+  <div id="tape" aria-hidden="true"></div>
+</section>
+
+<section id="decks" aria-label="Decks">
+  <div class="top"><button type="button" id="decksBack">Back to the beat</button></div>
+  <button type="button" id="keepBtn" class="pill" aria-pressed="false">keep it</button>
+</section>
+
+<div id="shareSheet" role="dialog" aria-label="Share this beat" hidden>
+  <p class="big">share it with your voice?</p>
+  <p>your clip gets saved so the link can play it. anyone with the link can hear it. if nobody opens it for a month, it's deleted.</p>
+  <button type="button" id="shareVoice" class="cta">With my voice</button>
+  <button type="button" id="sharePlain" class="pill">Without it</button>
+  <button type="button" id="shareCancel" class="quiet">Cancel</button>
+</div>
+
+<pre id="debug" hidden></pre>
+<div id="toast" role="status"></div>
+<noscript><p style="padding:24px;font-family:sans-serif;color:#fff">adlib needs JavaScript to make noise.</p></noscript>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

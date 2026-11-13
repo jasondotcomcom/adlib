@@ -7,8 +7,40 @@
       "destination": "/index.html"
     },
     {
+      "source": "/testdj/audio/:p*",
+      "destination": "/audio/:p*"
+    },
+    {
+      "source": "/testdj/fonts/:p*",
+      "destination": "/fonts/:p*"
+    },
+    {
+      "source": "/testdj/data/:p*",
+      "destination": "/data/:p*"
+    },
+    {
       "source": "/testdj",
-      "destination": "/index"
+      "destination": "/testdj/index"
+    },
+    {
+      "source": "/testdj/classic",
+      "destination": "/classic"
+    },
+    {
+      "source": "/testdj/favicon.svg",
+      "destination": "/favicon.svg"
+    },
+    {
+      "source": "/testdj/favicon.ico",
+      "destination": "/favicon.ico"
+    },
+    {
+      "source": "/testdj/apple-touch-icon.png",
+      "destination": "/apple-touch-icon.png"
+    },
+    {
+      "source": "/testdj/og.png",
+      "destination": "/og.png"
     }
   ],
   "headers": [

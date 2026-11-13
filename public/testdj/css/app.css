@@ -1,0 +1,215 @@
+/* adlib — circles and straight lines. Yellow, red and blue on black. */
+@font-face { font-family: Quicksand; font-weight: 500; src: url(../fonts/quicksand-latin-500-normal.woff2) format('woff2'); font-display: swap; }
+@font-face { font-family: Quicksand; font-weight: 700; src: url(../fonts/quicksand-latin-700-normal.woff2) format('woff2'); font-display: swap; }
+
+:root {
+  --bg: #0C0B0E; --yellow: #FEE601; --red: #FD2D55; --blue: #2D54FD; --grey: #979288; --paper: #F3EFE6; --line: #34322F;
+  --ui: Quicksand, 'Avenir Next Rounded', 'Varela Round', system-ui, sans-serif;
+  /* the mark's own rings, for anything that should feel like it */
+  --rings: 0 0 0 3px var(--bg), 0 0 0 5px var(--red), 0 0 0 8px var(--bg), 0 0 0 10px var(--blue);
+}
+* { box-sizing: border-box; margin: 0; }
+html, body { height: 100%; }
+body {
+  font-family: var(--ui); font-weight: 700; font-size: 16px; line-height: 1.25; color: var(--paper); background: var(--bg);
+  overflow-x: hidden; -webkit-tap-highlight-color: transparent; -webkit-user-select: none; user-select: none;
+}
+#field { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
+.no-field #field { display: none; }
+#bursts { position: fixed; inset: 0; z-index: 4; pointer-events: none; overflow: hidden; }
+
+button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; touch-action: manipulation; }
+button:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid var(--paper); outline-offset: 3px; }
+a { color: inherit; }
+
+/* a pill: a straight line with round ends */
+.pill, .vibe, .acts button, .dock > button, .top button {
+  border: 2px solid var(--grey); border-radius: 999px; background: var(--bg); color: var(--paper); font-weight: 700;
+}
+.pill[aria-pressed='true'], .vibe[aria-pressed='true'], .top button[aria-pressed='true'] { background: var(--yellow); border-color: var(--yellow); color: var(--bg); }
+.dock > button[aria-pressed='true'] { background: var(--paper); border-color: var(--paper); color: var(--bg); }
+
+/* ------------------------------------------------------------ build */
+#build { position: relative; z-index: 3; max-width: 760px; margin: 0 auto; padding: 8px 14px 124px; display: flex; flex-direction: column; gap: 16px; min-height: 100%; }
+body:is([data-view='perform'], [data-view='decks']) #build { display: none; }
+
+.mast { display: grid; justify-items: center; gap: 2px; }
+#markSpace { width: 100%; height: 132px; }                /* the shader draws the name here */
+#markSpace span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.no-field #markSpace { height: auto; padding: 24px 0 8px; text-align: center; font-size: 56px; color: var(--yellow); }
+.no-field #markSpace span { position: static; width: auto; height: auto; clip-path: none; }
+.pitch { font-size: 16px; text-align: center; text-wrap: balance; background: var(--bg); padding: 3px 12px; border-radius: 999px; }
+
+#vibes { display: flex; gap: 8px; overflow-x: auto; padding: 2px 14px; margin: 0 -14px; scrollbar-width: none; }
+#vibes::-webkit-scrollbar { display: none; }
+.vibe { flex: none; font-size: 16px; padding: 8px 15px; }
+
+/* the drum machine: dots on lines */
+#grid { display: grid; gap: 2px; touch-action: none; background: var(--bg); border-radius: 18px; padding: 6px 0; }
+.row { display: grid; grid-template-columns: 46px 1fr 36px; gap: 4px; align-items: center; }
+.label { font-size: 15px; text-align: left; padding: 6px 2px; color: var(--paper); border-radius: 999px; }
+.lane { display: grid; grid-template-columns: repeat(16, 1fr); position: relative; }
+.lane::before { content: ''; position: absolute; left: 3%; right: 3%; top: 50%; height: 2px; margin-top: -1px; background: var(--line); }
+.cell { position: relative; height: 36px; min-width: 0; padding: 0; touch-action: none; }
+.cell::before {                                              /* an empty step */
+  content: ''; position: absolute; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px; border-radius: 50%; background: #5d5a54;
+}
+.cell:nth-child(4n + 1)::before { width: 10px; height: 10px; margin: -5px; background: var(--grey); }
+.cell.on::before { width: min(100% - 1px, 26px); height: auto; aspect-ratio: 1; margin: 0; transform: translate(-50%, -50%); background: var(--paint, var(--yellow)); }
+.cell.now::after { content: ''; position: absolute; left: 50%; top: 1px; bottom: 1px; width: 2px; margin-left: -1px; background: var(--paper); opacity: 0.5; }
+.cell.on.now::before { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--paint, var(--yellow)); }
+.cell.on.now::after { display: none; }
+.row[data-row='snare'] .cell, .row[data-row='clap'] .cell { --paint: var(--red); }
+.row[data-row='hat'] .cell, .row[data-row='ohat'] .cell { --paint: var(--blue); }
+.row[data-row='perc'] .cell { --paint: var(--paper); }
+.dice { width: 34px; height: 34px; border: 2px solid var(--line); border-radius: 50%; display: grid; place-items: center; justify-self: end; color: var(--grey); }
+.dice svg { fill: currentColor; }
+.dice:active { color: var(--bg); background: var(--yellow); border-color: var(--yellow); }
+
+/* say a word, get a beat */
+.say { display: grid; gap: 6px; justify-items: center; }
+.say .k { font-size: 15px; color: var(--paper); text-align: center; text-wrap: balance; background: var(--bg); padding: 3px 14px; border-radius: 18px; }
+.sayrow { justify-self: stretch; background: var(--bg); display: grid; grid-template-columns: 36px 1fr auto; gap: 10px; align-items: center; min-height: 64px; padding: 7px 8px 7px 12px; border: 2px solid var(--grey); border-radius: 34px; }
+/* the phrase always shows whole: main.js shrinks it to fit one line, and past 16px it wraps instead */
+#sayWord { font: inherit; font-size: 21px; line-height: 1.15; display: block; width: 100%; min-width: 0; padding: 0; margin: 0; border: 0; border-radius: 0; background: none; outline: none; resize: none; overflow: hidden; color: var(--yellow); caret-color: var(--paper); text-transform: lowercase; overflow-wrap: anywhere; -webkit-user-select: text; user-select: text; }
+.sayrow:has(#sayWord:focus) { border-color: var(--paper); }
+/* record: a red dot. During a take a ring closes around it. */
+#sayBtn { width: 50px; height: 50px; padding: 0; border-radius: 50%; display: grid; place-items: center; }
+#sayBtn svg { width: 50px; height: 50px; overflow: visible; }
+#sayBtn .rec-dot { fill: var(--red); transition: r 0.2s; }
+#sayBtn:active .rec-dot { r: 9.5; }
+#sayBtn .rec-ring { fill: none; stroke: var(--paper); stroke-width: 3.5; stroke-linecap: round; stroke-dasharray: 100; stroke-dashoffset: 100; opacity: 0.35; transform: rotate(-90deg); transform-origin: 24px 24px; }
+#sayBtn:not(.live) .rec-ring { stroke-dashoffset: 0; }
+#sayBtn.live .rec-ring { opacity: 1; stroke: var(--red); animation: ring var(--take, 2.4s) linear forwards; }
+#sayBtn.live .rec-dot { fill: var(--paper); }
+@keyframes ring { from { stroke-dashoffset: 100; } to { stroke-dashoffset: 0; } }
+@keyframes take { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+.knob.drums { grid-column: 1 / -1; order: 1; } .knob.tone { order: 1; } .knob.swing { order: 2; } .knob.music { grid-column: 1 / -1; order: 2; } .knob.acts { order: 3; }
+.knobs { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px 14px; align-items: end; background: var(--bg); border-radius: 18px; }
+.knob { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.knob .k { font-size: 14px; color: var(--grey); padding-left: 4px; }
+.knob .k em { font-style: normal; font-weight: 500; }
+.stepper, .seg { display: flex; align-items: center; height: 44px; border: 2px solid var(--line); border-radius: 999px; overflow: hidden; }
+.stepper button { width: 46px; height: 100%; font-size: 22px; }
+.stepper button:active { background: var(--yellow); color: var(--bg); }
+.stepper output { flex: 1; text-align: center; font-size: 21px; }
+.seg button { flex: 1; height: calc(100% - 6px); margin: 3px; font-size: 15px; padding: 0 4px; border-radius: 999px; }
+.seg button[aria-pressed='true'] { background: var(--paper); color: var(--bg); }
+.swing input { width: 100%; height: 44px; accent-color: var(--yellow); }
+.acts { grid-column: 1 / -1; flex-direction: row; flex-wrap: wrap; gap: 8px; }
+.acts button { font-size: 15px; padding: 9px 15px; border-color: var(--line); }
+.acts button:active { background: var(--yellow); border-color: var(--yellow); color: var(--bg); }
+.fine { font-size: 14px; font-weight: 500; color: var(--grey); display: flex; gap: 18px; justify-content: center; }
+.fine.credit { display: block; text-align: center; margin-top: -6px; }
+#beatCount[hidden] { display: none; }
+
+/* the front door: the name, something to say and a record button. the machine arrives with the first beat. */
+#build { transition: padding-top 0.7s cubic-bezier(0.2, 0.8, 0.2, 1); }
+#markSpace { transition: height 0.7s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.skip { display: none; align-self: center; font-size: 15px; font-weight: 500; color: var(--grey); padding: 8px 14px; border-radius: 999px; background: var(--bg); text-decoration: underline; text-underline-offset: 4px; }
+body[data-start] #build { padding-top: 11vh; padding-bottom: 22px; gap: 20px; }
+body[data-start] #markSpace { height: clamp(150px, 30vh, 250px); }
+body[data-start] :is(#grid, #vibes, .knobs, .dock) { display: none; }
+body[data-start] .skip { display: block; }
+body[data-start] .say .k { font-size: clamp(15px, 4.4vw, 18px); }
+body[data-start] .fine:not(.credit) { margin-top: auto; }
+body.opened :is(#grid, #vibes, .knobs) { animation: rise 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+body.opened #grid { animation-delay: 0.15s; } body.opened #vibes { animation-delay: 0.27s; } body.opened .knobs { animation-delay: 0.39s; }
+body.opened .dock { animation: rise 0.5s 0.55s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+@keyframes rise { from { opacity: 0; translate: 0 30px; } }
+
+.dock {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 6; display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center;
+  padding: 18px 16px calc(16px + env(safe-area-inset-bottom)); background: linear-gradient(to top, var(--bg) 72%, transparent);
+}
+.dock > button { height: 52px; font-size: 15px; white-space: nowrap; }
+.dock > .cta { font-size: clamp(16px, 4.8vw, 20px); padding: 0 12px; }
+#shareBtn { padding: 0 14px; }
+/* play/pause and stop: round icon buttons, no words */
+.transport { display: flex; align-items: center; gap: 8px; }
+.icon { display: grid; place-items: center; width: 52px; height: 52px; padding: 0; border-radius: 50%; border: 2px solid var(--grey); background: var(--bg); color: var(--paper); }
+.icon.small { width: 42px; height: 42px; }
+.icon svg { width: 24px; height: 24px; }
+.icon.small svg { width: 18px; height: 18px; }
+#playBtn .i-pause { display: none; }
+#playBtn[aria-pressed='true'] .i-play { display: none; }
+#playBtn[aria-pressed='true'] .i-pause { display: inline; }
+#playBtn[aria-pressed='true'] { background: var(--paper); border-color: var(--paper); color: var(--bg); }
+.cta .mic { width: 20px; height: 20px; margin-right: 6px; vertical-align: -3px; }
+/* the bass row sits with the music, set apart from the drums */
+.row[data-row='bass'] { margin-top: 8px; padding-top: 8px; border-top: 2px solid var(--line); }
+.cta, .dock > .cta { height: 52px; font-size: 20px; background: var(--yellow); border: 0; border-radius: 999px; color: var(--bg); box-shadow: var(--rings); }
+.cta:active { transform: scale(0.97); }
+
+/* ------------------------------------------------------------ perform */
+#perform { display: none; position: fixed; inset: 0; z-index: 5; pointer-events: none; }
+body[data-view='perform'] #perform { display: block; }
+#perform > * { pointer-events: auto; }
+.top { position: absolute; top: 0; left: 0; right: 0; display: flex; gap: 8px; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; padding: calc(10px + env(safe-area-inset-top)) 12px 0; pointer-events: none !important; }
+.top > * { pointer-events: auto; }
+.top button { font-size: 13px; padding: 8px 12px; }
+.toggles { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; flex: 1 1 100%; order: 2; }
+#status { position: absolute; left: 50%; top: calc(100% + 10px); transform: translateX(-50%); white-space: nowrap; font-size: 15px; background: var(--bg); padding: 4px 14px; border-radius: 999px; }
+#status:empty { display: none; }
+#micHelp { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(86vw, 360px); text-align: center; display: grid; gap: 18px; padding: 24px 22px 28px; background: var(--bg); border: 2px solid var(--grey); border-radius: 28px; }
+#micHelp[hidden] { display: none; }
+#micHelp .cta { justify-self: stretch; margin: 0 10px; }
+
+#ticker { position: absolute; left: 0; right: 0; bottom: calc(var(--face, 130px) + 14px); display: flex; flex-wrap: nowrap; justify-content: center; gap: 0.4em; padding: 0 14px; overflow: hidden; font-size: clamp(20px, 4.6vw, 34px); white-space: nowrap; pointer-events: none; text-transform: lowercase; }
+#ticker[hidden] { display: none; }
+#ticker span { background: var(--bg); padding: 0 0.3em; border-radius: 999px; }
+#ticker .soft { color: var(--grey); font-weight: 500; }
+#ticker .hit { background: var(--yellow); color: var(--bg); }
+
+#tape { position: absolute; left: 50%; bottom: calc(16px + env(safe-area-inset-bottom)); transform: translateX(-50%); display: grid; grid-template-columns: repeat(16, 1fr); gap: 7px; pointer-events: none; background: var(--bg); padding: 6px 10px; border-radius: 999px; }
+#tape i { width: 7px; height: 7px; border-radius: 50%; background: #5d5a54; }
+#tape i[data-n='1'], #tape i[data-n='2'], #tape i[data-n='3'] { background: var(--grey); }
+#tape i.now { background: var(--yellow); transform: scale(1.6); }
+
+/* ------------------------------------------------------------ words he throws up */
+.burst { position: absolute; overflow: visible; font-family: var(--ui); font-weight: 700; letter-spacing: 0.14em; animation: pop 1.75s linear forwards; }
+.burst text { text-anchor: middle; dominant-baseline: central; stroke-linejoin: round; stroke-linecap: round; }
+@keyframes pop { 0% { opacity: 0; transform: scale(0.6); } 6% { opacity: 1; transform: scale(1.06); } 12% { transform: scale(1); } 84% { opacity: 1; } 100% { opacity: 0; } }
+
+#shareSheet { position: fixed; left: 50%; bottom: 96px; z-index: 8; transform: translateX(-50%); width: min(92vw, 380px); display: grid; gap: 12px; text-align: center; padding: 22px 22px 16px; background: var(--bg); border: 2px solid var(--grey); border-radius: 28px; }
+#shareSheet[hidden] { display: none; }
+#shareSheet p { font-size: 15px; font-weight: 500; color: var(--grey); } #shareSheet .big { font-size: 20px; font-weight: 700; color: var(--paper); }
+#shareSheet .cta { margin: 8px 10px 4px; } #shareSheet .pill { height: 46px; font-size: 16px; } #shareSheet .quiet { font-size: 14px; color: var(--grey); padding: 6px; }
+#toast { position: fixed; left: 50%; bottom: 104px; z-index: 9; transform: translate(-50%, 12px); background: var(--paper); color: var(--bg); padding: 9px 18px; border-radius: 999px; opacity: 0; pointer-events: none; transition: opacity 0.2s, transform 0.2s; }
+#toast.show { opacity: 1; transform: translate(-50%, 0); }
+#debug { position: fixed; left: 8px; bottom: 96px; z-index: 9; max-width: calc(100vw - 16px); font: 11px/1.35 ui-monospace, Menlo, monospace; background: rgba(0, 0, 0, 0.88); color: #9f9; padding: 8px 10px; white-space: pre-wrap; pointer-events: none; }
+
+/* phones: tighter transport, and Share beat may take two lines rather than run off */
+@media (max-width: 430px) {
+  .dock { gap: 6px; padding-left: 10px; padding-right: 10px; } .transport { gap: 6px; }
+  .icon { width: 46px; height: 46px; } .icon.small { width: 36px; height: 36px; }
+  .cta .mic { display: none; }
+  #shareBtn { white-space: normal; font-size: 14px; padding: 0 10px; line-height: 1.1; }
+}
+@media (min-width: 700px) {
+  body { font-size: 17px; }
+  #build { padding: 10px 24px 132px; gap: 20px; }
+  #markSpace { height: 190px; } .pitch { font-size: 20px; }
+  .row { grid-template-columns: 64px 1fr 40px; gap: 10px; } .label { font-size: 17px; }
+  .cell { height: 44px; } .cell.on::before { width: min(100% - 6px, 30px); }
+  .knobs { grid-template-columns: 1fr 1fr 1.3fr 1.5fr; }
+  .knob.swing, .knob.music { order: 0; grid-column: auto; } .knob.tone { order: 2; } .knob.drums { grid-column: span 2; order: 2; } .knob.acts { grid-column: 1 / -1; order: 3; align-self: end; flex-wrap: nowrap; }
+  #sayWord { font-size: 26px; } .say .k { font-size: 17px; }
+  .dock { left: 50%; right: auto; width: min(760px, 100%); transform: translateX(-50%); padding-left: 24px; padding-right: 24px; }
+  .top button { font-size: 15px; }
+  .toggles { flex: 1; order: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #build, #markSpace { transition: none; } body.opened :is(#grid, #vibes, .knobs, .dock) { animation: none; }
+  @keyframes pop { 0% { opacity: 0; } 8%, 84% { opacity: 1; } 100% { opacity: 0; } }
+}
+
+/* ------------------------------------------------------------ decks */
+#decks { display: none; position: fixed; inset: 0; z-index: 5; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+body[data-view='decks'] #decks { display: block; }
+body[data-view='decks'] { overflow: hidden; overscroll-behavior: none; }
+#decksLink[hidden] { display: none; }
+#keepBtn { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(var(--face, 140px) + 10px); height: 44px; padding: 0 22px; font-size: 17px; }
+#keepBtn[aria-pressed='true'] { background: var(--yellow); color: var(--bg); border-color: var(--yellow); }
+#keepBtn.kept { animation: kept 0.5s cubic-bezier(0.2, 0.8, 0.2, 1); }
+@keyframes kept { 30% { transform: translateX(-50%) scale(1.12); } }
