@@ -86,6 +86,25 @@ export const VIBES = [
   },
 ].map(v => ({ ...v, pat: v.pat.map(p) }));
 
+// When a song varies, its chord instrument and melody voice rotate through what fits the style.
+// The first in each list is the style's own; Classic sound always keeps piano and the original lead.
+export const CHORD_SETS = {
+  lofi: ['ep', 'piano', 'pluck'], soul: ['organ', 'ep', 'strings'], boombap: ['piano', 'ep', 'strings', 'organ', 'stab'],
+  gfunk: ['synth', 'ep'], afro: ['pluck', 'ep', 'organ'], trap: ['piano', 'strings', 'pluck'], drill: ['strings', 'piano'],
+  jersey: ['stab', 'synth'], hyphy: ['stab', 'synth', 'pluck'], jazzrap: ['ep', 'piano', 'organ'], phonk: ['strings', 'organ'],
+};
+export const LEAD_SETS = {
+  lofi: ['pluck', 'bell'], soul: ['whistle', 'horn', 'pluck'], boombap: ['pluck', 'horn', 'bell', 'whistle'], gfunk: ['whistle', 'pluck'],
+  afro: ['pluck', 'bell'], trap: ['bell', 'pluck'], drill: ['bell', 'whistle'], jersey: ['pluck', 'bell'],
+  hyphy: ['pluck', 'whistle'], jazzrap: ['horn', 'pluck'], phonk: ['bell', 'pluck'],
+};
+const pickFrom = (sets, id, fallback, salt) => { const l = sets[id]; return song.vary && l ? l[Math.floor(song.seed / salt) % l.length] : fallback; };
+export const chordInstrument = () => { const v = vibe(); return song.tone !== 'full' ? 'piano' : pickFrom(CHORD_SETS, v.id, v.chords || 'piano', 11); };
+export const leadVoice = () => { const v = vibe(); return song.tone !== 'full' ? v.lead : pickFrom(LEAD_SETS, v.id, v.lead, 13); };
+
+// Picking a style by hand: its own drums, but a fresh take on the chords, build and melody
+export function pickVibe(id, r = Math.random) { loadVibe(id); song.seed = 1 + Math.floor(r() * 46655); song.vary = true; melodyCache = null; }
+
 // More than one chord rhythm per style; the first is each style's original
 export const COMPS = {
   lofi: [[[0, 7, 0.8], [10, 5, 0.55]], [[0, 4, 0.7], [8, 4, 0.6]], [[2, 3, 0.7], [10, 3, 0.6]], [[0, 12, 0.7]]],

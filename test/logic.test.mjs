@@ -202,3 +202,17 @@ console.log('ok');
   S.loadVibe('soul'); assert.equal(S.song.vary, false, 'picking a style starts from its classic version');
   console.log('ok shapes');
 }
+
+// picking Boom Bap a few times gives different chords, instruments, builds and melodies over the same drums
+{
+  const S = await import('../public/js/song.js');
+  const takes = new Set(), drums = new Set();
+  for (let k = 0; k < 8; k++) {
+    S.pickVibe('boombap', () => (k * 0.123 + 0.05) % 1); S.song.tone = 'full';
+    takes.add([S.chordInstrument(), S.leadVoice(), S.song.seed % 5, (S.song.seed >> 2) % 5, [0, 1, 2, 3].map(b => S.chordFor(b).deg).join('')].join('|'));
+    drums.add(S.song.pat.slice(0, 3).map(r => r.join('')).join('/'));
+  }
+  assert.ok(takes.size >= 7, 'boom bap picks differ: ' + takes.size); assert.equal(drums.size, 1, 'the drums stay boom bap');
+  S.song.tone = 'classic'; assert.equal(S.chordInstrument(), 'piano', 'Classic keeps piano');
+  console.log('ok picks', [...takes].slice(0, 4).join('  '));
+}
