@@ -358,6 +358,7 @@ async function makeClip() {
   const phrase = song.kit === 'you' && voice.ready && said ? said : '';
   const ok = startClip({
     out: $('clipCanvas'), phrase, line: () => `${vibe().name.toLowerCase()}. ${shownBpm()} bpm.`,
+    pads: () => { const els = [...document.querySelectorAll('#pads .pad')]; return { side: toy.side, labels: els.map(e => (e.classList.contains('empty') ? '' : e.querySelector('.lab').textContent.trim())), empty: els.map(e => e.classList.contains('empty')) }; },
     onTick: secs => { if (!$('clipStop').disabled) $('clipTime').textContent = clock(secs); },
     onDone: (blob, ext) => {
       const name = `adlib-${(phrase || vibe().name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'beat'}.${ext}`;
