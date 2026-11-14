@@ -3,6 +3,7 @@
 // hats and snare, the hardest hit is pitched down into the kick, and the vowel
 // is stretched across notes for the bass and the melody. Nothing leaves the browser.
 import { getCtx, nodes as N, mtof , tuneRatio } from './engine.js';
+import { song } from './song.js';
 
 // Things to say. Each has a hard hit (b p d g k t), something sharp (s sh ch t k z j f)
 // and an open vowel, so every part of the kit has something to be made from.
@@ -119,14 +120,18 @@ export function analyze(data, sr) {
     const c = cls(i); if (c) actN++; if (c === 2) sharpN++;
     const steady = i + 1 > last || cls(i + 1) === c, jump = i >= 2 ? rms[i] - rms[i - 2] : rms[i];
     const fresh = c === 1 && prevC === 1 && jump > peak * 0.3;                 // a new syllable inside a run of voice
-    if (c && steady && (c !== prevC || fresh)) { const t = (i * hop) / sr; if (t - lastT >= 0.07) { events.push({ t, kind: c === 2 ? 'sharp' : 'low' }); lastT = t; } }
+    if (c && steady && (c !== prevC || fresh)) { const t = (i * hop) / sr; if (t - lastT >= 0.07) { let a = 0; for (let k = i; k < Math.min(n, i + 6); k++) a = Math.max(a, rms[k]); events.push({ t, kind: c === 2 ? 'sharp' : 'low', amp: a / peak }); lastT = t; } }
     if (steady) prevC = c;
   }
   const dur = ((last - first) * hop) / sr;
+  // how bright the vowels are: zero crossings while the voice is round (an "ee" is brighter than an "oo")
+  let zb = 0, zn = 0; for (let i = first; i <= last; i++) if (act(i) && zcr[i] < 0.12) { zb += zcr[i]; zn++; }
+  const bright = zn ? zb / zn : 0.05;
+  for (let i = 0; i < events.length; i++) events[i].len = (i + 1 < events.length ? events[i + 1].t : dur + (first * hop) / sr) - events[i].t;
 
   const hatStart = at(back(iH), 0.006), kickStart = at(iK, 0.01);
   return {
-    events, dur, pace: events.length / Math.max(0.3, dur), sharp: actN ? sharpN / actN : 0,
+    events, dur, pace: events.length / Math.max(0.3, dur), sharp: actN ? sharpN / actN : 0, bright,
     word: [at(first, 0.01), Math.min(data.length, last * hop + win)],
     f0, pitched, ownSnare,
     kick: cut(kickStart, 0.18), perc: cut(kickStart, 0.035),
@@ -178,7 +183,7 @@ export function buildVoice(data, sr) {
     const [a, b] = parts[name]; if (b - a < 64) return false;
     bufs[name] = cutBuf(data, a, b, sr, name);
   }
-  take = { data, sr }; voice.shift = 0;
+  take = { data, sr }; voice.shift = 0; chops = null; chopAt = 0; talk = null;
   const fwd = bufs.word.getChannelData(0), rev = ctx.createBuffer(1, fwd.length, sr), rd = rev.getChannelData(0);
   for (let i = 0; i < fwd.length; i++) rd[i] = fwd[fwd.length - 1 - i];
   bufs.rev = rev;
@@ -254,6 +259,92 @@ function bassBuf(midi) {
   }
   return psolaCache.get(key);
 }
+// ------------------------------------------------------------------ vocal chops
+// On the Full sound, a voice beat's melody is played with the syllables of your phrase, the
+// way hyphy and g-funk records chop a vocal: each note takes the next syllable, pitched to the
+// note and cut short, so your words become the riff. Each syllable is pitched from the voice's
+// own pitch and kept within an octave of it, so nothing gets chipmunked.
+let chops = null, chopAt = 0;
+function chopBufs() {
+  if (chops || !take || !voice.parts) return chops;
+  const { data, sr } = take, ev = voice.parts.events, out = [];
+  for (let i = 0; i < ev.length; i++) {
+    const a = Math.round(ev[i].t * sr), next = i + 1 < ev.length ? Math.round(ev[i + 1].t * sr) : a + Math.round(0.3 * sr);
+    const b = Math.min(data.length, a + Math.min(next - a, Math.round(0.32 * sr)));
+    if (b - a > sr * 0.05) out.push(cutBuf(data, a, b, sr, 'vowel'));
+  }
+  chops = out.length >= 2 ? out : [];
+  return chops;
+}
+// ------------------------------------------------------------------ talkbox
+// The California Love sound: a synth plays the note, and your voice shapes it. Each syllable
+// of the phrase is measured once in 16 frequency bands (how loud each band is, moment by
+// moment); a synth note then runs through 16 matching filters whose levels follow those
+// measurements, so the synth "says" the syllable at the note's pitch.
+// For now it's on at /testdj?talkbox, in place of the vocal chops.
+const TALKBOX = typeof location !== 'undefined' && /[?&]talkbox\b/.test(location.search);
+const BANDS = [180, 260, 360, 480, 620, 780, 960, 1180, 1440, 1750, 2120, 2560, 3080, 3700, 4450, 5350];
+let talk = null;
+function bandEnv(d, sr, fc, hop) {
+  // a simple band-pass (biquad), then the level in each hop-long frame, smoothed
+  const w = 2 * Math.PI * fc / sr, q = 4.5, al = Math.sin(w) / (2 * q), a0 = 1 + al;
+  const b0 = al / a0, b2 = -al / a0, a1 = -2 * Math.cos(w) / a0, a2 = (1 - al) / a0;
+  let x1 = 0, x2 = 0, y1 = 0, y2 = 0, acc = 0; const out = [];
+  for (let i = 0; i < d.length; i++) {
+    const y = b0 * d[i] + b2 * x2 - a1 * y1 - a2 * y2; x2 = x1; x1 = d[i]; y2 = y1; y1 = y; acc += y * y;
+    if ((i + 1) % hop === 0) { out.push(Math.sqrt(acc / hop)); acc = 0; }
+  }
+  for (let i = 1; i < out.length; i++) out[i] = Math.max(out[i], out[i - 1] * 0.82);   // a short release so it doesn't flutter
+  return out;
+}
+function talkSet() {
+  if (talk || !take || !voice.parts) return talk;
+  const { data, sr } = take, ev = voice.parts.events, hop = Math.round(sr * 0.008), out = [];
+  for (let i = 0; i < ev.length; i++) {
+    const a = Math.round(ev[i].t * sr), next = i + 1 < ev.length ? Math.round(ev[i + 1].t * sr) : a + Math.round(0.35 * sr);
+    const seg = data.subarray(a, Math.min(data.length, a + Math.min(next - a, Math.round(0.35 * sr))));
+    if (seg.length < sr * 0.06) continue;
+    const envs = BANDS.map(fc => bandEnv(seg, sr, fc, hop));
+    let pk = 1e-6; for (const e of envs) for (const v of e) pk = Math.max(pk, v);
+    out.push({ envs: envs.map(e => Float32Array.from(e, v => Math.min(1, v / pk))), dur: seg.length / sr });
+  }
+  talk = out.length >= 2 ? out : [];
+  return talk;
+}
+let talkAt = 0;
+function talkNote(midi, t, dur) {
+  const set = talkSet(); if (!set || !set.length) return false;
+  const syl = set[talkAt++ % set.length], ctx = getCtx(), len = Math.min(Math.max(dur, 0.12), syl.dur, 0.5);
+  // the synth: two saws a little apart, rich in harmonics for the filters to carve
+  const mixG = ctx.createGain(); mixG.gain.value = 0.5; const oscs = [];
+  for (const d of [-6, 6]) { const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = mtof(midi); o.detune.value = d; o.connect(mixG); oscs.push(o); }
+  const out = ctx.createGain(); out.gain.setValueAtTime(0, t); out.gain.linearRampToValueAtTime(0.9, t + 0.01); out.gain.setValueAtTime(0.9, t + len - 0.03); out.gain.linearRampToValueAtTime(0, t + len);
+  BANDS.forEach((fc, b) => {
+    const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = fc; f.Q.value = 5;
+    const g = ctx.createGain(), env = syl.envs[b], n = Math.max(2, Math.round(env.length * len / syl.dur));
+    const curve = new Float32Array(n); for (let i = 0; i < n; i++) curve[i] = env[Math.min(env.length - 1, i)] * (1.4 + b * 0.06);
+    g.gain.setValueCurveAtTime(curve, t, len);
+    mixG.connect(f).connect(g).connect(out);
+  });
+  out.connect(N.lead);
+  for (const o of oscs) { o.start(t); o.stop(t + len + 0.02); }
+  return true;
+}
+
+function syllableNote(midi, t, dur) {
+  const set = chopBufs(); if (!set || !set.length) return false;
+  const buf = set[chopAt++ % set.length], ctx = getCtx();
+  const home = 12 * Math.log2(voice.f0 / 440) + 69; while (midi > home + 9) midi -= 12; while (midi < home - 4) midi += 12;
+  const src = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain();
+  src.buffer = buf; src.playbackRate.value = Math.max(0.5, Math.min(1.8, mtof(midi) / voice.f0));
+  f.type = 'bandpass'; f.frequency.value = 1100; f.Q.value = 0.5;
+  const len = Math.min(dur, buf.duration / src.playbackRate.value, 0.3);
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.42, t + 0.004);
+  g.gain.setValueAtTime(0.42, t + len * 0.7); g.gain.linearRampToValueAtTime(0, t + len);
+  src.connect(f).connect(g).connect(N.lead); src.start(t); src.stop(t + len + 0.02);
+  return true;
+}
+
 export function voiceNote(midi, t, dur, role) {
   // The voice melody: keep the note within an octave of the voice's own pitch, so it's never
   // sped up into chipmunk range (it used to run 3-4x fast, which is what screeched)
@@ -261,7 +352,11 @@ export function voiceNote(midi, t, dur, role) {
   // The bass stays the original way, the vowel slowed down: building it from grains buzzed
   // when the voice dropped that far (the grains end up with gaps between them). ?psolabass to compare.
   if (role === 'bass' && PSOLA_BASS && voice.pitched && voice.loop) return voiceBass(midi, t, dur);
-  if (role === 'lead' && PSOLA_LEAD && voice.pitched && voice.loop) return voiceLead(midi, t, dur);   // grain lead only with ?psolalead
+  if (role === 'lead' && PSOLA_LEAD && voice.pitched && voice.loop) return voiceLead(midi, t, dur);
+  // how the melody uses your phrase: chopped syllables, the talkbox, or the vowel held (the original)
+  const vox = TALKBOX ? 'talk' : song.vox;
+  if (role === 'lead' && vox === 'talk' && voice.pitched && talkNote(midi, t, dur)) return;
+  if (role === 'lead' && vox === 'chops' && voice.pitched && syllableNote(midi, t, dur)) return;   // grain lead only with ?psolalead
   const ctx = getCtx(), src = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain();
   src.buffer = voice.bufs.vowel; src.playbackRate.value = Math.max(0.2, Math.min(4, mtof(midi) / voice.f0));
   src.loop = true; src.loopStart = voice.loop[0]; src.loopEnd = voice.loop[1];

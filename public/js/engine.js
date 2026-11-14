@@ -1,6 +1,6 @@
 // engine.js — the sound. One AudioContext, a real mix bus, a sample-accurate
 // clock, and instruments that read the song in song.js.
-import { song, vibe, chordFor, melody, hash, bassStep, harmonyAbove, ROWS, STEPS } from './song.js';
+import { song, vibe, chordFor, melody, hash, bassStep, harmonyAbove, COMPS, chordInstrument, leadVoice, ROWS, STEPS } from './song.js';
 
 let ctx = null;
 const N = {};            // audio nodes by name
@@ -17,6 +17,16 @@ export const mtof = m => 440 * Math.pow(2, (m - 69) / 12);
 let own = null;
 export const setOwnKit = k => { own = k; };
 const mine = () => song.kit === 'you' && own && own.ready();
+// Builds for a voice beat: when the bass, the chords and the full beat come in, how long a
+// cycle runs before it breaks down, which bars get the backwards swell, and which bar of
+// each four gets the chopped fill (0 for none). The first is the original.
+const ARRANGE = [
+  { bass: 2, keys: 4, full: 8, cycle: 16, rise: [1, 3, 7], chop: 4 },
+  { bass: 1, keys: 2, full: 4, cycle: 8, rise: [3], chop: 0 },              // straight in
+  { bass: 3, keys: 1, full: 6, cycle: 16, rise: [5], chop: 2 },             // chords first
+  { bass: 2, keys: 6, full: 12, cycle: 16, rise: [5, 11], chop: 0 },        // slow burn
+  { bass: 0, keys: 4, full: 8, cycle: 8, rise: [], chop: 4 },               // bass from the top, no swells
+];
 let arcFrom = 0, under = 0;         // the bar a voice beat started growing from; how much real kit sits under it
 export function restartArc() { arcFrom = Math.floor(Math.max(0, nextStep) / STEPS); }
 
@@ -201,7 +211,7 @@ function makeHall(seconds, pre = 0.02) {
   }
   return buf;
 }
-const HALL = { lofi: 1.4, soul: 1.9, boombap: 1.3, gfunk: 2.2, afro: 1.7, trap: 2.4, drill: 2.0, jersey: 1.2 };
+const HALL = { lofi: 1.4, soul: 1.9, boombap: 1.3, gfunk: 2.2, afro: 1.7, trap: 2.4, drill: 2.0, jersey: 1.2, hyphy: 1.3, jazzrap: 1.6, phonk: 2.2 };
 const KIT_FX = {
   clean: { drive: 1.6, levels: 0, tone: 16000, rate: 1, crackle: 0 },
   dusty: { drive: 2.6, levels: 96, tone: 7800, rate: 0.94, crackle: 0.5 },
@@ -310,26 +320,27 @@ function scheduleStep(abs, time) {
   // A beat made of your voice grows instead of looping: two bars of just you, then the
   // bass, then the keys, then on bar nine the real kit drops in underneath and the
   // melody arrives. Every sixteen bars after that it breaks back down to just you.
-  const you = mine(), ab = you ? bar - arcFrom : 0;
-  const stage = !you ? 9 : ab < 2 ? 0 : ab < 4 ? 1 : ab < 8 ? 2 : 3;
-  const bare = you && ab >= 8 && (ab - 8) % 16 === 15;                 // the breakdown bar
-  under = you && stage === 3 && !bare ? 0.6 : 0;
+  // How it builds depends on the beat (beats made before this keep the original build).
+  const you = mine(), ab = you ? bar - arcFrom : 0, A = ARRANGE[song.vary ? song.seed % ARRANGE.length : 0];
+  const bassIn = !you || ab >= A.bass, keysIn = !you || ab >= A.keys, fullIn = !you || ab >= A.full;
+  const bare = you && ab >= A.full && (ab - A.full) % A.cycle === A.cycle - 1;   // the breakdown bar
+  under = you && fullIn && !bare ? 0.6 : 0;
   if (you) {
     // Your phrase is the hook. Whole at the top and alone in the breakdown. In between it
     // comes back on the one every four bars: whole when the keys arrive and on the first
     // drop, then trading front half and whole. It stays out while someone is rapping.
     if (s === 0 && !decksHook.on) {
-      const c = ab >= 8 ? (ab - 8) % 16 : -1;
+      const c = ab >= A.full ? (ab - A.full) % A.cycle : -1;
       if (ab === 0 || bare) own.tag(t);
       else if (!perf.on) {
-        if (ab === 8) own.tag(t, { gain: 0.8 });
-        else if (ab === 4 || c === 8) own.tag(t, { gain: 0.56, wet: true, sd });
+        if (ab === A.full) own.tag(t, { gain: 0.8 });
+        else if (ab === A.keys || c === 8) own.tag(t, { gain: 0.56, wet: true, sd });
         else if (c === 4 || c === 12) own.tag(t, { gain: 0.56, half: true, wet: true, sd });
       }
     }
-    if (s === 0 && ab >= 8 && (ab - 8) % 16 === 0) { crash(t, 0.55); if (kit.deep) sample('deep', t, 0.75, 1, N.drums); }   // the drop
-    if (s === 8 && (ab === 1 || ab === 3 || ab === 7 || bare)) own.riser(time + 8 * sd, 8 * sd);   // backwards into the change
-    if (s >= 12 && stage >= 2 && fill && !bare) own.chop(t, s - 12, sd);                          // chopped into the turn
+    if (s === 0 && ab >= A.full && (ab - A.full) % A.cycle === 0) { crash(t, 0.55); if (kit.deep) sample('deep', t, 0.75, 1, N.drums); }   // the drop
+    if (s === 8 && (A.rise.includes(ab) || (bare && A.rise.length))) own.riser(time + 8 * sd, 8 * sd);   // backwards into the change
+    if (s >= 12 && keysIn && A.chop && b4 === A.chop - 1 && !bare) own.chop(t, s - 12, sd);          // chopped into the turn
   }
 
   // ---- drums
@@ -362,28 +373,30 @@ function scheduleStep(abs, time) {
   if (song.bass && song.pat[6][s] && !dropping) {
     let len = 1; while (len < 8 && !song.pat[6][(s + len) % STEPS]) len++;
     const ch = chordFor(bar), is808 = v.bass === '808';
-    if (you) { if (stage >= 1 && !bare) own.note((is808 ? ch.bass808 + 12 : ch.bassRound) + bassStep(bar, s, false), t, Math.min(len, 4) * sd, 'bass'); }
+    if (you) { if (bassIn && !bare) own.note((is808 ? ch.bass808 + 12 : ch.bassRound) + bassStep(bar, s, false), t, Math.min(len, 4) * sd, 'bass'); }
     else if (song.tone === 'full') fullBass(v.id, (is808 ? ch.bass808 : ch.bassRound) + bassStep(bar, s, is808), t, (is808 ? len : Math.min(len, 3)) * sd, v.glide);
     else if (is808) bass808(ch.bass808 + bassStep(bar, s, true), t, len * sd, 1, v.glide);
     else bassRound(ch.bassRound + bassStep(bar, s, false), t, Math.min(len, 3) * sd, v.glide);
   }
 
   // ---- keys
-  if (song.keys && stage >= 2 && !bare) {
+  if (song.keys && keysIn && !bare) {
     const ch = chordFor(bar);
-    for (const [cs, len, vel] of v.comp) if (cs === s) ch.keys.forEach((m, i) => key(m, t + i * 0.012, len * sd, vel * (i === 3 ? 0.7 : 1), N.keys));
+    const comp = song.vary ? (COMPS[v.id] || [v.comp])[Math.floor(song.seed / 7) % (COMPS[v.id] || [v.comp]).length] : v.comp;
+    const inst = chordInstrument();
+    for (const [cs, len, vel] of comp) if (cs === s) ch.keys.forEach((m, i) => inst === 'piano' ? key(m, t + i * 0.012, len * sd, vel * (i === 3 ? 0.7 : 1), N.keys) : chordNote(inst, m, t + (inst === 'pluck' ? i * 0.018 : 0), len * sd, vel * (i === 3 ? 0.7 : 1)));
     // the pad: three styles always had one; in Full every style gets a soft bed under the chords
     if (s === 0 && (v.pad || (song.tone === 'full' && mix.bed))) pad(ch.pad, t, STEPS * sd, v.pad ? 1 : 0.65);
   }
 
   // ---- lead (4-bar line)
-  if (song.lead && stage >= 3 && !bare) {
+  if (song.lead && fullIn && !bare) {
     const at = b4 * STEPS + s;
     for (const n of melody()) if (n.s === at) {
-      lead(n.midi, t, n.len * sd, v.lead);
+      lead(n.midi, t, n.len * sd, leadVoice());
       // Full sound: a harmony a third above, in the key, on the longer notes and through the
       // last bar of each phrase, so it lifts in the right places instead of all the time
-      if (song.tone === 'full' && !mine() && (n.len >= 3 || b4 === 3)) lead(harmonyAbove(n.midi), t, n.len * sd, v.lead, 0.45);
+      if (song.tone === 'full' && !mine() && (n.len >= 3 || b4 === 3)) lead(harmonyAbove(n.midi), t, n.len * sd, leadVoice(), 0.45);
     }
   }
 }
@@ -408,6 +421,7 @@ function drum(r, t, vel) {
     if (under && kit[name]) sample(name, t, vel * [1, 0.85, 0.7, 0.34, 0.36, 0.55][r] * under, k.rate, N.drums);   // the real kit, underneath you
     return;
   }
+  if (r === 5 && vibe().cowbell) return cowbell(t, vel);
   if (kit[name]) {
     const level = [1, 0.85, 0.7, 0.34, 0.36, 0.55][r];
     const rate = k.rate * (r === 3 ? 0.98 + Math.random() * 0.04 : 1);
@@ -510,7 +524,7 @@ function thump(t, freq, len, level) {                  // a short burst of filte
 }
 const osc = (type, f, t) => { const o = ctx.createOscillator(); o.type = type; o.frequency.setValueAtTime(f, t); return o; };
 // measured trims, so the six Full basses come out equally loud (each about -15 dB on its own)
-const BASS_TRIM = { trap: 0.74, drill: 1.36, jersey: 1.36, gfunk: 1.32, boombap: 0.71, soul: 0.71, lofi: 0.97, afro: 1.33 };
+const BASS_TRIM = { hyphy: 1.36, phonk: 1.36, jazzrap: 0.71, trap: 0.74, drill: 1.36, jersey: 1.36, gfunk: 1.32, boombap: 0.71, soul: 0.71, lofi: 0.97, afro: 1.33 };
 function fullBass(id, midi, t, dur, glide) {
   const f = mtof(midi), oscs = [], out = gain(0);
   const ringing = lastBass && lastBass.end > t + 0.005, from = lastBass ? lastBass.f : f;
@@ -525,7 +539,7 @@ function fullBass(id, midi, t, dur, glide) {
     if (glide && ringing && from !== f) slide(o); else { o.frequency.setValueAtTime(f * 3.2, t); o.frequency.exponentialRampToValueAtTime(f, t + 0.03); }
     o.connect(sh).connect(out); oscs.push(o); thump(t, 3000, 0.006, 0.35);
     hold = Math.max(0.2, dur * 0.95); tail = 0.32; level = 0.72;
-  } else if (id === 'drill' || id === 'jersey') {
+  } else if (id === 'drill' || id === 'jersey' || id === 'phonk' || id === 'hyphy') {
     // detuned saws growling through a moving filter, with a sine under them
     const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = 3;
     lp.frequency.setValueAtTime(1500, t); lp.frequency.exponentialRampToValueAtTime(380, t + 0.25);
@@ -539,7 +553,7 @@ function fullBass(id, midi, t, dur, glide) {
     for (const [ty, l] of [['sawtooth', 0.32], ['square', 0.2]]) { const o = osc(ty, f, t); slide(o); o.connect(gain(l)).connect(lp); oscs.push(o); }
     const sub = osc('sine', f, t); slide(sub); sub.connect(gain(0.5)).connect(out); oscs.push(sub);
     lp.connect(out); tail = 0.1; level = 0.7;
-  } else if (id === 'boombap' || id === 'soul') {
+  } else if (id === 'boombap' || id === 'soul' || id === 'jazzrap') {
     // a finger bass: a soft thump, then a round note that closes fast
     const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = 1;
     lp.frequency.setValueAtTime(1300, t); lp.frequency.exponentialRampToValueAtTime(340, t + 0.08);
@@ -573,6 +587,50 @@ function fullBass(id, midi, t, dur, glide) {
 export { fullBass };
 
 
+
+// ------------------------------------------------------------------ chord instruments
+// On the Full sound each style plays its chords on its own instrument (Classic is the piano).
+function chordNote(inst, midi, t, dur, vel) {
+  const f = mtof(midi), out = gain(0), oscs = [], d = Math.max(0.12, dur);
+  const o = (type, fr, l, det = 0) => { const x = ctx.createOscillator(); x.type = type; x.frequency.value = fr; x.detune.value = det; const g = gain(l); x.connect(g); oscs.push(x); return g; };
+  let end = t + d + 0.4, level = 0.1 * vel;
+  if (inst === 'ep') {                 // electric piano: a soft bell on a sine, the bell fading first
+    const car = ctx.createOscillator(), mod = ctx.createOscillator(), idx = gain(0); car.frequency.value = f; mod.frequency.value = f;
+    idx.gain.setValueAtTime(f * 1.4, t); idx.gain.exponentialRampToValueAtTime(f * 0.08, t + 0.35); mod.connect(idx).connect(car.frequency);
+    car.connect(out); oscs.push(car, mod); level = 0.16 * vel;
+    out.gain.setValueAtTime(0, t); out.gain.linearRampToValueAtTime(level, t + 0.006); out.gain.setTargetAtTime(level * 0.5, t + 0.05, 0.3); out.gain.setTargetAtTime(0, t + d, 0.12);
+  } else if (inst === 'organ') {       // organ: three drawbars, a slow wobble, held the whole length
+    o('sine', f, 0.5).connect(out); o('sine', f * 2, 0.28).connect(out); o('sine', f * 3, 0.14).connect(out);
+    const lfo = ctx.createOscillator(), dep = gain(0.18); lfo.frequency.value = 5.8; lfo.connect(dep).connect(out.gain); oscs.push(lfo);
+    level = 0.075 * vel; out.gain.setValueAtTime(0, t); out.gain.linearRampToValueAtTime(level, t + 0.02); out.gain.setValueAtTime(level, t + d - 0.03); out.gain.linearRampToValueAtTime(0, t + d + 0.06); end = t + d + 0.1;
+  } else if (inst === 'synth') {       // g-funk synth chords: saw and square through a soft filter that opens and settles
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = 2; lp.frequency.setValueAtTime(700, t); lp.frequency.linearRampToValueAtTime(2200, t + 0.08); lp.frequency.setTargetAtTime(1100, t + 0.1, 0.3);
+    o('sawtooth', f, 0.3, -5).connect(lp); o('square', f, 0.18, 5).connect(lp); lp.connect(out);
+    level = 0.06 * vel; out.gain.setValueAtTime(0, t); out.gain.linearRampToValueAtTime(level, t + 0.015); out.gain.setValueAtTime(level, t + d - 0.05); out.gain.linearRampToValueAtTime(0, t + d + 0.15); end = t + d + 0.2;
+  } else if (inst === 'pluck') {       // a guitar-like pluck: bright, quick to fade, strummed
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.setValueAtTime(3800, t); lp.frequency.exponentialRampToValueAtTime(900, t + 0.18);
+    o('triangle', f, 0.6).connect(lp); o('sawtooth', f * 2, 0.08).connect(lp); lp.connect(out);
+    level = 0.12 * vel; out.gain.setValueAtTime(0, t); out.gain.linearRampToValueAtTime(level, t + 0.003); out.gain.exponentialRampToValueAtTime(0.0005, t + Math.min(0.9, d + 0.3)); end = t + Math.min(0.9, d + 0.3) + 0.05;
+  } else if (inst === 'strings') {     // dark strings: detuned saws, slow to swell, filtered down
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1500; lp.Q.value = 0.5;
+    o('sawtooth', f, 0.25, -9).connect(lp); o('sawtooth', f, 0.25, 9).connect(lp); lp.connect(out);
+    level = 0.05 * vel; out.gain.setValueAtTime(0, t); out.gain.linearRampToValueAtTime(level, t + Math.min(0.25, d * 0.5)); out.gain.setValueAtTime(level, t + d); out.gain.linearRampToValueAtTime(0, t + d + 0.35); end = t + d + 0.4;
+  } else {                             // stab: a short square chord, cut off fast
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.setValueAtTime(3000, t); lp.frequency.exponentialRampToValueAtTime(600, t + 0.1);
+    o('square', f, 0.3).connect(lp); o('sawtooth', f, 0.2, 7).connect(lp); lp.connect(out);
+    level = 0.06 * vel; const L = Math.min(d, 0.16); out.gain.setValueAtTime(0, t); out.gain.linearRampToValueAtTime(level, t + 0.003); out.gain.setValueAtTime(level, t + L * 0.6); out.gain.linearRampToValueAtTime(0, t + L); end = t + L + 0.05;
+  }
+  out.connect(N.keys);
+  for (const x of oscs) { x.start(t); x.stop(end); }
+}
+// a cowbell, for phonk: two squares a fifth-ish apart through a band filter
+function cowbell(t, vel) {
+  const out = gain(0), bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 800; bp.Q.value = 1.2;
+  for (const fr of [540, 800]) { const x = ctx.createOscillator(); x.type = 'square'; x.frequency.value = fr; x.connect(bp); x.start(t); x.stop(t + 0.4); }
+  out.gain.setValueAtTime(0.32 * vel, t); out.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
+  bp.connect(out).connect(N.drums);
+}
+
 // ------------------------------------------------------------------ full lead
 // The Classic lead is one plain waveform per note, the way old game consoles made music.
 // Full layers detuned copies so the note has width and movement, adds a breath of noise
@@ -582,7 +640,12 @@ function fullLead(type, midi, t, dur, vel) {
   lp.type = 'lowpass'; lp.Q.value = 0.8;
   let atk = 0.006, len = Math.max(0.25, dur + 0.2), level = 0.16 * vel;
   const voice = (wave, detune, l) => { const o = ctx.createOscillator(); o.type = wave; o.frequency.value = f; o.detune.value = detune; o.connect(gain(l)).connect(lp); oscs.push(o); return o; };
-  if (type === 'bell') {
+  if (type === 'horn') {
+    // a muted horn: a saw and a triangle under a dark lowpass, a slow breath in, a little vibrato
+    voice('sawtooth', -3, 0.35); voice('triangle', 3, 0.5);
+    const vib = ctx.createOscillator(), vd = gain(0); vib.frequency.value = 5; vd.gain.setValueAtTime(0, t); vd.gain.linearRampToValueAtTime(7, t + 0.3); vib.connect(vd); for (const x of oscs) vd.connect(x.detune); oscs.push(vib);
+    lp.frequency.value = Math.min(1500, f * 2.5); lp.Q.value = 0.5; atk = 0.05; len = dur + 0.1; level = 0.14 * vel;
+  } else if (type === 'bell') {
     // a soft electric piano bell: two FM pairs a few cents apart, plus a sine an octave down
     for (const d of [-6, 6]) {
       const car = voice('sine', d, 0.5), mod = ctx.createOscillator(), idx = gain(0);
@@ -609,7 +672,7 @@ function fullLead(type, midi, t, dur, vel) {
   n.buffer = bassNoise(); ng.gain.setValueAtTime(0.018 * vel, t); ng.gain.exponentialRampToValueAtTime(0.0005, t + 0.03);
   n.connect(nf).connect(ng).connect(N.lead); n.start(t); n.stop(t + 0.05);
   out.gain.setValueAtTime(0, t); out.gain.linearRampToValueAtTime(level, t + atk);
-  if (type === 'whistle') { out.gain.setValueAtTime(level, t + Math.max(atk, len - 0.1)); out.gain.linearRampToValueAtTime(0, t + len); }
+  if (type === 'whistle' || type === 'horn') { out.gain.setValueAtTime(level, t + Math.max(atk, len - 0.1)); out.gain.linearRampToValueAtTime(0, t + len); }
   else out.gain.exponentialRampToValueAtTime(0.0005, t + len);
   lp.connect(out).connect(N.lead);
   for (const o of oscs) { o.start(t); o.stop(t + len + 0.05); }

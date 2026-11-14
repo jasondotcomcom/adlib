@@ -84,7 +84,7 @@ export function initStage() {
 }
 export function setDecks(on) { decking = on; waves.length = 0; mouth = yell = 0; speakUntil = yellUntil = 0; }
 export function setPerforming(on) {
-  performing = on; chain = 0; count.n = 0; count.until = 0; waves.length = 0; pending.length = 0; mouth = yell = 0; speakUntil = yellUntil = 0;
+  performing = on; heardAny = false; faceName = 'listening'; faceUntil = 0; faceAfter = null; chain = 0; count.n = 0; count.until = 0; waves.length = 0; pending.length = 0; mouth = yell = 0; speakUntil = yellUntil = 0;
   for (const b of bursts) b.el.remove(); bursts.length = 0;
   if (tickerEl) tickerEl.textContent = '';
 }
@@ -120,21 +120,57 @@ function wordmark(cx, baseline, T) {
 
 // ------------------------------------------------------------------ frame
 // adlib's face, drawn at the bottom of a scene. Returns the gap his eyes need.
-function face(cx, T) {
-  // adlib's face, bottom of the screen, drawn from the parts of the mark (see adlib-voice.md, "His face").
-  // The mouth is one bowl: small while he listens, wide open when he comes in. It must stay ring 1.
-  const F = T * 0.42, fx = cx, fy = H - 48 - 2.5 * F;
-  ring(fx, fy, F * (1 + mouth + markBump * 0.25), 0.5 * F);
-  // The eyes are straight lines. Short and upright while he listens; when he yells they
-  // squeeze shut into > <. They sit over the rings and have none of their own.
-  // They ride just above the mouth and move apart as it opens, so they never read as ears.
-  const top = F * (1.5 + mouth), spread = F * (1.45 + 0.55 * mouth + 0.65 * yell), ey = fy - top - 2.4 * F, eh = F * (0.5 + 0.5 * yell);
+// ------------------------------------------------------------------ his faces
+// Six faces, one for each moment in a freestyle (adlib-voice.md, "His faces"). His eyes are
+// always closed; how tightly shows how hard he's reacting. Rings come from the mouth only, and
+// how far they reach is how loud he is. Units are strokes (u = one letter stroke), y up, with
+// 0,0 at the centre of the hype mouth.
+let faceName = 'listening', faceUntil = 0, faceAfter = null, heardAny = false;
+const FACES = {
+  listening:  { eyes: 'relaxed', mouth: 'flat',  rings: 0 },
+  feeling:    { eyes: 'relaxed', mouth: 'small', rings: 4 },
+  ooh:        { eyes: 'squeeze', mouth: 'small', rings: 14 },
+  hype:       { eyes: 'squeeze', mouth: 'big',   rings: 99 },
+  laughing:   { eyes: 'up',      mouth: 'D',     rings: 30 },
+  speechless: { eyes: 'flat',    mouth: 'open',  rings: 0 },
+};
+export function showFace(name, secs, then) { faceName = name; faceUntil = secs ? (getCtx() ? getCtx().currentTime : 0) + secs : 0; faceAfter = then || null; }
+function arc(cx, cy, r, a0, a1, u, sx, kind) {          // an arc as a few short strokes (degrees, counterclockwise, y up)
+  const n = 3, pts = [];
+  for (let i = 0; i <= n; i++) { const a = (a0 + (a1 - a0) * i / n) * Math.PI / 180; pts.push(sx(cx + r * Math.cos(a), cy + r * Math.sin(a))); }
+  for (let i = 0; i < n; i++) cap(pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1], 0.5 * u, kind);
+}
+// Draw a face centred on the hype mouth at (x, y). spin turns the whole face (the decks).
+// The mouth, when it's a ring, is always ring 1, so rings can come out of it.
+function drawFace(name, x, y, u, spin = 0) {
+  const f = FACES[name] || FACES.feeling, cs = Math.cos(spin), sn = Math.sin(spin);
+  const P = (px, py) => [x + (px * cs - py * sn) * u, y - (px * sn + py * cs) * u];
+  const R = (px, py, r) => { const [a, b] = P(px, py); ring(a, b, r * u, 0.5 * u); };
+  if (f.mouth === 'small') R(0, 0.5, 0.84);
+  else if (f.mouth === 'big') R(0, 0, 2);
+  else if (f.mouth === 'open') R(0, -0.2, 2.2);
+  else if (f.mouth === 'flat') { const a = P(-1.2, 0.6), b = P(1.2, 0.6); cap(a[0], a[1], b[0], b[1], 0.5 * u, 3); }
+  else { const a = P(-2, 1.1), b = P(2, 1.1); cap(a[0], a[1], b[0], b[1], 0.5 * u); arc(0, 1.1, 2, 180, 360, u, P, 0); }
   for (const side of [-1, 1]) {
-    const ex = fx + side * (spread + 0.95 * F * yell), vx = fx + side * (spread - 0.95 * F * yell);
-    cap(ex, ey - eh, vx, ey, 0.5 * F, 3); cap(vx, ey, ex, ey + eh, 0.5 * F, 3);
+    const Q = (px, py) => P(side * px, py), m = (a0, a1) => (side < 0 ? [a0, a1] : [180 - a1, 180 - a0]);
+    if (f.eyes === 'relaxed') { const [a0, a1] = m(200, 340); arc(side * 2.6, 4.8, 1.2, a0, a1, u, P, 3); }
+    else if (f.eyes === 'up') { const [a0, a1] = m(20, 160); arc(side * 2.6, 4.1, 1.2, a0, a1, u, P, 3); }
+    else if (f.eyes === 'flat') { const a = Q(3.5, 4.9), b = Q(1.7, 4.9); cap(a[0], a[1], b[0], b[1], 0.5 * u, 3); }
+    else { const a = Q(3.6, 5.9), b = Q(1.7, 4.9), c = Q(3.6, 3.9); cap(a[0], a[1], b[0], b[1], 0.5 * u, 3); cap(b[0], b[1], c[0], c[1], 0.5 * u, 3); }
   }
+  return 0.38 * u;
+}
+// the face for right now on the rap screen
+function currentFace(now) {
+  if (faceUntil && now > faceUntil) { faceUntil = 0; faceName = faceAfter || 'feeling'; faceAfter = null; }
+  if (!faceUntil) faceName = heardAny ? 'feeling' : 'listening';      // listening until the first bar, then nodding along
+  return faceName;
+}
+function face(cx, T) {
+  // adlib's face, bottom of the screen
+  const F = T * 0.42, fx = cx, fy = H - 48 - 2.5 * F, name = currentFace(getCtx() ? getCtx().currentTime : 0);
   document.documentElement.style.setProperty('--face', Math.round(48 + 9.6 * F) + 'px');
-  return 0.38 * F;
+  return drawFace(name, fx, fy, F);
 }
 let lastT = 0;
 function frame(ts) {
@@ -168,26 +204,15 @@ function frame(ts) {
     ring(V.cx, V.cy, V.R - 0.5 * T, (vd.held || deck.kept ? 0.62 : 0.5) * T);
     disc(V.cx, V.cy, 0.85 * T);
     { const c = Math.cos(vd.angle), si = Math.sin(vd.angle); cap(V.cx + c * 1.9 * T, V.cy + si * 1.9 * T, V.cx + c * 3.4 * T, V.cy + si * 3.4 * T, 0.5 * T); }
-    // his mouth is the beat record: it opens wide while you hold it
-    const F = L.F;
-    mouth += ((bd.held ? 1 : 0) - mouth) * Math.min(1, dt * 16);
-    const MR = B.R * (1 + 0.45 * mouth);
-    ring(B.cx, B.cy, MR, 0.5 * F * (1 + 0.3 * mouth));
-    // his eyes: upright while he listens
-    // his eyes squeeze shut for a moment each time the drums change, so you feel the notch
-    const blink = performance.now() - deck.notchAt < 140;
-    yell += ((blink ? 1 : 0) - yell) * Math.min(1, dt * 24);
+    // his face is the beat record: feeling it at rest, a full yell while you hold it, and an
+    // "ooh" for a moment each time the drums change notch. It turns with your thumb like a knob
+    // and springs back upright.
+    const F = L.F, blink = performance.now() - deck.notchAt < 160;
+    const name = bd.held ? (blink ? 'ooh' : 'hype') : blink ? 'ooh' : 'feeling';
     if (blink && now - scratchAt > 0.1 && !reduced) { scratchAt = now; wave(0.6, 1, 900, 2); }
-    const spread = Math.max(MR * 0.62, 2.1 * F) + F * 0.65 * yell, eh = F * (0.6 + 0.4 * yell), ey = B.cy - MR - 1.3 * F - eh;
-    // his whole face turns with your thumb, like a knob, and springs back upright
     spin += ((bd.held ? bd.turned : 0) - spin) * Math.min(1, dt * (bd.held ? 30 : 8));
-    const cs = Math.cos(spin), sn = Math.sin(spin), rot = (x, y) => [B.cx + (x - B.cx) * cs - (y - B.cy) * sn, B.cy + (x - B.cx) * sn + (y - B.cy) * cs];
-    for (const side of [-1, 1]) {
-      const ex = B.cx + side * (spread + 0.95 * F * yell), vx = B.cx + side * (spread - 0.95 * F * yell);
-      cap(...rot(ex, ey - eh), ...rot(vx, ey), 0.5 * F, 3); cap(...rot(vx, ey), ...rot(ex, ey + eh), 0.5 * F, 3);
-    }
-    document.documentElement.style.setProperty('--face', Math.round(H - (B.cy - B.R * 1.45 - 2.3 * F - 2 * eh)) + 'px');
-    gap = 0.38 * F;
+    gap = drawFace(name, B.cx, B.cy, F, spin);
+    document.documentElement.style.setProperty('--face', Math.round(H - (B.cy - 6.4 * F)) + 'px');
     // every slice of your phrase sends rings out of the top record (blue when it runs
     // backward); the held beat record pushes rings out of his mouth on every kick
     while (deck.hits.length && deck.hits[0] <= now) { deck.hits.shift(); if (!reduced) wave(0.45 + Math.min(0.4, Math.abs(vd.speed) * 0.15), vd.speed < -0.4 ? 2 : 0, 1000, 1); }
@@ -236,11 +261,21 @@ const SVGNS = 'http://www.w3.org/2000/svg';
 const LAYERS = [['#2D54FD', 0.67], ['#0C0B0E', 0.6], ['#FD2D55', 0.42], ['#0C0B0E', 0.34], ['#FEE601', 0.16]];
 
 function present(ev, now) {
+  if (ev.kind !== 'count') heardAny = true;
   if (ev.kind === 'count') { count.n = +ev.text; count.until = now + stepDur() * 4 * (5 - count.n) + 0.3; return; }
   // he comes in: mouth open for as long as he makes sound, rings pushing out of it on the hit
   speakUntil = Math.max(speakUntil, now + Math.min(1.6, ev.dur || 0.5)); markBump = 1;
   if (ev.size === 'xl' || ev.sig) yellUntil = now + Math.min(1.8, (ev.dur || 0.6) + 0.4);
-  wave(1, 0, 820, 2);
+  // which face: a throwback or a long rhyme chain is wordplay (laughing); the biggest lines are
+  // a full yell (hype), and a run that long leaves him speechless after; any other line is a
+  // bar landing (ooh)
+  const d = Math.min(1.8, (ev.dur || 0.6) + 0.4), playful = (ev.text && /! \w/.test(ev.text)) || (ev.chain || 0) >= 3;
+  if (playful) showFace('laughing', d, (ev.chain || 0) >= 4 ? 'speechless' : null);
+  else if (ev.size === 'xl' || ev.sig) showFace('hype', d);
+  else if (ev.kind === 'text' || ev.kind === 'wave') showFace('ooh', d);
+  if (faceAfter === 'speechless') setTimeout(() => { if (performing) showFace('speechless', 1.4); }, d * 1000 + 30);
+  const loud = (FACES[faceName] || FACES.feeling).rings;
+  if (loud) wave(loud > 20 ? 1 : loud > 10 ? 0.8 : 0.5, 0, 820, 2);
   if (ev.echo || ev.kind === 'wave') {                                         // your voice coming back out of his mouth, in time with the echo
     const sd = stepDur();
     for (let k = 1; k < 3; k++) setTimeout(() => { if (performing) { wave(0.95 - k * 0.28, 2, 760, 2); speakUntil = Math.max(speakUntil, getCtx().currentTime + 0.18); } }, k * sd * 3 * 1000);
