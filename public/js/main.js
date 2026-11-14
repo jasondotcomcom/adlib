@@ -7,6 +7,7 @@ import { words, startWords, stopWords, onWord, feed } from './words.js';
 import { hype, startHype, stopHype, setMode } from './hype.js';
 import { initStage, setPerforming, setDecks } from './stage.js';
 import { deck, startDeck, stopDeck } from './decks.js';
+import { canClip, startClip, stopClip, cancelClip, clipping } from './clip.js';
 
 const $ = id => document.getElementById(id);
 const NOTE = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
@@ -172,6 +173,12 @@ function wireControls() {
   $('backBtn').addEventListener('click', backToBeat);
   $('decksLink').addEventListener('click', e => { e.preventDefault(); decks(); });
   $('decksBack').addEventListener('click', leaveDecks);
+  $('clipBtn').addEventListener('click', () => { $('shareHow').hidden = true; makeClip(); });
+  $('shareLink').addEventListener('click', shareLink);
+  $('shareHowCancel').addEventListener('click', () => { $('shareHow').hidden = true; });
+  $('clipStop').addEventListener('click', () => { stopClip(); $('clipStop').disabled = true; $('clipTime').textContent += ' ending on the bar'; });
+  $('clipBack').addEventListener('click', leaveClip);
+  $('clipShare').addEventListener('click', shareClip);
   $('modeBtn').addEventListener('click', () => { const m = hype.mode === 'hype' ? 'boom' : 'hype'; setMode(m); $('modeBtn').textContent = m === 'hype' ? 'Hype voice' : 'Boom voice'; });
   $('phonesBtn').addEventListener('click', async () => {
     const on = $('phonesBtn').getAttribute('aria-pressed') !== 'true'; $('phonesBtn').setAttribute('aria-pressed', on);
@@ -222,6 +229,11 @@ function playhead() {
 function mark(s, on) { for (let r = 0; r < ROWS.length; r++) cells[r][s].classList.toggle('now', on); tape[s].classList.toggle('now', on); }
 
 async function share() {
+  if (canClip()) { $('shareHow').hidden = false; return; }   // a link or a video clip
+  shareLink();
+}
+async function shareLink() {
+  $('shareHow').hidden = true;
   if (song.kit === 'you' && voice.ready && !voice.id) { $('shareSheet').hidden = false; return; }   // sharing your voice saves your clip: ask first
   sendLink();
 }
@@ -274,7 +286,7 @@ async function sayIt() {
   stopEars(); btn.classList.remove('live');
   const pcm = data && packTake(data, sr), ok = pcm && buildVoice(unpack(pcm), TAKE_RATE);
   if (ok) { voice.pcm = pcm; voice.id = null; }
-  if (ok) { const made = beatFromVoice(voice.parts); takeNo++; song.kit = 'you'; engine.applyKit(); openUp(); told = 'i heard'; again = false; line.textContent = `i heard ${made.name.toLowerCase()}. ${made.bpm} bpm.`; }
+  if (ok) { said = $('sayWord').value.trim(); const made = beatFromVoice(voice.parts); takeNo++; song.kit = 'you'; engine.applyKit(); openUp(); told = 'i heard'; again = false; line.textContent = `i heard ${made.name.toLowerCase()}. ${made.bpm} bpm.`; }
   else line.textContent = "didn't catch that. say it louder.";
   render(); saveHash();
   if (ok || was) { if (!engine.isPlaying()) engine.play(); else engine.restartArc(); syncPlay(); }
@@ -323,6 +335,43 @@ function backToBeat() {
 }
 
 // ------------------------------------------------------------------ decks view
+// ------------------------------------------------------------------ the clip
+let said = '', clipFile = null, clipUrl = '';
+const clock = secs => `${Math.floor(secs / 60)}:${String(Math.floor(secs % 60)).padStart(2, '0')}`;
+async function makeClip() {
+  openUp(); await wake();
+  view = 'clip'; document.body.dataset.view = 'clip'; scrollTo(0, 0);
+  $('clipCanvas').hidden = false; $('clipVideo').hidden = true; $('clipRec').hidden = false; $('clipDone').hidden = true;
+  $('clipStop').disabled = false; $('clipTime').textContent = '0:00';
+  const phrase = song.kit === 'you' && voice.ready && said ? said : '';
+  const ok = startClip({
+    out: $('clipCanvas'), phrase, line: () => `${vibe().name.toLowerCase()}. ${shownBpm()} bpm.`,
+    onTick: secs => { if (!$('clipStop').disabled) $('clipTime').textContent = clock(secs); },
+    onDone: (blob, ext) => {
+      const name = `adlib-${(phrase || vibe().name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'beat'}.${ext}`;
+      clipFile = new File([blob], name, { type: blob.type }); if (clipUrl) URL.revokeObjectURL(clipUrl); clipUrl = URL.createObjectURL(blob);
+      const v = $('clipVideo'); v.src = clipUrl; v.hidden = false; $('clipCanvas').hidden = true;
+      $('clipRec').hidden = true; $('clipDone').hidden = false; $('clipSave').href = clipUrl; $('clipSave').download = name;
+      v.play().catch(() => {});
+    },
+  });
+  syncPlay();
+  if (!ok) { leaveClip(); toast("this browser can't make clips. try chrome or safari."); }
+}
+async function shareClip() {
+  if (!clipFile) return;
+  try {
+    if (navigator.canShare && navigator.canShare({ files: [clipFile] })) { await navigator.share({ files: [clipFile], title: 'adlib' }); return; }
+  } catch (e) { if (e && e.name === 'AbortError') return; }
+  $('clipSave').click();
+}
+function leaveClip() {
+  if (clipping()) cancelClip();
+  const v = $('clipVideo'); v.pause(); v.removeAttribute('src'); v.load();
+  if (clipUrl) { URL.revokeObjectURL(clipUrl); clipUrl = ''; } clipFile = null;
+  view = 'build'; document.body.dataset.view = 'build';
+}
+
 async function decks() {
   openUp(); await wake();
   if (!engine.isPlaying()) { engine.play(); syncPlay(); }
