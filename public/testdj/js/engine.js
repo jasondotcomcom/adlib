@@ -430,6 +430,8 @@ function sample(name, t, vel, rate, dest) {
   return { src, g };
 }
 let openHat = null, hatSide = false;
+// the decks play the drums straight from adlib's mouth
+export const hitDrum = (r, t, vel) => drum(r, t, vel);
 function drum(r, t, vel) {
   const name = DRUM_SAMPLE[r], k = KIT_FX[song.kit] || KIT_FX.clean;
   emit('hit', r, t, vel);
