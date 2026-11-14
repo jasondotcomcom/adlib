@@ -5,7 +5,7 @@ import { song, vibe, chordFor, melody, hash, bassStep, harmonyAbove, COMPS, chor
 let ctx = null;
 const N = {};            // audio nodes by name
 const kit = {};          // sample name -> AudioBuffer
-const listeners = { step: [], hit: [] };
+const listeners = { step: [], hit: [], hook: [] };
 export const on = (ev, fn) => listeners[ev].push(fn);
 const emit = (ev, ...a) => { for (const fn of listeners[ev]) fn(...a); };
 
@@ -301,6 +301,16 @@ export function stop() {
   if (ctx) { const t = ctx.currentTime; N.beat.gain.cancelScheduledValues(t); N.beat.gain.setValueAtTime(1, t); }
 }
 
+// The phrase coming back as the hook; the picture listens for it
+function hook(t, o) { own.tag(t, o); emit('hook', t, o || {}); }
+// Everything you hear, as a stream a clip can record
+let clipDest = null;
+export function clipAudio() {
+  if (!ctx) return null;
+  if (!clipDest) { clipDest = ctx.createMediaStreamDestination(); N.out.connect(clipDest); }
+  return clipDest.stream;
+}
+
 // ------------------------------------------------------------------ step
 const HAT_ACC = [1, 0.42, 0.7, 0.42];
 function scheduleStep(abs, time) {
@@ -331,11 +341,11 @@ function scheduleStep(abs, time) {
     // drop, then trading front half and whole. It stays out while someone is rapping.
     if (s === 0 && !decksHook.on) {
       const c = ab >= A.full ? (ab - A.full) % A.cycle : -1;
-      if (ab === 0 || bare) own.tag(t);
+      if (ab === 0 || bare) hook(t);
       else if (!perf.on) {
-        if (ab === A.full) own.tag(t, { gain: 0.8 });
-        else if (ab === A.keys || c === 8) own.tag(t, { gain: 0.56, wet: true, sd });
-        else if (c === 4 || c === 12) own.tag(t, { gain: 0.56, half: true, wet: true, sd });
+        if (ab === A.full) hook(t, { gain: 0.8 });
+        else if (ab === A.keys || c === 8) hook(t, { gain: 0.56, wet: true, sd });
+        else if (c === 4 || c === 12) hook(t, { gain: 0.56, half: true, wet: true, sd });
       }
     }
     if (s === 0 && ab >= A.full && (ab - A.full) % A.cycle === 0) { crash(t, 0.55); if (kit.deep) sample('deep', t, 0.75, 1, N.drums); }   // the drop
