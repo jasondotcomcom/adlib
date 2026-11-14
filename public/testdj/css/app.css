@@ -31,7 +31,7 @@ a { color: inherit; }
 
 /* ------------------------------------------------------------ build */
 #build { position: relative; z-index: 3; max-width: 760px; margin: 0 auto; padding: 8px 14px 124px; display: flex; flex-direction: column; gap: 16px; min-height: 100%; }
-body:is([data-view='perform'], [data-view='decks']) #build { display: none; }
+body[data-view='perform'] #build { display: none; }
 
 .mast { display: grid; justify-items: center; gap: 2px; }
 #markSpace { width: 100%; height: 132px; }                /* the shader draws the name here */
@@ -109,22 +109,22 @@ body:is([data-view='perform'], [data-view='decks']) #build { display: none; }
 .skip { display: none; align-self: center; font-size: 15px; font-weight: 500; color: var(--grey); padding: 8px 14px; border-radius: 999px; background: var(--bg); text-decoration: underline; text-underline-offset: 4px; }
 body[data-start] #build { padding-top: 11vh; padding-bottom: 22px; gap: 20px; }
 body[data-start] #markSpace { height: clamp(150px, 30vh, 250px); }
-body[data-start] :is(#grid, #vibes, .knobs, .dock) { display: none; }
+body[data-start] :is(#grid, #vibes, .knobs, .dock, #toy, .toyctl) { display: none; }
 body[data-start] .skip { display: block; }
 body[data-start] .say .k { font-size: clamp(15px, 4.4vw, 18px); }
 body[data-start] .fine:not(.credit) { margin-top: auto; }
-body.opened :is(#grid, #vibes, .knobs) { animation: rise 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+body.opened :is(#grid, #vibes, .knobs, #toy, .toyctl) { animation: rise 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+body.opened #toy { animation-delay: 0.15s; } body.opened .toyctl { animation-delay: 0.3s; }
 body.opened #grid { animation-delay: 0.15s; } body.opened #vibes { animation-delay: 0.27s; } body.opened .knobs { animation-delay: 0.39s; }
 body.opened .dock { animation: rise 0.5s 0.55s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
 @keyframes rise { from { opacity: 0; translate: 0 30px; } }
 
 .dock {
-  position: fixed; left: 0; right: 0; bottom: 0; z-index: 6; display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center;
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 6; display: grid; grid-template-columns: auto auto 1fr auto; gap: 10px; align-items: center;
   padding: 18px 16px calc(16px + env(safe-area-inset-bottom)); background: linear-gradient(to top, var(--bg) 72%, transparent);
 }
 .dock > button { height: 52px; font-size: 15px; white-space: nowrap; }
 .dock > .cta { font-size: clamp(16px, 4.8vw, 20px); padding: 0 12px; }
-#shareBtn { padding: 0 14px; }
 /* play/pause and stop: round icon buttons, no words */
 .transport { display: flex; align-items: center; gap: 8px; }
 .icon { display: grid; place-items: center; width: 52px; height: 52px; padding: 0; border-radius: 50%; border: 2px solid var(--grey); background: var(--bg); color: var(--paper); }
@@ -184,7 +184,6 @@ body[data-view='perform'] #perform { display: block; }
   .dock { gap: 6px; padding-left: 10px; padding-right: 10px; } .transport { gap: 6px; }
   .icon { width: 46px; height: 46px; } .icon.small { width: 36px; height: 36px; }
   .cta .mic { display: none; }
-  #shareBtn { white-space: normal; font-size: 14px; padding: 0 10px; line-height: 1.1; }
 }
 @media (min-width: 700px) {
   body { font-size: 17px; }
@@ -204,15 +203,6 @@ body[data-view='perform'] #perform { display: block; }
   @keyframes pop { 0% { opacity: 0; } 8%, 84% { opacity: 1; } 100% { opacity: 0; } }
 }
 
-/* ------------------------------------------------------------ decks */
-#decks { display: none; position: fixed; inset: 0; z-index: 5; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
-body[data-view='decks'] #decks { display: block; }
-body[data-view='decks'] { overflow: hidden; overscroll-behavior: none; }
-#decksLink[hidden] { display: none; }
-#keepBtn { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(var(--face, 140px) + 10px); height: 44px; padding: 0 22px; font-size: 17px; }
-#keepBtn[aria-pressed='true'] { background: var(--yellow); color: var(--bg); border-color: var(--yellow); }
-#keepBtn.kept { animation: kept 0.5s cubic-bezier(0.2, 0.8, 0.2, 1); }
-@keyframes kept { 30% { transform: translateX(-50%) scale(1.12); } }
 /* the mix switches at /testdj?mix (a testing aid, not part of the site) */
 .mixbox { position: fixed; top: 8px; left: 8px; right: 8px; z-index: 20; display: flex; flex-wrap: wrap; gap: 6px; padding: 8px; background: rgba(12, 11, 14, 0.92); border: 2px solid var(--line); border-radius: 18px; }
 .mixbox button { font-size: 13px; padding: 6px 10px; border-radius: 999px; border: 2px solid var(--grey); color: var(--grey); }
@@ -229,3 +219,68 @@ body[data-view='clip'] .dock { display: none; }
 #clipTime { font-variant-numeric: tabular-nums; min-width: 3.2em; }
 #clipSave { text-decoration: none; }
 @keyframes blink { 50% { opacity: 0.25; } }
+
+/* ------------------------------------------------------------ the toy: pads first, the grid on the back */
+body[data-mode='pads'] :is(#grid, #vibes, .knobs) { display: none; }
+body[data-mode='grid'] #toy { display: none; }
+body[data-mode='pads']:not([data-start]) #markSpace { height: 58px; }
+body[data-mode='pads']:not([data-start]) .pitch { display: none; }
+body[data-mode='pads']:not([data-start]) #build { gap: 12px; }
+#toy { display: grid; gap: 14px; }
+.pads { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; justify-items: center; padding: 10px 6px; touch-action: none; }
+.pad {
+  position: relative; width: 100%; max-width: 150px; aspect-ratio: 1; border-radius: 50%; padding: 0;
+  border: 2px solid var(--grey); background: var(--bg); color: var(--paper); font-size: 17px;
+  display: grid; place-items: center; touch-action: none; -webkit-touch-callout: none;
+  transition: background 0.22s, border-color 0.22s, color 0.22s, box-shadow 0.22s;
+}
+.pad .lab { pointer-events: none; text-transform: lowercase; }
+.pad svg { width: 52%; height: auto; pointer-events: none; overflow: visible; }
+.pad.lit { background: var(--yellow); border-color: var(--yellow); color: var(--bg); box-shadow: var(--rings); transition: none; }
+.pad.lit.loud { box-shadow: var(--rings), 0 0 0 13px var(--bg), 0 0 0 15px rgba(243, 239, 230, 0.55); }
+.pad.you { background: var(--red); border-color: var(--red); color: var(--bg); box-shadow: 0 0 0 3px var(--bg), 0 0 0 5px var(--yellow), 0 0 0 8px var(--bg), 0 0 0 10px var(--blue), 0 0 0 13px var(--bg), 0 0 0 15px rgba(243, 239, 230, 0.55); transition: none; }
+.pad.held { border-color: var(--paper); }
+.pad.empty { border-color: var(--line); pointer-events: none; }
+.pad .semi { position: absolute; top: 2px; right: 2px; min-width: 24px; height: 24px; padding: 0 5px; border-radius: 12px; background: var(--paper); color: var(--bg); font-size: 13px; line-height: 24px; pointer-events: none; }
+.pad .semi:empty { display: none; }
+.toyrow { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.flip { display: flex; height: 44px; border: 2px solid var(--line); border-radius: 999px; background: var(--bg); padding: 3px; }
+.flip button { padding: 0 16px; border-radius: 999px; font-size: 15px; color: var(--grey); }
+.flip button[aria-pressed='true'] { background: var(--paper); color: var(--bg); }
+.flip button[hidden] { display: none; }
+.flip button.pulse { animation: invite 0.4s ease-out; }
+@keyframes invite { 0% { background: var(--yellow); color: var(--bg); } 100% { } }
+#keepBtn { height: 44px; padding: 0 18px; font-size: 15px; }
+#keepBtn:disabled { opacity: 0.4; }
+#keepBtn[aria-pressed='true'] { background: var(--yellow); border-color: var(--yellow); color: var(--bg); }
+.toyctl { display: flex; align-items: center; gap: 8px; background: var(--bg); border-radius: 999px; }
+.toyctl .dice { width: 44px; height: 44px; flex: none; justify-self: auto; }
+#styleBtn { flex: 1; min-width: 0; height: 44px; padding: 0 14px; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#toyTempo { flex: none; width: 140px; }
+#toyTempo button { width: 40px; }
+#toyTempo output { font-size: 18px; }
+#gridBtn { flex: none; width: 44px; height: 44px; }
+#gridBtn[aria-pressed='true'] { background: var(--paper); border-color: var(--paper); color: var(--bg); }
+#styleSheet { position: fixed; left: 50%; bottom: 96px; z-index: 8; transform: translateX(-50%); width: min(92vw, 420px); display: grid; gap: 14px; justify-items: center; padding: 20px 16px 16px; background: var(--bg); border: 2px solid var(--grey); border-radius: 28px; }
+#styleSheet[hidden] { display: none; }
+#styleSheet .styles { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+#styleSheet .vibe { font-size: 15px; padding: 8px 14px; }
+/* adlib's face, a small record in the dock: hold and turn him to scratch the phrase */
+#faceRec { width: 76px; height: 76px; margin: -24px 0 0; padding: 0; border-radius: 50%; touch-action: none; -webkit-touch-callout: none; background: var(--bg); position: relative; }
+#faceRec::before { content: ''; position: absolute; inset: -8px; border-radius: 50%; }   /* a bigger target than what's drawn */
+#faceRec svg { width: 100%; height: 100%; overflow: visible; transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1); }
+#faceRec.held svg { transition: none; }
+#faceRec .face { transition: transform 0.12s; transform-origin: 0 0; }
+#faceRec.nod .face { transform: translateY(0.35px); }
+#shareBtn.icon { width: 52px; height: 52px; }
+@media (max-width: 430px) {
+  .pads { gap: 14px; } .pad { font-size: 16px; }
+  #faceRec { width: 68px; height: 68px; }
+  #shareBtn.icon { width: 46px; height: 46px; }
+  #toyTempo { width: 124px; } #toyTempo button { width: 36px; }
+  .flip button { padding: 0 13px; }
+}
+@media (min-width: 700px) {
+  body[data-mode='pads']:not([data-start]) #markSpace { height: 72px; }
+  .pads { gap: 22px; padding: 14px 40px; }
+}

@@ -29,7 +29,7 @@
 <link rel="preload" href="fonts/quicksand-latin-700-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="css/app.css">
 </head>
-<body data-view="build">
+<body data-view="build" data-mode="pads">
 <script>if(!/[#&]b=/.test(location.hash))document.body.setAttribute("data-start","")</script>
 
 <canvas id="field" aria-hidden="true"></canvas>
@@ -50,6 +50,24 @@
     </div>
   </section>
   <button type="button" id="skipBtn" class="skip">or start with a beat</button>
+
+  <section id="toy" aria-label="Pads">
+    <div class="pads" id="pads" aria-label="Pads. They light up as the beat plays them. Tap to play, hold to repeat, slide up or down to change the pitch."></div>
+    <div class="toyrow">
+      <div class="flip" id="flip" role="group" aria-label="What the pads play">
+        <button type="button" data-side="drums" aria-pressed="true">drums</button>
+        <button type="button" data-side="words" aria-pressed="false">words</button>
+      </div>
+      <button type="button" id="keepBtn" class="pill" aria-pressed="false" disabled>keep it</button>
+    </div>
+  </section>
+
+  <section class="toyctl" aria-label="The beat">
+    <button type="button" id="toyRoll" class="dice" aria-label="Roll a new beat"></button>
+    <button type="button" id="styleBtn" class="pill" aria-haspopup="dialog">Boom Bap</button>
+    <div class="stepper" id="toyTempo"><button type="button" id="toyBpmDown" aria-label="Slower">−</button><output id="toyBpm">90</output><button type="button" id="toyBpmUp" aria-label="Faster">+</button></div>
+    <button type="button" id="gridBtn" class="icon small" aria-label="Turn the machine over to the grid" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true" fill="currentColor"><circle cx="5" cy="7" r="2"/><circle cx="12" cy="7" r="2"/><circle cx="19" cy="7" r="2"/><circle cx="5" cy="17" r="2"/><circle cx="12" cy="17" r="2"/><circle cx="19" cy="17" r="2"/></svg></button>
+  </section>
 
   <section id="grid" aria-label="Beat grid. Tap or drag to place hits."></section>
 
@@ -102,7 +120,7 @@
     </div>
   </section>
 
-  <p class="fine"><a href="https://adlib.beehiiv.com" target="_blank" rel="noopener">get the newsletter</a> <a href="classic">the first version</a> <a href="#decks" id="decksLink">hit the decks</a></p>
+  <p class="fine"><a href="https://adlib.beehiiv.com" target="_blank" rel="noopener">get the newsletter</a> <a href="classic">the first version</a></p>
   <p class="fine credit">another toy by <a href="https://jasondotcom.com" target="_blank" rel="noopener">jasondotcom.com</a></p>
   <p class="fine credit" id="beatCount" hidden></p>
 
@@ -111,8 +129,9 @@
       <button type="button" id="playBtn" class="icon" aria-label="Play" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path class="i-play" d="M8 5.5v13l10.5-6.5z" fill="currentColor"/><g class="i-pause"><path d="M8.5 6v12M15.5 6v12"/></g></svg></button>
       <button type="button" id="stopBtn" class="icon small" aria-label="Stop"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><rect x="6.5" y="6.5" width="11" height="11" rx="2.5" fill="currentColor"/></svg></button>
     </div>
+    <button type="button" id="faceRec" aria-label="adlib. Hold and turn him to scratch the phrase."><svg viewBox="-8 -8.4 16 16" aria-hidden="true"><g class="rings"></g><g class="face"></g></svg></button>
     <button type="button" id="micBtn" class="cta"><svg class="mic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><circle cx="12" cy="8" r="5" fill="currentColor" stroke="none"/><path d="M12 13.5v7"/></svg>Grab the mic</button>
-    <button type="button" id="shareBtn">Share beat</button>
+    <button type="button" id="shareBtn" class="icon" aria-label="Share beat"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 5l6 5.5-6 5.5"/><path d="M20 10.5h-8.5C7.4 10.5 4 13.4 4 18v1"/></svg></button>
   </footer>
 </main>
 
@@ -134,10 +153,10 @@
   <div id="tape" aria-hidden="true"></div>
 </section>
 
-<section id="decks" aria-label="Decks">
-  <div class="top"><button type="button" id="decksBack">Back to the beat</button></div>
-  <button type="button" id="keepBtn" class="pill" aria-pressed="false">keep it</button>
-</section>
+<div id="styleSheet" class="sheet" role="dialog" aria-label="Pick a style" hidden>
+  <div class="styles" id="styleList"></div>
+  <button type="button" id="styleClose" class="icon small" aria-label="Close"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+</div>
 
 <section id="clip" aria-label="Make a clip">
   <canvas id="clipCanvas" aria-hidden="true"></canvas>
