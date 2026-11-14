@@ -20,12 +20,17 @@ const mine = () => song.kit === 'you' && own && own.ready();
 // Builds for a voice beat: when the bass, the chords and the full beat come in, how long a
 // cycle runs before it breaks down, which bars get the backwards swell, and which bar of
 // each four gets the chopped fill (0 for none). The first is the original.
+// Bars in from the top: bass, chords, melody, the full drop. The melody now arrives by the
+// second or third bar in most builds instead of waiting for the drop (Jason: get the melody
+// in much earlier); only the slow burn holds it back. The first build is the one beats from
+// before varied songs keep.
 const ARRANGE = [
-  { bass: 2, keys: 4, full: 8, cycle: 16, rise: [1, 3, 7], chop: 4 },
-  { bass: 1, keys: 2, full: 4, cycle: 8, rise: [3], chop: 0 },              // straight in
-  { bass: 3, keys: 1, full: 6, cycle: 16, rise: [5], chop: 2 },             // chords first
-  { bass: 2, keys: 6, full: 12, cycle: 16, rise: [5, 11], chop: 0 },        // slow burn
-  { bass: 0, keys: 4, full: 8, cycle: 8, rise: [], chop: 4 },               // bass from the top, no swells
+  { bass: 2, keys: 4, lead: 8, full: 8, cycle: 16, rise: [1, 3, 7], chop: 4 },
+  { bass: 1, keys: 1, lead: 1, full: 4, cycle: 8, rise: [3], chop: 2 },     // straight in
+  { bass: 2, keys: 1, lead: 2, full: 4, cycle: 16, rise: [3], chop: 2 },    // chords first, melody right behind
+  { bass: 1, keys: 2, lead: 4, full: 8, cycle: 16, rise: [3, 7], chop: 0 }, // slow burn
+  { bass: 0, keys: 2, lead: 2, full: 4, cycle: 8, rise: [], chop: 4 },      // bass from the top, no swells
+  { bass: 1, keys: 1, lead: 1, full: 2, cycle: 16, rise: [1], chop: 4 },    // everything by bar three
 ];
 let arcFrom = 0, under = 0;         // the bar a voice beat started growing from; how much real kit sits under it
 export function restartArc() { arcFrom = Math.floor(Math.max(0, nextStep) / STEPS); }
@@ -332,9 +337,10 @@ function scheduleStep(abs, time) {
   // melody arrives. Every sixteen bars after that it breaks back down to just you.
   // How it builds depends on the beat (beats made before this keep the original build).
   const you = mine(), ab = you ? bar - arcFrom : 0, A = ARRANGE[song.vary ? song.seed % ARRANGE.length : 0];
-  const bassIn = !you || ab >= A.bass, keysIn = !you || ab >= A.keys, fullIn = !you || ab >= A.full;
+  const bassIn = !you || ab >= A.bass, keysIn = !you || ab >= A.keys, leadIn = !you || ab >= A.lead, fullIn = !you || ab >= A.full;
   const bare = you && ab >= A.full && (ab - A.full) % A.cycle === A.cycle - 1;   // the breakdown bar
-  under = you && fullIn && !bare ? 0.6 : 0;
+  // the real kit creeps in under your voice once the bass is in, then sits fuller after the drop
+  under = !you || bare ? 0 : fullIn ? 0.6 : bassIn && ab > 0 ? 0.28 : 0;
   if (you) {
     // Your phrase is the hook. Whole at the top and alone in the breakdown. In between it
     // comes back on the one every four bars: whole when the keys arrive and on the first
@@ -351,6 +357,10 @@ function scheduleStep(abs, time) {
     if (s === 0 && ab >= A.full && (ab - A.full) % A.cycle === 0) { crash(t, 0.55); if (kit.deep) sample('deep', t, 0.75, 1, N.drums); }   // the drop
     if (s === 8 && (A.rise.includes(ab) || (bare && A.rise.length))) own.riser(time + 8 * sd, 8 * sd);   // backwards into the change
     if (s >= 12 && keysIn && A.chop && b4 === A.chop - 1 && !bare) own.chop(t, s - 12, sd);          // chopped into the turn
+    // a snare run into the drop, so the wait builds instead of just sitting there
+    if (ab === A.full - 1 && s >= 8 && (s >= 12 || s % 2 === 0)) drum(1, t, 0.35 + (s - 8) * 0.06);
+    // in Full, a soft bed under the phrase before the chords come in, so the top isn't empty
+    if (s === 0 && !keysIn && ab > 0 && song.tone === 'full' && mix.bed) pad(chordFor(bar).pad, t, STEPS * sd, 0.4);
   }
 
   // ---- drums
@@ -400,7 +410,7 @@ function scheduleStep(abs, time) {
   }
 
   // ---- lead (4-bar line)
-  if (song.lead && fullIn && !bare) {
+  if (song.lead && leadIn && !bare) {
     const at = b4 * STEPS + s;
     for (const n of melody()) if (n.s === at) {
       lead(n.midi, t, n.len * sd, leadVoice());
