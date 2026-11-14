@@ -79,10 +79,10 @@ export const VIBES = [
     pat: ['x.........x.....', '....x.......x...', '................', 'x.xx.xx.x.xx.xx.', '..............x.', '..x.......x.....', 'x...x.x...x.x...'],
   },
   {
-    id: 'phonk', name: 'Phonk', bpm: 68, half: true, swing: 50, key: 49, scale: 'minor', prog: [0, 0, 5, 6],
+    id: 'phonk', name: 'Phonk', bpm: 136, swing: 50, key: 49, scale: 'minor', prog: [0, 0, 5, 6],
     kit: 'crunch', bass: '808', glide: true, lead: 'bell', pad: true, rolls: true, cowbell: true, leadDensity: 0.4, chords: 'strings',
     comp: [],
-    pat: ['x.....x...x.....', '................', '....x.......x...', 'x.x.x.x.x.x.x.xx', '................', 'x..x..x...x..x..', 'x.....x...x.....'],
+    pat: ['x......x..x.....', '................', '....x.......x...', 'x.x.x.x.x.x.x.x.', '................', 'x..x..x.x..x..x.', 'x......x..x.....'],
   },
 ].map(v => ({ ...v, pat: v.pat.map(p) }));
 
