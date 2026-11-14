@@ -216,3 +216,19 @@ console.log('ok');
   S.song.tone = 'classic'; assert.equal(S.chordInstrument(), 'piano', 'Classic keeps piano');
   console.log('ok picks', [...takes].slice(0, 4).join('  '));
 }
+
+// a words pattern kept from the pads travels in the link; links without one are unchanged
+{
+  const S = await import('../public/js/song.js');
+  S.loadVibe('trap'); S.song.kit = 'you'; S.song.tone = 'full';
+  const plain = S.encodeSong(); assert.ok(!/\.p/.test(plain), 'no pads segment without a kept pattern');
+  const pads = new Array(32).fill(null); pads[0] = [1, 0]; pads[4] = [3, 5]; pads[10] = [2, -7]; pads[31] = [6, 12];
+  S.song.pads = pads; const link = S.encodeSong();
+  S.loadVibe('soul'); S.song.pads = null;
+  assert.ok(S.decodeSong(link), 'link with pads decodes');
+  assert.deepEqual(S.song.pads, pads, 'pads survive the link'); assert.equal(S.song.tone, 'full');
+  assert.ok(S.decodeSong(plain)); assert.equal(S.song.pads, null, 'a link without pads clears them');
+  // an old link from before Full (no trailing f) stays Classic with no pads
+  const old = plain.replace(/\.f$/, ''); assert.ok(S.decodeSong(old)); assert.equal(S.song.tone, 'classic'); assert.equal(S.song.pads, null);
+  console.log('ok pads link');
+}

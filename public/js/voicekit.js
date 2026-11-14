@@ -264,16 +264,16 @@ function bassBuf(midi) {
 // way hyphy and g-funk records chop a vocal: each note takes the next syllable, pitched to the
 // note and cut short, so your words become the riff. Each syllable is pitched from the voice's
 // own pitch and kept within an octave of it, so nothing gets chipmunked.
-let chops = null, chopAt = 0;
+let chops = null, chopAt = 0, chopStarts = [];
 function chopBufs() {
   if (chops || !take || !voice.parts) return chops;
-  const { data, sr } = take, ev = voice.parts.events, out = [];
+  const { data, sr } = take, ev = voice.parts.events, out = [], at = [];
   for (let i = 0; i < ev.length; i++) {
     const a = Math.round(ev[i].t * sr), next = i + 1 < ev.length ? Math.round(ev[i + 1].t * sr) : a + Math.round(0.3 * sr);
     const b = Math.min(data.length, a + Math.min(next - a, Math.round(0.32 * sr)));
-    if (b - a > sr * 0.05) out.push(cutBuf(data, a, b, sr, 'vowel'));
+    if (b - a > sr * 0.05) { out.push(cutBuf(data, a, b, sr, 'vowel')); at.push((a - voice.parts.word[0]) / sr); }
   }
-  chops = out.length >= 2 ? out : [];
+  chops = out.length >= 2 ? out : []; chopStarts = chops.length ? at : [];
   return chops;
 }
 // ------------------------------------------------------------------ talkbox
@@ -333,7 +333,7 @@ function talkNote(midi, t, dur) {
 
 function syllableNote(midi, t, dur) {
   const set = chopBufs(); if (!set || !set.length) return false;
-  const buf = set[chopAt++ % set.length], ctx = getCtx();
+  const k = chopAt++ % set.length, buf = set[k], ctx = getCtx(); light(k, t, 'adlib');
   const home = 12 * Math.log2(voice.f0 / 440) + 69; while (midi > home + 9) midi -= 12; while (midi < home - 4) midi += 12;
   const src = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain();
   src.buffer = buf; src.playbackRate.value = Math.max(0.5, Math.min(1.8, mtof(midi) / voice.f0));
@@ -391,8 +391,30 @@ export function voiceTag(t, { gain = 0.85, half = false, wet = false, sd = 0.15 
   src.connect(f).connect(g).connect(N.lead);
   if (wet) g.connect(echoIn(sd));
   src.start(t);
+  chopBufs(); chopStarts.forEach((x, k) => { if (!half || x < voice.half - 0.02) light(k, t + x, 'adlib'); });
   if (half) { const end = t + voice.half; g.gain.setTargetAtTime(0, end - 0.02, 0.012); src.stop(end + 0.12); }
 }
+// ------------------------------------------------------------------ the pads
+// The phrase as an instrument: each syllable is a pad. Anything that plays a syllable, adlib's
+// own hook and chops or your thumb on a pad, reports it here so the pad can light up.
+const lights = [];
+export const onPadLight = fn => lights.push(fn);
+function light(k, t, who) { for (const fn of lights) fn(k, t, who); }
+// one syllable's sound, for drawing its wave on a pad when the letters can't be trusted
+export const padBuf = k => (chopBufs() || [])[k] || null;
+export const pads = () => (chopBufs() || []).length;
+export function playPad(k, t, semis = 0) {
+  const set = chopBufs(); if (!set || !set.length) return;
+  k = ((k % set.length) + set.length) % set.length;
+  const ctx = getCtx(), src = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain(), buf = set[k];
+  src.buffer = buf; src.playbackRate.value = Math.pow(2, semis / 12);
+  f.type = 'highpass'; f.frequency.value = 150;
+  const len = buf.duration / src.playbackRate.value;
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.8, t + 0.003); g.gain.setValueAtTime(0.8, t + len * 0.85); g.gain.linearRampToValueAtTime(0, t + len);
+  src.connect(f).connect(g).connect(N.lead); src.start(t); src.stop(t + len + 0.02);
+  light(k, t, 'you');
+}
+
 // the vowel chopped on 16ths and climbing, into the turn
 const CHOP = [1, 1.12, 1.26, 1.5];
 export function voiceChop(t, k, sd) {
