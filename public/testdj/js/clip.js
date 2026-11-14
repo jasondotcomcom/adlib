@@ -25,9 +25,9 @@ function listen() {
   });
 }
 
-export function startClip({ out, phrase, line, onTick, onDone }) {
+export function startClip({ out, phrase, line, pads, onTick, onDone }) {
   const type = pickType(), audio = engine.clipAudio();
-  if (!type || !audio || !startClipScene(out, { phrase, line })) return false;
+  if (!type || !audio || !startClipScene(out, { phrase, line, pads })) return false;
   listen();
   const stream = new MediaStream([...out.captureStream(30).getVideoTracks(), ...audio.getAudioTracks()]);
   const chunks = [], mr = new MediaRecorder(stream, { mimeType: type, videoBitsPerSecond: 6e6, audioBitsPerSecond: 160000 });
