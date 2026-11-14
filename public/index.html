@@ -138,6 +138,27 @@
   <button type="button" id="keepBtn" class="pill" aria-pressed="false">keep it</button>
 </section>
 
+<section id="clip" aria-label="Make a clip">
+  <canvas id="clipCanvas" aria-hidden="true"></canvas>
+  <video id="clipVideo" playsinline loop controls hidden></video>
+  <div class="clipbar" id="clipRec">
+    <span class="dot" aria-hidden="true"></span><span id="clipTime">0:00</span>
+    <button type="button" id="clipStop" class="icon small" aria-label="Stop the clip"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="6.5" width="11" height="11" rx="2.5" fill="currentColor"/></svg></button>
+  </div>
+  <div class="clipbar" id="clipDone" hidden>
+    <button type="button" id="clipShare" class="cta">Share clip</button>
+    <a id="clipSave" class="pill" download>Save clip</a>
+  </div>
+  <button type="button" id="clipBack" class="quiet">Back to the beat</button>
+</section>
+
+<div id="shareHow" class="sheet" role="dialog" aria-label="Share this beat" hidden>
+  <p class="big">share it how?</p>
+  <button type="button" id="shareLink" class="cta">Send the link</button>
+  <button type="button" id="clipBtn" class="pill">Make a clip</button>
+  <button type="button" id="shareHowCancel" class="quiet">Cancel</button>
+</div>
+
 <div id="shareSheet" role="dialog" aria-label="Share this beat" hidden>
   <p class="big">share it with your voice?</p>
   <p>your clip gets saved so the link can play it. anyone with the link can hear it. if nobody opens it for a month, it's deleted.</p>

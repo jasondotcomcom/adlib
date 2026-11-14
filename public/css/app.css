@@ -171,10 +171,10 @@ body[data-view='perform'] #perform { display: block; }
 .burst text { text-anchor: middle; dominant-baseline: central; stroke-linejoin: round; stroke-linecap: round; }
 @keyframes pop { 0% { opacity: 0; transform: scale(0.6); } 6% { opacity: 1; transform: scale(1.06); } 12% { transform: scale(1); } 84% { opacity: 1; } 100% { opacity: 0; } }
 
-#shareSheet { position: fixed; left: 50%; bottom: 96px; z-index: 8; transform: translateX(-50%); width: min(92vw, 380px); display: grid; gap: 12px; text-align: center; padding: 22px 22px 16px; background: var(--bg); border: 2px solid var(--grey); border-radius: 28px; }
-#shareSheet[hidden] { display: none; }
-#shareSheet p { font-size: 15px; font-weight: 500; color: var(--grey); } #shareSheet .big { font-size: 20px; font-weight: 700; color: var(--paper); }
-#shareSheet .cta { margin: 8px 10px 4px; } #shareSheet .pill { height: 46px; font-size: 16px; } #shareSheet .quiet { font-size: 14px; color: var(--grey); padding: 6px; }
+#shareSheet, #shareHow { position: fixed; left: 50%; bottom: 96px; z-index: 8; transform: translateX(-50%); width: min(92vw, 380px); display: grid; gap: 12px; text-align: center; padding: 22px 22px 16px; background: var(--bg); border: 2px solid var(--grey); border-radius: 28px; }
+#shareSheet[hidden], #shareHow[hidden] { display: none; }
+#shareSheet p, #shareHow p { font-size: 15px; font-weight: 500; color: var(--grey); } #shareSheet .big, #shareHow .big { font-size: 20px; font-weight: 700; color: var(--paper); }
+#shareSheet .cta, #shareHow .cta { margin: 8px 10px 4px; } #shareSheet .pill, #shareHow .pill { height: 46px; font-size: 16px; } #shareSheet .quiet, #shareHow .quiet { font-size: 14px; color: var(--grey); padding: 6px; }
 #toast { position: fixed; left: 50%; bottom: 104px; z-index: 9; transform: translate(-50%, 12px); background: var(--paper); color: var(--bg); padding: 9px 18px; border-radius: 999px; opacity: 0; pointer-events: none; transition: opacity 0.2s, transform 0.2s; }
 #toast.show { opacity: 1; transform: translate(-50%, 0); }
 #debug { position: fixed; left: 8px; bottom: 96px; z-index: 9; max-width: calc(100vw - 16px); font: 11px/1.35 ui-monospace, Menlo, monospace; background: rgba(0, 0, 0, 0.88); color: #9f9; padding: 8px 10px; white-space: pre-wrap; pointer-events: none; }
@@ -217,3 +217,15 @@ body[data-view='decks'] { overflow: hidden; overscroll-behavior: none; }
 .mixbox { position: fixed; top: 8px; left: 8px; right: 8px; z-index: 20; display: flex; flex-wrap: wrap; gap: 6px; padding: 8px; background: rgba(12, 11, 14, 0.92); border: 2px solid var(--line); border-radius: 18px; }
 .mixbox button { font-size: 13px; padding: 6px 10px; border-radius: 999px; border: 2px solid var(--grey); color: var(--grey); }
 .mixbox button[aria-pressed='true'] { background: var(--yellow); border-color: var(--yellow); color: var(--bg); }
+
+/* the clip: a 9:16 preview of what's recording, then the finished video */
+#clip { display: none; position: fixed; inset: 0; z-index: 6; background: var(--bg); flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 16px; }
+body[data-view='clip'] #clip { display: flex; }
+body[data-view='clip'] .dock { display: none; }
+#clipCanvas, #clipVideo { height: min(72vh, calc((100vw - 32px) * 16 / 9)); aspect-ratio: 9 / 16; width: auto; border-radius: 22px; background: #000; }
+.clipbar { display: flex; align-items: center; gap: 14px; }
+.clipbar[hidden], #clipVideo[hidden], #clipCanvas[hidden] { display: none; }
+#clipRec .dot { width: 14px; height: 14px; border-radius: 50%; background: var(--red); animation: blink 1s steps(2) infinite; }
+#clipTime { font-variant-numeric: tabular-nums; min-width: 3.2em; }
+#clipSave { text-decoration: none; }
+@keyframes blink { 50% { opacity: 0.25; } }

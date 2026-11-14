@@ -5,10 +5,11 @@
 // The bottom record is adlib's mouth, and it changes what the drums are made of without
 // touching when they play. Each notch slides every voice drum one syllable along the
 // phrase (the kick that said "butt" says "pea", then "nut", then "ter"); on a regular kit
-// each notch tunes the drums a semitone. It stays where you leave it, like a knob.
+// each notch tunes the drums a semitone. Each notch also hits a drum on the next sixteenth so
+// you hear the change as you turn. It stays where you leave it, like a knob.
 // "keep it" keeps the last bar of voice moves looping in the beat until tapped off.
 // The drawing is in stage.js; both use layout() so the record you see is the record you touch.
-import { getCtx, nodes as N, isPlaying, on as onBeat, stepDur, decksHook, drumTune } from './engine.js';
+import { getCtx, nodes as N, isPlaying, on as onBeat, stepDur, decksHook, drumTune, hitDrum } from './engine.js';
 import { voice, voiceShift, syllables } from './voicekit.js';
 import { song } from './song.js';
 
@@ -76,7 +77,11 @@ export const isFlick = speed => Math.abs(speed) > 2.6;
 
 // every 16th, while the record is held (or a kept bar is looping), play the next slice
 function onStep(abs, t) {
-  if (!deck.on || !fwd) return;
+  if (!deck.on) return;
+  // each notch of adlib's mouth plays a drum on the next sixteenth, already changed, so you
+  // hear what the turn did: turning forward hits the snare, turning back hits the kick
+  if (tap !== null) { hitDrum(tap, t, 0.8); tap = null; }
+  if (!fwd) return;
   const v = deck.voice, s = abs % 16, sd = stepDur(), n = fwd.duration;
   if (v.held) v.used = abs;
   let ev = null;
@@ -92,13 +97,13 @@ function onStep(abs, t) {
 }
 
 // The bottom record, as a knob with notches. Where it was left, plus how far it's turned now.
-const NOTCH = Math.PI / 3;                   // a sixth of a turn per notch
-let setAt = 0, notch = 0;
+const NOTCH = Math.PI / 6;                   // a twelfth of a turn per notch, so a small scratch still clicks
+let setAt = 0, notch = 0, tap = null;
 const ownKit = () => song.kit === 'you' && voice.ready && syllables() > 1;
 function turnBeat() {
   const n = Math.round((setAt + deck.beat.turned) / NOTCH);
   if (n === notch) return;
-  notch = n;
+  tap = n > notch ? 1 : 0; notch = n;
   if (ownKit()) voiceShift(n);
   else drumTune.semis = Math.max(-12, Math.min(12, n));
   deck.notchAt = performance.now();

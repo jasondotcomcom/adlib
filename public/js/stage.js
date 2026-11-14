@@ -3,7 +3,7 @@
 // One fragment shader measures the distance from every pixel to the nearest
 // shape and paints by that distance: yellow inside, then a red ring, a blue
 // ring, then grey rings to the edge. Shapes that come close share their rings.
-import { getCtx, on as onBeat, stepDur } from './engine.js';
+import { getCtx, on as onBeat, stepDur, levelOf } from './engine.js';
 import { ears, onEar } from './ears.js';
 import { onShow, hype } from './hype.js';
 import { onWord, isContent } from './words.js';
@@ -59,10 +59,9 @@ void main() {
   gl_FragColor = vec4(col, 1.0);
 }`;
 
-export function initStage() {
-  canvas = document.getElementById('field'); burstsEl = document.getElementById('bursts'); tickerEl = document.getElementById('ticker'); markSpace = document.getElementById('markSpace');
-  try {
-    gl = canvas.getContext('webgl', { antialias: false, alpha: false, powerPreference: 'low-power' });
+function makeGL(cv, keep) {
+    const gl = cv.getContext('webgl', { antialias: false, alpha: false, powerPreference: 'low-power', preserveDrawingBuffer: !!keep }), U = {};
+    if (!gl) throw new Error('no webgl');
     const sh = (type, src) => { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s; };
     const prog = gl.createProgram();
     gl.attachShader(prog, sh(gl.VERTEX_SHADER, 'attribute vec2 a; void main(){ gl_Position = vec4(a, 0.0, 1.0); }'));
@@ -73,10 +72,17 @@ export function initStage() {
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
     const loc = gl.getAttribLocation(prog, 'a'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
     for (const n of ['uRes', 'uT', 'uPhase', 'uFade', 'uHeat', 'uDim', 'uGap', 'uRing', 'uCap', 'uCapR', 'uDisc', 'uWave']) U[n] = gl.getUniformLocation(prog, n);
+    return { gl, U };
+}
+export function initStage() {
+  canvas = document.getElementById('field'); burstsEl = document.getElementById('bursts'); tickerEl = document.getElementById('ticker'); markSpace = document.getElementById('markSpace');
+  try {
+    ({ gl, U } = makeGL(canvas));
     ok = true;
   } catch (err) { document.body.classList.add('no-field'); console.warn('field off:', err && err.message); }
   resize(); window.addEventListener('resize', resize);
   onBeat('hit', (r, t, vel) => { if (r <= 2) { hits.push({ r, t, vel }); if (hits.length > 100) hits.shift(); } });
+  onBeat('hook', (t, o) => { if (clip) clip.hooks.push({ t, half: !!(o && o.half) }); });
   onShow(ev => pending.push(ev));
   onEar('onset', () => { if (performing && !reduced) wave(0.3, 2, 620, 1); });
   onWord(addWord);
@@ -191,6 +197,7 @@ function frame(ts) {
   yell += ((now < yellUntil ? 1 : 0) - yell) * Math.min(1, dt * 14);
   level += ((ears.on ? ears.level : 0) - level) * Math.min(1, dt * 18);
   if (decking) tickDeck(dt);
+  if (clip) { clipFrame(now, dt); return; }
   if (!ok) return;
 
   nr = nc = nd = 0; rings.fill(0); capR.fill(0); discs.fill(0); wavesU.fill(0);
@@ -249,6 +256,74 @@ function frame(ts) {
   gl.uniform1f(U.uHeat, performing ? hype.heat / 100 : 0); gl.uniform1f(U.uDim, dim);
   gl.uniform4fv(U.uRing, rings); gl.uniform4fv(U.uCap, caps); gl.uniform2fv(U.uCapR, capR); gl.uniform3fv(U.uDisc, discs); gl.uniform4fv(U.uWave, wavesU); gl.uniform1f(U.uGap, gap * dpr);
   gl.drawArrays(gl.TRIANGLES, 0, 3);
+}
+
+// ------------------------------------------------------------------ the clip
+// A 9:16 picture for Instagram and TikTok, drawn by its own copy of the shader while a clip
+// records: the ring in the middle moves with the music, adlib's face below nods along and
+// lights up each time your phrase comes back, the name on top, and the phrase and the
+// address written in. The main screen stops drawing meanwhile.
+const CW = 540, CH = 960, CDPR = 2;
+let clip = null;
+export function startClipScene(out, info) {
+  const cv = document.createElement('canvas'); cv.width = CW * CDPR; cv.height = CH * CDPR;
+  let g; try { g = makeGL(cv, true); } catch { return false; }
+  clip = { cv, g, out, o2: out.getContext('2d'), info, hooks: [], face: 'listening', faceUntil: 0, lvl: 0, phase0: phaseTo };
+  out.width = CW * CDPR; out.height = CH * CDPR; waves.length = 0;
+  return true;
+}
+export function stopClipScene() { if (clip) { const lose = clip.g.gl.getExtension('WEBGL_lose_context'); if (lose) lose.loseContext(); } clip = null; waves.length = 0; }
+function clipFrame(now, dt) {
+  const c = clip, { gl: g, U: u } = c.g, save = [W, H, dpr];
+  W = CW; H = CH; dpr = CDPR;
+  nr = nc = nd = 0; rings.fill(0); capR.fill(0); discs.fill(0); wavesU.fill(0);
+  const T = 22, cx = CW / 2, cy = 400;
+  // the face: listening until the beat drops in, then feeling it; the phrase coming back
+  // whole is a full yell, its front half an "ooh", with rings out of his mouth
+  while (c.hooks.length && c.hooks[0].t <= now) {
+    const h = c.hooks.shift();
+    c.face = h.half ? 'ooh' : 'hype'; c.faceUntil = now + (h.half ? 0.7 : 1.3);
+    if (!reduced) wave(h.half ? 0.7 : 1, 0, 820, 2);
+  }
+  if (c.faceUntil && now > c.faceUntil) { c.faceUntil = 0; c.face = 'feeling'; }
+  if (!c.faceUntil) c.face = phaseTo > c.phase0 ? 'feeling' : 'listening';      // nodding along once the first kick lands
+  c.lvl += (Math.min(1, levelOf() * 3.2) - c.lvl) * Math.min(1, dt * 14);
+  ring(cx, cy, 2.6 * T, T * (0.45 + c.lvl * 0.9));       // ring 0: the music
+  const gap = drawFace(c.face, cx, 760, 11);             // ring 1: his mouth
+  wordmark(cx, 150, 11);
+  waves.forEach((w, i) => wavesU.set([w.r * dpr, w.strength, w.hue, w.from], i * 4));
+  g.viewport(0, 0, c.cv.width, c.cv.height);
+  g.uniform2f(u.uRes, c.cv.width, c.cv.height); g.uniform1f(u.uT, T * dpr); g.uniform1f(u.uPhase, phase % 1); g.uniform1f(u.uFade, 1e5);
+  g.uniform1f(u.uHeat, 0.25 + c.lvl * 0.4); g.uniform1f(u.uDim, 1);
+  g.uniform4fv(u.uRing, rings); g.uniform4fv(u.uCap, caps); g.uniform2fv(u.uCapR, capR); g.uniform3fv(u.uDisc, discs); g.uniform4fv(u.uWave, wavesU); g.uniform1f(u.uGap, gap * dpr);
+  g.drawArrays(g.TRIANGLES, 0, 3);
+  [W, H, dpr] = save;
+  // the words, written over the picture in the burst style
+  const o = c.o2, k = CDPR;
+  o.drawImage(c.cv, 0, 0);
+  o.textAlign = 'center'; o.textBaseline = 'middle'; o.lineJoin = 'round';
+  if (c.info.phrase) {
+    const text = c.info.phrase.toLowerCase(); let px = 44;
+    o.font = `700 ${px * k}px Quicksand, sans-serif`;
+    const wide = o.measureText(text).width / k; if (wide > CW * 0.84) px *= (CW * 0.84) / wide;
+    burstText(o, text, cx * k, 585 * k, px * k);
+  }
+  pillText(o, c.info.line(), cx * k, 645 * k, 18 * k);
+  pillText(o, 'adlib.live', cx * k, 900 * k, 24 * k);
+}
+// small words on a dark pill, the way the site sets its lines over the rings
+function pillText(o, text, x, y, px) {
+  o.font = `700 ${px}px Quicksand, sans-serif`;
+  const w = o.measureText(text).width + px * 1.4, h = px * 1.9;
+  o.fillStyle = '#0C0B0E'; o.beginPath();
+  if (o.roundRect) o.roundRect(x - w / 2, y - h / 2, w, h, h / 2); else o.rect(x - w / 2, y - h / 2, w, h);
+  o.fill(); o.fillStyle = '#F3EFE6'; o.fillText(text, x, y + px * 0.05);
+}
+function burstText(o, text, x, y, px) {
+  o.font = `700 ${px}px Quicksand, sans-serif`;
+  if ('letterSpacing' in o) o.letterSpacing = `${px * 0.14}px`;
+  for (const [color, w] of LAYERS) { o.lineWidth = w * px; o.strokeStyle = color; o.strokeText(text, x, y); if (w < 0.2) { o.fillStyle = color; o.fillText(text, x, y); } }
+  if ('letterSpacing' in o) o.letterSpacing = '0px';
 }
 
 // ------------------------------------------------------------------ what adlib throws up
