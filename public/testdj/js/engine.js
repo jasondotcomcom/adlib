@@ -1,6 +1,6 @@
 // engine.js — the sound. One AudioContext, a real mix bus, a sample-accurate
 // clock, and instruments that read the song in song.js.
-import { song, vibe, chordFor, melody, hash, bassStep, harmonyAbove, COMPS, ROWS, STEPS } from './song.js';
+import { song, vibe, chordFor, melody, hash, bassStep, harmonyAbove, COMPS, chordInstrument, leadVoice, ROWS, STEPS } from './song.js';
 
 let ctx = null;
 const N = {};            // audio nodes by name
@@ -383,7 +383,7 @@ function scheduleStep(abs, time) {
   if (song.keys && keysIn && !bare) {
     const ch = chordFor(bar);
     const comp = song.vary ? (COMPS[v.id] || [v.comp])[Math.floor(song.seed / 7) % (COMPS[v.id] || [v.comp]).length] : v.comp;
-    const inst = song.tone === 'full' && v.chords ? v.chords : 'piano';
+    const inst = chordInstrument();
     for (const [cs, len, vel] of comp) if (cs === s) ch.keys.forEach((m, i) => inst === 'piano' ? key(m, t + i * 0.012, len * sd, vel * (i === 3 ? 0.7 : 1), N.keys) : chordNote(inst, m, t + (inst === 'pluck' ? i * 0.018 : 0), len * sd, vel * (i === 3 ? 0.7 : 1)));
     // the pad: three styles always had one; in Full every style gets a soft bed under the chords
     if (s === 0 && (v.pad || (song.tone === 'full' && mix.bed))) pad(ch.pad, t, STEPS * sd, v.pad ? 1 : 0.65);
@@ -393,10 +393,10 @@ function scheduleStep(abs, time) {
   if (song.lead && fullIn && !bare) {
     const at = b4 * STEPS + s;
     for (const n of melody()) if (n.s === at) {
-      lead(n.midi, t, n.len * sd, v.lead);
+      lead(n.midi, t, n.len * sd, leadVoice());
       // Full sound: a harmony a third above, in the key, on the longer notes and through the
       // last bar of each phrase, so it lifts in the right places instead of all the time
-      if (song.tone === 'full' && !mine() && (n.len >= 3 || b4 === 3)) lead(harmonyAbove(n.midi), t, n.len * sd, v.lead, 0.45);
+      if (song.tone === 'full' && !mine() && (n.len >= 3 || b4 === 3)) lead(harmonyAbove(n.midi), t, n.len * sd, leadVoice(), 0.45);
     }
   }
 }

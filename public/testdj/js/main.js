@@ -1,5 +1,5 @@
 // main.js — the page. Two views of one beat: build it, then rap on it.
-import { song, vibe, VIBES, KITS, ROWS, ROW_LABELS, STEPS, loadVibe, diceRow, diceAll, rollBeat, newMelody, encodeSong, decodeSong, shownBpm, chordFor, beatFromVoice } from './song.js';
+import { song, vibe, VIBES, KITS, ROWS, ROW_LABELS, STEPS, loadVibe, pickVibe, diceRow, diceAll, rollBeat, newMelody, encodeSong, decodeSong, shownBpm, chordFor, beatFromVoice } from './song.js';
 import * as engine from './engine.js';
 import { ears, startEars, stopEars, slice, micRate } from './ears.js';
 import { voice, buildVoice, voiceDrum, voiceNote, voiceTag, voiceChop, voiceRiser, rollSay, packTake, unpack, toWav, fromWav, TAKE_RATE } from './voicekit.js';
@@ -19,7 +19,7 @@ function buildVibes() {
   for (const v of VIBES) {
     const b = document.createElement('button');
     b.type = 'button'; b.className = 'vibe'; b.textContent = v.name; b.dataset.id = v.id;
-    b.addEventListener('click', async () => { await wake(); const mine = song.kit === 'you'; loadVibe(v.id); if (mine) song.kit = 'you'; engine.applyKit(); tell('you picked'); render(); if (!engine.isPlaying()) engine.play(); syncPlay(); });
+    b.addEventListener('click', async () => { await wake(); const mine = song.kit === 'you'; pickVibe(v.id); if (mine) song.kit = 'you'; engine.applyKit(); tell('you picked'); render(); if (!engine.isPlaying()) engine.play(); syncPlay(); });
     nav.appendChild(b);
   }
 }
@@ -351,7 +351,7 @@ function boot() {
   const m = location.hash.match(/b=([^&]+)/);
   const came = !!(m && decodeSong(decodeURIComponent(m[1])));
   if (came) document.body.removeAttribute('data-start');
-  else { loadVibe('boombap'); document.body.setAttribute('data-start', ''); }
+  else { pickVibe('boombap'); document.body.setAttribute('data-start', ''); }
   if (song.kit === 'you') song.kit = vibe().kit;             // until the voice itself has arrived
   if (came) counted.add(keyNow());                           // a beat from a link is not one made here
   const vm = location.hash.match(/[&#]v=([a-z0-9]{8,20})/);
