@@ -284,12 +284,26 @@ function tick() {
   const ahead = ctx.currentTime + 0.13;
   let guard = 0;
   while (nextTime < ahead && guard++ < 64) {
+    if (endStep >= 0 && nextStep >= endStep) { playing = false; endStep = -1; return; }   // a clip asked to end here
     if (nextTime > ctx.currentTime - 0.05) scheduleStep(nextStep, nextTime);
     nextTime += stepDur(); nextStep++;
   }
 }
 // Play picks up where a pause left off; after a stop it starts from the top.
-let paused = false;
+let paused = false, endStep = -1;
+// For the clip: start at an exact audio time, a voice beat straight at its drop (crash, kit,
+// melody and the whole phrase on bar one), and stop scheduling before a given step.
+export function playAt(time, { drop = false } = {}) {
+  if (!ctx) return;
+  const A = ARRANGE[song.vary ? song.seed % ARRANGE.length : 0];
+  nextStep = 0; arcFrom = drop ? -A.full : 0; endStep = -1;
+  nextTime = time; playing = true; paused = false; lastBass = null; startTimer(); tick();
+}
+export function endAt(abs) { endStep = abs; }
+export const stepAt = t => Math.round(posAt(t));
+// adlib's own hits (not the person's): the clip's count-in and its last kick and crash
+export function adlibHit(r, t, vel) { drum(r, t, vel); }
+export function lastHit(t) { drum(0, t, 1); crash(t, 0.7); }
 export const isPaused = () => paused;
 export function play() {
   if (!ctx || playing) return;
