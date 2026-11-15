@@ -191,6 +191,12 @@ function wireControls() {
   $('shareHowCancel').addEventListener('click', () => { $('shareHow').hidden = true; });
   $('clipStop').addEventListener('click', () => { stopClip(); $('clipStop').disabled = true; $('clipTime').textContent += ' ending on the bar'; });
   $('clipBack').addEventListener('click', leaveClip);
+  // the logo goes home: a fresh front door (the beat stays in the history, so back brings it back).
+  // Not on the front door itself, and not while rapping or recording a clip.
+  $('homeLink').addEventListener('click', e => {
+    if (document.body.hasAttribute('data-start') || view === 'perform' || view === 'clip' || clipping()) { e.preventDefault(); return; }
+    e.preventDefault(); location.assign(new URL('./', document.baseURI).href);
+  });
   $('clipShare').addEventListener('click', shareClip);
   $('modeBtn').addEventListener('click', () => { const m = hype.mode === 'hype' ? 'boom' : 'hype'; setMode(m); $('modeBtn').textContent = m === 'hype' ? 'Hype voice' : 'Boom voice'; });
   $('phonesBtn').addEventListener('click', async () => {
