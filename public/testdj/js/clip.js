@@ -3,7 +3,8 @@
 // all on the audio clock: the say (your raw voice, dry, the phrase lighting syllable by
 // syllable), the flip (a one-bar count-in of drums cut from your voice, each syllable jumping
 // in its drum's colour), the drop (the full beat from its drop, two or four bars) and the tag
-// (the name and the line, the beat stopped on one last kick and crash). It ends by itself.
+// (the name and the line, the beat stopped on one last kick and crash). The drop runs until
+// stop, up to a minute and a half.
 // The picture is the scene stage.js draws from the timeline built here; the sound is the
 // engine's own output, recorded clean. Nothing is uploaded.
 import * as engine from './engine.js';
@@ -15,6 +16,7 @@ const TYPES = ['video/mp4;codecs=avc1.42E01E,mp4a.40.2', 'video/mp4;codecs=avc1,
 const pickType = () => { if (!window.MediaRecorder) return null; for (const t of TYPES) { try { if (MediaRecorder.isTypeSupported(t)) return t; } catch {} } return null; };
 export const canClip = () => !!(pickType() && HTMLCanvasElement.prototype.captureStream);
 const TAG = 2;                                  // seconds of the name and the line at the end
+export const MAX_SECS = 90;                     // the longest clip, start to finish
 const COUNT_IN = [[0, 'kick'], [3, 'hat'], [1, 'snare'], [3, 'hat']];
 
 let rec = null, lastTl = null;
@@ -38,13 +40,15 @@ export function startClip({ out, phrase, heard, line, pads, onTick, onDone }) {
     for (const f of tl.flip) engine.adlibHit(f.r, f.t, 0.95);
     tl.t2 = tl.t1 + bar;
   }
-  // 3. the drop: four bars if they fit in nine seconds, otherwise two
-  const bars = bar * 4 <= (hasVoice ? 9 : 13) ? 4 : 2;     // no voice, no say or flip: a longer drop keeps it near the same length
+  // 3. the drop: the beat keeps going until you hit stop, so there's room to freestyle over it
+  // (Jason: long enough that people can take the audio on Instagram and rap on it). It ends on
+  // the bar after stop, or by itself on the last whole bar before the cap.
+  const bars = Math.max(2, Math.floor((MAX_SECS - (tl.t2 - t0) - TAG) / bar));
   tl.tEnd = tl.t2 + bars * bar; tl.tStop = tl.tEnd + TAG;
   if (!startClipScene(out, { phrase: hasVoice ? phrase : '', heard, line, pads, tl })) return false;
 
   const stream = new MediaStream([...out.captureStream(30).getVideoTracks(), ...audio.getAudioTracks()]);
-  const chunks = [], mr = new MediaRecorder(stream, { mimeType: type, videoBitsPerSecond: 6e6, audioBitsPerSecond: 160000 });
+  const chunks = [], mr = new MediaRecorder(stream, { mimeType: type, videoBitsPerSecond: 4e6, audioBitsPerSecond: 160000 });
   mr.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
   lastTl = { ...tl, rec0: ctx.currentTime };
   const r = rec = { mr, tl, stopping: false, cancelled: false, timer: 0, ends: [] };
