@@ -48,7 +48,7 @@ export function startClip({ out, phrase, heard, line, pads, onTick, onDone }) {
   if (!startClipScene(out, { phrase: hasVoice ? phrase : '', heard, line, pads, tl })) return false;
 
   const stream = new MediaStream([...out.captureStream(30).getVideoTracks(), ...audio.getAudioTracks()]);
-  const chunks = [], mr = new MediaRecorder(stream, { mimeType: type, videoBitsPerSecond: 4e6, audioBitsPerSecond: 160000 });
+  const chunks = [], mr = new MediaRecorder(stream, { mimeType: type, videoBitsPerSecond: 3.5e6, audioBitsPerSecond: 160000 });
   mr.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
   lastTl = { ...tl, rec0: ctx.currentTime };
   const r = rec = { mr, tl, stopping: false, cancelled: false, timer: 0, ends: [] };
