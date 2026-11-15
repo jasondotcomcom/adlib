@@ -403,6 +403,15 @@ function light(k, t, who) { for (const fn of lights) fn(k, t, who); }
 // one syllable's sound, for drawing its wave on a pad when the letters can't be trusted
 export const padBuf = k => (chopBufs() || [])[k] || null;
 export const pads = () => (chopBufs() || []).length;
+// when each syllable starts, in seconds from the start of the phrase
+export const syllableTimes = () => { chopBufs(); return chopStarts.slice(); };
+// which syllable a voice drum was cut from: the one whose start is nearest the drum's slice
+export function drumSyllable(name) {
+  const st = syllableTimes(); if (!st.length || !take || !voice.parts || !voice.parts[name]) return -1;
+  const x = (voice.parts[name][0] - voice.parts.word[0]) / take.sr;
+  let best = 0; st.forEach((v, k) => { if (Math.abs(v - x) < Math.abs(st[best] - x)) best = k; });
+  return best;
+}
 export function playPad(k, t, semis = 0) {
   const set = chopBufs(); if (!set || !set.length) return;
   k = ((k % set.length) + set.length) % set.length;

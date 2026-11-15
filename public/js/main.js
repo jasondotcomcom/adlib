@@ -7,7 +7,7 @@ import { words, startWords, stopWords, onWord, feed } from './words.js';
 import { hype, startHype, stopHype, setMode } from './hype.js';
 import { initStage, setPerforming } from './stage.js';
 import { initToy, syncToy, newPhrase, toy } from './toy.js';
-import { canClip, startClip, stopClip, cancelClip, clipping } from './clip.js';
+import { canClip, startClip, stopClip, cancelClip, clipping, clipTimeline } from './clip.js';
 
 const $ = id => document.getElementById(id);
 const NOTE = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
@@ -358,6 +358,7 @@ async function makeClip() {
   const phrase = song.kit === 'you' && voice.ready && said ? said : '';
   const ok = startClip({
     out: $('clipCanvas'), phrase, line: () => `${vibe().name.toLowerCase()}. ${shownBpm()} bpm.`,
+    heard: `i heard ${vibe().name.toLowerCase()}. ${shownBpm()} bpm.`,
     pads: () => { const els = [...document.querySelectorAll('#pads .pad')]; return { side: toy.side, labels: els.map(e => (e.classList.contains('empty') ? '' : e.querySelector('.lab').textContent.trim())), empty: els.map(e => e.classList.contains('empty')) }; },
     onTick: secs => { if (!$('clipStop').disabled) $('clipTime').textContent = clock(secs); },
     onDone: (blob, ext) => {
@@ -424,6 +425,6 @@ function boot() {
     }
     document.body.appendChild(box);
   }
-  window.adlib = { song, engine, ears, words, hype, feed, voice, buildVoice, toy };
+  window.adlib = { song, engine, ears, words, hype, feed, voice, buildVoice, toy, clipTimeline };
 }
 boot();
