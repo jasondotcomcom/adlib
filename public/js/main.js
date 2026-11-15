@@ -2,12 +2,12 @@
 import { song, vibe, VIBES, KITS, ROWS, ROW_LABELS, STEPS, loadVibe, pickVibe, diceRow, diceAll, rollBeat, newMelody, encodeSong, decodeSong, shownBpm, chordFor, beatFromVoice } from './song.js';
 import * as engine from './engine.js';
 import { ears, startEars, stopEars, slice, micRate } from './ears.js';
-import { voice, buildVoice, voiceDrum, voiceNote, voiceTag, voiceChop, voiceRiser, rollSay, packTake, unpack, toWav, fromWav, TAKE_RATE } from './voicekit.js';
+import { voice, buildVoice, voiceDrum, voiceNote, voiceTag, voiceChop, voiceRiser, rollSay, packTake, unpack, toWav, fromWav, TAKE_RATE, playPad } from './voicekit.js';
 import { words, startWords, stopWords, onWord, feed } from './words.js';
 import { hype, startHype, stopHype, setMode } from './hype.js';
-import { initStage, setPerforming, setDecks } from './stage.js';
-import { deck, startDeck, stopDeck } from './decks.js';
-import { canClip, startClip, stopClip, cancelClip, clipping } from './clip.js';
+import { initStage, setPerforming } from './stage.js';
+import { initToy, syncToy, newPhrase, toy } from './toy.js';
+import { canClip, startClip, stopClip, cancelClip, clipping, clipTimeline } from './clip.js';
 
 const $ = id => document.getElementById(id);
 const NOTE = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
@@ -22,6 +22,9 @@ function buildVibes() {
     b.type = 'button'; b.className = 'vibe'; b.textContent = v.name; b.dataset.id = v.id;
     b.addEventListener('click', async () => { await wake(); const mine = song.kit === 'you'; pickVibe(v.id); if (mine) song.kit = 'you'; engine.applyKit(); tell('you picked'); render(); if (!engine.isPlaying()) engine.play(); syncPlay(); });
     nav.appendChild(b);
+    const c = document.createElement('button'); c.type = 'button'; c.className = 'vibe'; c.textContent = v.name; c.dataset.id = v.id;
+    c.addEventListener('click', () => { $('styleSheet').hidden = true; b.click(); });
+    $('styleList').appendChild(c);
   }
 }
 function buildGrid() {
@@ -90,6 +93,9 @@ function render() {
   for (const b of $('vox').children) b.setAttribute('aria-pressed', b.dataset.vox === song.vox);
   $('voxKnob').hidden = !(song.kit === 'you' && voice.ready);
   $('bassBtn').setAttribute('aria-pressed', song.bass); $('keysBtn').setAttribute('aria-pressed', song.keys); $('leadBtn').setAttribute('aria-pressed', song.lead);
+  $('toyBpm').textContent = shownBpm(); $('styleBtn').textContent = v.name;
+  for (const b of $('styleList').children) b.setAttribute('aria-pressed', b.dataset.id === song.vibe);
+  syncToy();
   if (!/^didn't/.test($('sayLine').textContent)) tell();
 }
 function syncPlay() { const on = engine.isPlaying(); $('playBtn').setAttribute('aria-label', on ? 'Pause' : 'Play'); $('playBtn').setAttribute('aria-pressed', on); }
@@ -138,6 +144,15 @@ function wireControls() {
   $('stopBtn').addEventListener('click', () => { engine.stop(); syncPlay(); });
   const tempo = d => { song.bpm = Math.max(50, Math.min(180, song.bpm + d)); render(); saveHash(); };
   hold($('bpmDown'), () => tempo(-1)); hold($('bpmUp'), () => tempo(1));
+  hold($('toyBpmDown'), () => tempo(-1)); hold($('toyBpmUp'), () => tempo(1));
+  $('toyRoll').innerHTML = DIE; $('toyRoll').addEventListener('click', () => $('rollBtn').click());
+  $('styleBtn').addEventListener('click', () => { $('styleSheet').hidden = !$('styleSheet').hidden; });
+  $('styleClose').addEventListener('click', () => { $('styleSheet').hidden = true; });
+  $('gridBtn').addEventListener('click', () => {
+    const grid = document.body.dataset.mode !== 'grid';
+    document.body.dataset.mode = grid ? 'grid' : 'pads'; $('gridBtn').setAttribute('aria-pressed', grid);
+    $('gridBtn').setAttribute('aria-label', grid ? 'Turn the machine back over to the pads' : 'Turn the machine over to the grid');
+  });
   $('swing').addEventListener('input', e => { song.swing = +e.target.value; render(); }); $('swing').addEventListener('change', saveHash);
   $('keyDown').addEventListener('click', () => { song.key = Math.max(-6, song.key - 1); newKey(); });
   $('keyUp').addEventListener('click', () => { song.key = Math.min(6, song.key + 1); newKey(); });
@@ -171,8 +186,6 @@ function wireControls() {
   $('sharePlain').addEventListener('click', () => { $('shareSheet').hidden = true; sendLink(true); });
   $('shareCancel').addEventListener('click', () => { $('shareSheet').hidden = true; });
   $('backBtn').addEventListener('click', backToBeat);
-  $('decksLink').addEventListener('click', e => { e.preventDefault(); decks(); });
-  $('decksBack').addEventListener('click', leaveDecks);
   $('clipBtn').addEventListener('click', () => { $('shareHow').hidden = true; makeClip(); });
   $('shareLink').addEventListener('click', shareLink);
   $('shareHowCancel').addEventListener('click', () => { $('shareHow').hidden = true; });
@@ -190,7 +203,7 @@ function wireControls() {
     if (e.target.closest('input,textarea')) return;
     if (e.code === 'Space' && !simple() && !e.target.closest('button')) { e.preventDefault(); $('playBtn').click(); }
     if (e.key === 'Escape' && view === 'perform') backToBeat();
-    if (e.key === 'Escape' && view === 'decks') leaveDecks();
+    if (e.key === 'Escape' && !$('styleSheet').hidden) $('styleSheet').hidden = true;
     if (e.key === '`') $('debug').hidden = !$('debug').hidden;
   });
   engine.on('step', (abs, t) => { stepQueue.push({ s: abs % STEPS, t }); if (stepQueue.length > 64) stepQueue.shift(); });
@@ -286,7 +299,7 @@ async function sayIt() {
   stopEars(); btn.classList.remove('live');
   const pcm = data && packTake(data, sr), ok = pcm && buildVoice(unpack(pcm), TAKE_RATE);
   if (ok) { voice.pcm = pcm; voice.id = null; }
-  if (ok) { said = $('sayWord').value.trim(); const made = beatFromVoice(voice.parts); takeNo++; song.kit = 'you'; engine.applyKit(); openUp(); told = 'i heard'; again = false; line.textContent = `i heard ${made.name.toLowerCase()}. ${made.bpm} bpm.`; }
+  if (ok) { said = $('sayWord').value.trim(); newPhrase(said); const made = beatFromVoice(voice.parts); takeNo++; song.kit = 'you'; engine.applyKit(); openUp(); told = 'i heard'; again = false; line.textContent = `i heard ${made.name.toLowerCase()}. ${made.bpm} bpm.`; }
   else line.textContent = "didn't catch that. say it louder.";
   render(); saveHash();
   if (ok || was) { if (!engine.isPlaying()) engine.play(); else engine.restartArc(); syncPlay(); }
@@ -334,7 +347,6 @@ function backToBeat() {
   $('micHelp').hidden = true;
 }
 
-// ------------------------------------------------------------------ decks view
 // ------------------------------------------------------------------ the clip
 let said = '', clipFile = null, clipUrl = '';
 const clock = secs => `${Math.floor(secs / 60)}:${String(Math.floor(secs % 60)).padStart(2, '0')}`;
@@ -346,6 +358,8 @@ async function makeClip() {
   const phrase = song.kit === 'you' && voice.ready && said ? said : '';
   const ok = startClip({
     out: $('clipCanvas'), phrase, line: () => `${vibe().name.toLowerCase()}. ${shownBpm()} bpm.`,
+    heard: `i heard ${vibe().name.toLowerCase()}. ${shownBpm()} bpm.`,
+    pads: () => { const els = [...document.querySelectorAll('#pads .pad')]; return { side: toy.side, labels: els.map(e => (e.classList.contains('empty') ? '' : e.querySelector('.lab').textContent.trim())), empty: els.map(e => e.classList.contains('empty')) }; },
     onTick: secs => { if (!$('clipStop').disabled) $('clipTime').textContent = clock(secs); },
     onDone: (blob, ext) => {
       const name = `adlib-${(phrase || vibe().name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'beat'}.${ext}`;
@@ -370,17 +384,6 @@ function leaveClip() {
   const v = $('clipVideo'); v.pause(); v.removeAttribute('src'); v.load();
   if (clipUrl) { URL.revokeObjectURL(clipUrl); clipUrl = ''; } clipFile = null;
   view = 'build'; document.body.dataset.view = 'build';
-}
-
-async function decks() {
-  openUp(); await wake();
-  if (!engine.isPlaying()) { engine.play(); syncPlay(); }
-  view = 'decks'; document.body.dataset.view = 'decks'; scrollTo(0, 0); setDecks(true);
-  await startDeck($('decks'), $('keepBtn'), () => { render(); saveHash(); });
-}
-function leaveDecks() {
-  view = 'build'; document.body.dataset.view = 'build';
-  stopDeck(); setDecks(false);
 }
 
 // ------------------------------------------------------------------ debug (press `)
@@ -408,10 +411,9 @@ function boot() {
     incoming = fetch('/api/voice?id=' + vm[1]).then(r => (r.ok ? r.arrayBuffer() : null)).then(b => { const pcm = b && fromWav(b); return pcm ? { id: vm[1], pcm } : null; }).catch(() => null);
     $('sayLine').textContent = 'this beat is made of a voice. hit play.';
   }
-  engine.setOwnKit({ ready: () => voice.ready, drum: voiceDrum, note: voiceNote, tag: voiceTag, chop: voiceChop, riser: voiceRiser });
-  buildVibes(); buildGrid(); buildTape(); wireControls(); render(); initStage(); playhead(); debugLoop(); watchBeats();
+  engine.setOwnKit({ ready: () => voice.ready, drum: voiceDrum, note: voiceNote, tag: voiceTag, chop: voiceChop, riser: voiceRiser, pad: playPad });
+  buildVibes(); buildGrid(); buildTape(); wireControls(); initToy({ wake, changed: why => { if (why === 'play') syncPlay(); else { render(); saveHash(); } } }); render(); initStage(); playhead(); debugLoop(); watchBeats();
   if (new URLSearchParams(location.search).has('debug')) $('debug').hidden = false;
-  if (/^\/testdj\/?$/.test(location.pathname)) $('decksLink').hidden = false;
   // /testdj?mix: switches for each mix stage, so Jason can hear what each one does
   if (/[?&]mix\b/.test(location.search)) {
     const box = document.createElement('div'); box.className = 'mixbox';
@@ -422,7 +424,7 @@ function boot() {
       box.appendChild(b);
     }
     document.body.appendChild(box);
-  }   // the decks are only reachable here while they're being tested
-  window.adlib = { song, engine, ears, words, hype, feed, voice, buildVoice, deck };
+  }
+  window.adlib = { song, engine, ears, words, hype, feed, voice, buildVoice, toy, clipTimeline };
 }
 boot();

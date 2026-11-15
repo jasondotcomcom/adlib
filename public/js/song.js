@@ -125,6 +125,7 @@ export const vibeById = id => VIBES.find(v => v.id === id) || VIBES[2];
 export const song = {
   vibe: 'boombap', bpm: 90, swing: 58, key: 0, seed: 1, kit: 'dusty',
   keys: true, lead: true, bass: true, walk: false, vary: false, tone: 'full', vox: 'chops',   // vox: how a voice beat's melody uses your phrase
+  pads: null,          // a voice beat's hook played on the syllable pads and kept: 32 sixteenths of [pad + 1, semitones], or null for adlib's own
   pat: ROWS.map(() => new Array(STEPS).fill(0)),
 };
 
@@ -317,7 +318,7 @@ function shapedMelody(shape, r, pitch, v) {
 const rowHex = row => parseInt(row.join(''), 2).toString(16).padStart(4, '0');
 export function encodeSong() {
   return ['2', song.vibe, song.bpm, song.swing, song.key + 12, song.seed.toString(36), KITS.indexOf(song.kit),
-    (song.keys ? 1 : 0) + (song.lead ? 2 : 0) + (song.bass ? 0 : 4) + (song.walk ? 8 : 0) + (song.vary ? 16 : 0), song.pat.map(rowHex).join('')].concat(song.tone === 'full' ? ['f'] : []).join('.');
+    (song.keys ? 1 : 0) + (song.lead ? 2 : 0) + (song.bass ? 0 : 4) + (song.walk ? 8 : 0) + (song.vary ? 16 : 0), song.pat.map(rowHex).join('')].concat(song.tone === 'full' ? ['f'] : [], song.pads ? ['p' + song.pads.map(e => e ? (e[0]).toString(36) + (e[1] + 12).toString(36) : '00').join('')] : []).join('.');
 }
 export function decodeSong(str) {
   try {
@@ -331,10 +332,21 @@ export function decodeSong(str) {
       const n = parseInt(hex.slice(i * 4, i * 4 + 4), 16); if (Number.isNaN(n)) return false;
       pat.push(n.toString(2).padStart(16, '0').split('').map(Number));
     }
-    Object.assign(song, { vibe: v.id, bpm, swing, key, seed, kit, keys: !!(flags & 1), lead: !!(flags & 2), bass: !(flags & 4), walk: !!(flags & 8), vary: !!(flags & 16), tone: f[9] === 'f' ? 'full' : 'classic', pat });   // links from before the Full bass were Classic
+    Object.assign(song, { vibe: v.id, bpm, swing, key, seed, kit, keys: !!(flags & 1), lead: !!(flags & 2), bass: !(flags & 4), walk: !!(flags & 8), vary: !!(flags & 16), tone: f.slice(9).includes('f') ? 'full' : 'classic', pat, pads: decodePads(f.slice(9).find(x => x[0] === 'p')) });   // links from before the Full bass were Classic
     melodyCache = null;
     return true;
   } catch { return false; }
+}
+
+function decodePads(x) {
+  if (!x || x.length !== 65) return null;
+  const out = []; let any = false;
+  for (let i = 0; i < 32; i++) {
+    const k = parseInt(x[1 + i * 2], 36), st = parseInt(x[2 + i * 2], 36) - 12;
+    if (Number.isNaN(k) || Number.isNaN(st)) return null;
+    out.push(k ? [k, Math.max(-12, Math.min(12, st))] : null); if (k) any = true;
+  }
+  return any ? out : null;
 }
 
 // ---------- a beat that comes out of a voice ----------

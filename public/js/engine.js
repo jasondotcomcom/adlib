@@ -284,12 +284,26 @@ function tick() {
   const ahead = ctx.currentTime + 0.13;
   let guard = 0;
   while (nextTime < ahead && guard++ < 64) {
+    if (endStep >= 0 && nextStep >= endStep) { playing = false; endStep = -1; return; }   // a clip asked to end here
     if (nextTime > ctx.currentTime - 0.05) scheduleStep(nextStep, nextTime);
     nextTime += stepDur(); nextStep++;
   }
 }
 // Play picks up where a pause left off; after a stop it starts from the top.
-let paused = false;
+let paused = false, endStep = -1;
+// For the clip: start at an exact audio time, a voice beat straight at its drop (crash, kit,
+// melody and the whole phrase on bar one), and stop scheduling before a given step.
+export function playAt(time, { drop = false } = {}) {
+  if (!ctx) return;
+  const A = ARRANGE[song.vary ? song.seed % ARRANGE.length : 0];
+  nextStep = 0; arcFrom = drop ? -A.full : 0; endStep = -1;
+  nextTime = time; playing = true; paused = false; lastBass = null; startTimer(); tick();
+}
+export function endAt(abs) { endStep = abs; }
+export const stepAt = t => Math.round(posAt(t));
+// adlib's own hits (not the person's): the clip's count-in and its last kick and crash
+export function adlibHit(r, t, vel) { drum(r, t, vel); }
+export function lastHit(t) { drum(0, t, 1); crash(t, 0.7); }
 export const isPaused = () => paused;
 export function play() {
   if (!ctx || playing) return;
@@ -345,7 +359,9 @@ function scheduleStep(abs, time) {
     // Your phrase is the hook. Whole at the top and alone in the breakdown. In between it
     // comes back on the one every four bars: whole when the keys arrive and on the first
     // drop, then trading front half and whole. It stays out while someone is rapping.
-    if (s === 0 && !decksHook.on) {
+    // a hook you played on the pads and kept takes the place of adlib's
+    if (song.pads && own.pad) { if (!decksHook.on) { const e = song.pads[abs % 32]; if (e) own.pad(e[0] - 1, t, e[1]); } }
+    else if (s === 0 && !decksHook.on) {
       const c = ab >= A.full ? (ab - A.full) % A.cycle : -1;
       if (ab === 0 || bare) hook(t);
       else if (!perf.on) {
@@ -431,10 +447,12 @@ function sample(name, t, vel, rate, dest) {
 }
 let openHat = null, hatSide = false;
 // the decks play the drums straight from adlib's mouth
-export const hitDrum = (r, t, vel) => drum(r, t, vel);
+// (the pads tell the picture it was you, so it lights red; semis tunes just this one hit)
+let byYou = false;
+export function hitDrum(r, t, vel, semis = 0) { const was = drumTune.semis; byYou = true; drumTune.semis = was + semis; try { drum(r, t, vel); } finally { byYou = false; drumTune.semis = was; } }
 function drum(r, t, vel) {
   const name = DRUM_SAMPLE[r], k = KIT_FX[song.kit] || KIT_FX.clean;
-  emit('hit', r, t, vel);
+  emit('hit', r, t, vel, byYou);
   if (r <= 2) { drumLog.push({ t, r }); if (drumLog.length > 64) drumLog.shift(); }
   if (r === 0) sidechain(t);
   if (r === 3 && openHat) { openHat.g.gain.setTargetAtTime(0, t, 0.012); openHat = null; }    // closed hat chokes the open one

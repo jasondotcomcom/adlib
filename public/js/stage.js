@@ -8,6 +8,7 @@ import { ears, onEar } from './ears.js';
 import { onShow, hype } from './hype.js';
 import { onWord, isContent } from './words.js';
 import { deck, layout as deckLayout, tickDeck } from './decks.js';
+import { onPadLight, padBuf, syllableTimes, voice } from './voicekit.js';
 
 const NR = 8, NC = 20, ND = 24, NW = 8;
 const reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -83,6 +84,13 @@ export function initStage() {
   resize(); window.addEventListener('resize', resize);
   onBeat('hit', (r, t, vel) => { if (r <= 2) { hits.push({ r, t, vel }); if (hits.length > 100) hits.shift(); } });
   onBeat('hook', (t, o) => { if (clip) clip.hooks.push({ t, half: !!(o && o.half) }); });
+  // the clip shows the pads: drums light with the beat, words with adlib's recitation; red when it's you
+  onBeat('hit', (r, t, vel, you) => {
+    if (!clip) return;
+    if (r === 0) clip.kicks.push(t);
+    if (r < 6 && !(clip.tl && clip.tl.voice) && clip.pads.side === 'drums') clip.lights.push({ k: r, t, you: !!you, loud: vel > 0.85 });
+  });
+  onPadLight((k, t, who) => { if (clip && ((clip.tl && clip.tl.voice) || (k < 6 && clip.pads.side === 'words'))) clip.lights.push({ k, t, you: who === 'you', loud: false }); });
   onShow(ev => pending.push(ev));
   onEar('onset', () => { if (performing && !reduced) wave(0.3, 2, 620, 1); });
   onWord(addWord);
@@ -260,56 +268,195 @@ function frame(ts) {
 
 // ------------------------------------------------------------------ the clip
 // A 9:16 picture for Instagram and TikTok, drawn by its own copy of the shader while a clip
-// records: the ring in the middle moves with the music, adlib's face below nods along and
-// lights up each time your phrase comes back, the name on top, and the phrase and the
-// address written in. The main screen stops drawing meanwhile.
+// records. It shows the toy, not the rap screen: the name, your phrase, the six pads lighting
+// with the beat (or with adlib's recitation on the words side, red where it's you), and adlib's
+// face below reacting when your phrase comes back. The main screen stops drawing meanwhile.
 const CW = 540, CH = 960, CDPR = 2;
 let clip = null;
 export function startClipScene(out, info) {
   const cv = document.createElement('canvas'); cv.width = CW * CDPR; cv.height = CH * CDPR;
   let g; try { g = makeGL(cv, true); } catch { return false; }
-  clip = { cv, g, out, o2: out.getContext('2d'), info, hooks: [], face: 'listening', faceUntil: 0, lvl: 0, phase0: phaseTo };
+  const pads = info.pads ? info.pads() : { side: 'drums', labels: [], empty: [] };
+  clip = { cv, g, out, o2: out.getContext('2d'), info, tl: info.tl, hooks: [], face: 'listening', faceUntil: 0, lvl: 0,
+    lights: [], lit: [], kicks: [], kickAt: -9, hookAt: -9, pads, voiced: false };
+  clip.waves = pads.labels.map((l, k) => (pads.side === 'words' && !l && !pads.empty[k] ? padWave(k) : null));
+  clip.syl = info.tl && info.tl.voice ? syllableTimes() : [];
+  clip.wordWave = info.tl && info.tl.voice && !info.phrase ? wordWave() : null;
+  clip.env = info.tl && info.tl.voice ? (wordWave() || { peaks: [], dur: 1 }) : null;     // how loud the take is, moment by moment
   out.width = CW * CDPR; out.height = CH * CDPR; waves.length = 0;
   return true;
 }
+// testing aid (?debug): draw the clip scene as it looks at a given audio time
+if (typeof location !== 'undefined' && /[?&]debug\b/.test(location.search)) { window.__clipAt = t => { if (clip) clipFrame(t, 0.016); }; window.__clipPhrase = p => { if (clip) { clip.info.phrase = p; clip.layout = null; } }; }
 export function stopClipScene() { if (clip) { const lose = clip.g.gl.getExtension('WEBGL_lose_context'); if (lose) lose.loseContext(); } clip = null; waves.length = 0; }
+
+const DRUM_INK = ['#FEE601', '#FD2D55', '#FD2D55', '#2D54FD'];   // kick, snare, clap, hat: the grid's colours
 function clipFrame(now, dt) {
-  const c = clip, { gl: g, U: u } = c.g, save = [W, H, dpr];
+  const c = clip, tl = c.tl, { gl: g, U: u } = c.g, save = [W, H, dpr];
+  const part = !tl ? 'drop' : now < tl.t1 ? 'say' : now < tl.t2 ? 'flip' : now < tl.tEnd ? 'drop' : 'tag';
   W = CW; H = CH; dpr = CDPR;
   nr = nc = nd = 0; rings.fill(0); capR.fill(0); discs.fill(0); wavesU.fill(0);
-  const T = 22, cx = CW / 2, cy = 400;
-  // the face: listening until the beat drops in, then feeling it; the phrase coming back
-  // whole is a full yell, its front half an "ooh", with rings out of his mouth
+  const T = 22, cx = CW / 2;
   while (c.hooks.length && c.hooks[0].t <= now) {
     const h = c.hooks.shift();
-    c.face = h.half ? 'ooh' : 'hype'; c.faceUntil = now + (h.half ? 0.7 : 1.3);
+    c.face = h.half ? 'ooh' : 'hype'; c.faceUntil = now + (h.half ? 0.7 : 1.3); c.hookAt = now;
     if (!reduced) wave(h.half ? 0.7 : 1, 0, 820, 2);
   }
-  if (c.faceUntil && now > c.faceUntil) { c.faceUntil = 0; c.face = 'feeling'; }
-  if (!c.faceUntil) c.face = phaseTo > c.phase0 ? 'feeling' : 'listening';      // nodding along once the first kick lands
+  c.lights.sort((x, y) => x.t - y.t);
+  while (c.lights.length && c.lights[0].t <= now) { const l = c.lights.shift(); c.lit[l.k] = { at: now, you: l.you, loud: l.loud }; }
+  if (c.lights.length > 200) c.lights.splice(0, c.lights.length - 200);
+  while (c.kicks.length && c.kicks[0] <= now) { c.kickAt = c.kicks.shift(); }
+  if (c.faceUntil && now > c.faceUntil) c.faceUntil = 0;
+  if (!c.faceUntil) c.face = part === 'say' ? 'listening' : 'feeling';
   c.lvl += (Math.min(1, levelOf() * 3.2) - c.lvl) * Math.min(1, dt * 14);
-  ring(cx, cy, 2.6 * T, T * (0.45 + c.lvl * 0.9));       // ring 0: the music
-  const gap = drawFace(c.face, cx, 760, 11);             // ring 1: his mouth
-  wordmark(cx, 150, 11);
+  ring(cx, -4000, 1, 0.1);                                     // ring 0 kept off-screen so his mouth stays ring 1
+  const big = part === 'drop' || part === 'tag', fu = big ? 10 : 7;
+  const gap = drawFace(c.face, cx, big ? 790 : 830, fu);       // ring 1: his mouth
+  if (part === 'tag') wordmark(cx, 410 + 4.1 * 13, 13);
+  else if (!tl || !tl.voice) wordmark(cx, 128, 10);
   waves.forEach((w, i) => wavesU.set([w.r * dpr, w.strength, w.hue, w.from], i * 4));
+  const dim = part === 'say' ? 0.18 : part === 'flip' ? 0.4 : part === 'tag' ? 0.6 : 1;
   g.viewport(0, 0, c.cv.width, c.cv.height);
   g.uniform2f(u.uRes, c.cv.width, c.cv.height); g.uniform1f(u.uT, T * dpr); g.uniform1f(u.uPhase, phase % 1); g.uniform1f(u.uFade, 1e5);
-  g.uniform1f(u.uHeat, 0.25 + c.lvl * 0.4); g.uniform1f(u.uDim, 1);
+  g.uniform1f(u.uHeat, part === 'drop' ? 0.25 + c.lvl * 0.4 : 0.1); g.uniform1f(u.uDim, dim);
   g.uniform4fv(u.uRing, rings); g.uniform4fv(u.uCap, caps); g.uniform2fv(u.uCapR, capR); g.uniform3fv(u.uDisc, discs); g.uniform4fv(u.uWave, wavesU); g.uniform1f(u.uGap, gap * dpr);
   g.drawArrays(g.TRIANGLES, 0, 3);
   [W, H, dpr] = save;
-  // the words, written over the picture in the burst style
+
   const o = c.o2, k = CDPR;
   o.drawImage(c.cv, 0, 0);
   o.textAlign = 'center'; o.textBaseline = 'middle'; o.lineJoin = 'round';
-  if (c.info.phrase) {
-    const text = c.info.phrase.toLowerCase(); let px = 44;
-    o.font = `700 ${px * k}px Quicksand, sans-serif`;
-    const wide = o.measureText(text).width / k; if (wide > CW * 0.84) px *= (CW * 0.84) / wide;
-    burstText(o, text, cx * k, 585 * k, px * k);
+  if (!tl || !tl.voice) {                                      // no voice, no trick: the pads clip, then the tag
+    if (part !== 'tag') { pillText(o, c.info.line(), cx * k, 318 * k, 17 * k); drawPads(o, c, now, k); }
+  } else if (part !== 'tag') {
+    const bottom = c.wordWave ? drawWordWave(o, c, now, part, k) : drawPhrase(o, c, now, part, k);
+    if (part === 'flip') {
+      const f = [...tl.flip].reverse().find(x => x.t <= now);
+      if (f) pillText(o, f.label, cx * k, (bottom + 46) * k, 18 * k);
+    } else if (part === 'drop' && c.info.heard) pillText(o, c.info.heard, cx * k, (bottom + 46) * k, 18 * k);
   }
-  pillText(o, c.info.line(), cx * k, 645 * k, 18 * k);
-  pillText(o, 'adlib.live', cx * k, 900 * k, 24 * k);
+  if (part === 'tag') pillText(o, 'say it loud. your voice is the beat.', cx * k, 540 * k, 19 * k);
+  pillText(o, 'adlib.live', cx * k, 918 * k, 22 * k);
+}
+
+// ---- the phrase in the clip: syllables that light as they're said, jump as drums, flash on the hook
+function sylSplit(word) { return word.match(/[^aeiouy]*[aeiouy]+(?:[^aeiouy]*$|[^aeiouy](?=[^aeiouy]))?/g) || [word]; }
+function phraseLayout(o, c) {
+  if (c.layout) return c.layout;
+  const k = CDPR, words = c.info.phrase.toLowerCase().split(/\s+/).filter(Boolean), n = c.syl.length;
+  const split = words.map(w => sylSplit(w)), count = split.reduce((a, s) => a + s.length, 0), match = count === n && n > 0;
+  let idx = 0;
+  const wordsP = split.map(ss => (match ? ss.map(t => ({ text: t, idx: idx++ })) : [{ text: ss.join(''), idx: -1 }]));
+  const width = (str, px) => { o.font = `700 ${px * k}px Quicksand, sans-serif`; if ('letterSpacing' in o) o.letterSpacing = `${px * k * 0.14}px`; const w = o.measureText(str).width / k; if ('letterSpacing' in o) o.letterSpacing = '0px'; return w; };
+  const lineW = (ws, px) => ws.reduce((a, w, i) => a + w.reduce((b, p) => b + width(p.text, px), 0) + (i ? width(' ', px) : 0), 0) + px * 0.67;
+  const room = CW * 0.9, MAX = 56;
+  let lines = [wordsP], px = Math.min(MAX, (room / lineW(wordsP, 1)));
+  if (px < 40 && wordsP.length > 1) {                          // too small on one line: break at the word gap nearest the middle
+    let best = 1, d = Infinity; const total = lineW(wordsP, 1);
+    for (let i = 1; i < wordsP.length; i++) { const x = lineW(wordsP.slice(0, i), 1); if (Math.abs(x - total / 2) < d) { d = Math.abs(x - total / 2); best = i; } }
+    lines = [wordsP.slice(0, best), wordsP.slice(best)];
+    px = Math.min(MAX, room / Math.max(lineW(lines[0], 1), lineW(lines[1], 1)));
+  }
+  const lh = px * 1.35, top = 400 - (lines.length - 1) * lh / 2, pieces = [];
+  lines.forEach((ws, li) => {
+    let x = cx0() - (lineW(ws, px) - px * 0.67) / 2;
+    ws.forEach((w, wi) => {
+      if (wi) x += width(' ', px);
+      for (const p of w) { const pw = width(p.text, px); pieces.push({ ...p, x, w: pw, y: top + li * lh }); x += pw; }
+    });
+  });
+  return (c.layout = { pieces, px, match, bottom: top + (lines.length - 1) * lh + px * 0.6 });
+}
+const cx0 = () => CW / 2;
+function drawPiece(o, p, px, k, state, scale = 1, alpha = 1) {
+  o.save(); o.globalAlpha = alpha;
+  const cxp = (p.x + p.w / 2) * k, cyp = p.y * k;
+  o.translate(cxp, cyp); o.scale(scale, scale); o.translate(-cxp, -cyp);
+  o.textAlign = 'left'; o.font = `700 ${px * k}px Quicksand, sans-serif`;
+  if ('letterSpacing' in o) o.letterSpacing = `${px * k * 0.14}px`;
+  if (state === 'grey') { o.fillStyle = '#6b6760'; o.fillText(p.text, p.x * k, p.y * k); }
+  else {
+    const core = state === 'lit' ? '#FEE601' : state;
+    for (const [color, w] of LAYERS) { const col = w < 0.2 ? core : color; o.lineWidth = w * px * k; o.strokeStyle = col; o.strokeText(p.text, p.x * k, p.y * k); if (w < 0.2) { o.fillStyle = col; o.fillText(p.text, p.x * k, p.y * k); } }
+  }
+  if ('letterSpacing' in o) o.letterSpacing = '0px';
+  o.restore();
+}
+function drawPhrase(o, c, now, part, k) {
+  const L = phraseLayout(o, c), tl = c.tl, ease = x => 1 + 0.4 * Math.max(0, 1 - x / 0.35) ** 2;
+  const kick = part === 'drop' ? 1 + 0.04 * Math.max(0, 1 - (now - c.kickAt) / 0.15) : 1;
+  const flip = part === 'flip' ? [...tl.flip].reverse().find(x => x.t <= now) : null;
+  const order = flip && L.match ? [...L.pieces].sort((a, b) => (a.idx === flip.k) - (b.idx === flip.k)) : L.pieces;
+  for (const p of order) {
+    let state = 'lit', scale = kick, alpha = 1;
+    if (part === 'say') {
+      if (L.match) state = now >= tl.t0 + c.syl[p.idx] - 0.02 ? 'lit' : 'grey';
+      else {                                                // cuts don't match: the whole phrase lights once the voice gets loud
+        const e = c.env, i = Math.floor(((now - tl.t0) / e.dur) * e.peaks.length);
+        if (i >= 0 && e.peaks.slice(0, i + 1).some(v => v > 0.3)) c.voiced = true;
+        state = c.voiced ? 'lit' : 'grey';
+      }
+      if (state === 'lit' && L.match) scale = ease(now - (tl.t0 + c.syl[p.idx]));
+    } else if (flip) {
+      const hit = L.match ? p.idx === flip.k : true;
+      if (hit) { state = DRUM_INK[flip.r]; scale = L.match ? ease(now - flip.t) : 1; }
+      else alpha = 0.45;                                    // the rest steps back so the drum's syllable stands out
+    } else if (part === 'drop' && L.match) {
+      const l = c.lit[p.idx];
+      if (l && now - l.at < 0.2) { state = l.you ? '#FD2D55' : '#F3EFE6'; scale = kick * 1.12; }
+    } else if (part === 'drop' && now - c.hookAt < 0.25) state = '#F3EFE6';      // cuts don't match the letters: the whole phrase flashes with the hook
+    drawPiece(o, p, L.px, k, state, scale, alpha);
+  }
+  return L.bottom;
+}
+// a voice from a shared link has no typed words: draw its sound, lit left to right as it plays
+function wordWave() {
+  const b = voice.bufs.word; if (!b) return null;
+  const d = b.getChannelData(0), n = 48, step = Math.max(1, Math.floor(d.length / n)), out = []; let top = 0;
+  for (let i = 0; i < n; i++) { let m = 0; for (let j = i * step; j < Math.min(d.length, (i + 1) * step); j++) m = Math.max(m, Math.abs(d[j])); out.push(m); top = Math.max(top, m); }
+  return { peaks: out.map(v => (top ? v / top : 0)), dur: b.duration };
+}
+function drawWordWave(o, c, now, part, k) {
+  const w = c.wordWave, n = w.peaks.length, x0 = 60, span = CW - 120, y = 400, tl = c.tl;
+  const upto = part === 'say' ? (now - tl.t0) / w.dur : 1;
+  const flip = part === 'flip' ? [...tl.flip].reverse().find(x => x.t <= now) : null;
+  const l = part === 'drop' ? c.lit.find(x => x && now - x.at < 0.2) : null;
+  const ink = flip ? DRUM_INK[flip.r] : l ? (l.you ? '#FD2D55' : '#F3EFE6') : '#FEE601';
+  o.lineCap = 'round';
+  for (let i = 0; i < n; i++) {
+    const x = (x0 + (i / (n - 1)) * span) * k, h = Math.max(4, w.peaks[i] * 120) * k, on = i / n <= upto;
+    o.lineWidth = 7 * k; o.strokeStyle = on ? ink : '#4a4742';
+    o.beginPath(); o.moveTo(x, y * k - h / 2); o.lineTo(x, y * k + h / 2); o.stroke();
+  }
+  return y + 70;
+}
+
+// the six pads, as on the site: yellow with the mark's rings when the beat plays one, red when you do
+const PAD_X = [105, 270, 435], PAD_Y = [462, 632], PAD_R = 68;
+function padWave(k) {
+  const b = padBuf(k); if (!b) return null;
+  const d = b.getChannelData(0), n = 16, step = Math.max(1, Math.floor(d.length / n)), out = []; let top = 0;
+  for (let i = 0; i < n; i++) { let m = 0; for (let j = i * step; j < Math.min(d.length, (i + 1) * step); j++) m = Math.max(m, Math.abs(d[j])); out.push(m); top = Math.max(top, m); }
+  return out.map(v => (top ? v / top : 0));
+}
+function drawPads(o, c, now, k) {
+  const ring = (x, y, r, w, col) => { o.beginPath(); o.arc(x, y, r, 0, Math.PI * 2); o.lineWidth = w; o.strokeStyle = col; o.stroke(); };
+  for (let i = 0; i < 6; i++) {
+    const x = PAD_X[i % 3] * k, y = PAD_Y[Math.floor(i / 3)] * k, R = PAD_R * k;
+    if (c.pads.empty[i]) { ring(x, y, R, 2 * k, '#34322F'); continue; }
+    const l = c.lit[i], on = l && now - l.at < (l.you ? 0.2 : 0.16);         // a touch longer than on screen, so a 30fps video catches it
+    o.beginPath(); o.arc(x, y, R, 0, Math.PI * 2); o.fillStyle = on ? (l.you ? '#FD2D55' : '#FEE601') : '#0C0B0E'; o.fill();
+    if (on) {
+      ring(x, y, R + 4 * k, 2 * k, l.you ? '#FEE601' : '#FD2D55'); ring(x, y, R + 9 * k, 2 * k, '#2D54FD');
+      if (l.loud || l.you) ring(x, y, R + 14 * k, 2 * k, 'rgba(243,239,230,0.55)');
+    } else ring(x, y, R - 1 * k, 2 * k, '#979288');
+    const ink = on ? '#0C0B0E' : '#F3EFE6', label = c.pads.labels[i], wv = c.waves[i];
+    if (label) { o.font = `700 ${21 * k}px Quicksand, sans-serif`; o.fillStyle = ink; o.fillText(label.toLowerCase(), x, y + k); }
+    else if (wv) {
+      o.beginPath(); wv.forEach((v, j) => { const px = x + (j / (wv.length - 1) - 0.5) * 60 * k, py = y + (j % 2 ? 1 : -1) * v * 18 * k; j ? o.lineTo(px, py) : o.moveTo(px, py); });
+      o.lineWidth = 3 * k; o.lineJoin = 'round'; o.lineCap = 'round'; o.strokeStyle = ink; o.stroke();
+    }
+  }
 }
 // small words on a dark pill, the way the site sets its lines over the rings
 function pillText(o, text, x, y, px) {
