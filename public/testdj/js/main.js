@@ -198,6 +198,9 @@ function wireControls() {
     e.preventDefault(); location.assign(new URL('./', document.baseURI).href);
   });
   $('clipShare').addEventListener('click', shareClip);
+  // on a phone, saving goes through the share sheet, where "Save Video" puts it in Photos; a plain
+  // download would land in Files. Elsewhere it downloads as before.
+  $('clipSave').addEventListener('click', e => { if (canShareFile()) { e.preventDefault(); shareClip(); } });
   $('modeBtn').addEventListener('click', () => { const m = hype.mode === 'hype' ? 'boom' : 'hype'; setMode(m); $('modeBtn').textContent = m === 'hype' ? 'Hype voice' : 'Boom voice'; });
   $('phonesBtn').addEventListener('click', async () => {
     const on = $('phonesBtn').getAttribute('aria-pressed') !== 'true'; $('phonesBtn').setAttribute('aria-pressed', on);
@@ -369,7 +372,7 @@ async function makeClip() {
     onTick: secs => { if (!$('clipStop').disabled) $('clipTime').textContent = clock(secs); },
     onDone: (blob, ext) => {
       const name = `adlib-${(phrase || vibe().name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'beat'}.${ext}`;
-      clipFile = new File([blob], name, { type: blob.type }); if (clipUrl) URL.revokeObjectURL(clipUrl); clipUrl = URL.createObjectURL(blob);
+      clipFile = new File([blob], name, { type: ext === 'mp4' ? 'video/mp4' : 'video/webm' }); if (clipUrl) URL.revokeObjectURL(clipUrl); clipUrl = URL.createObjectURL(blob);
       const v = $('clipVideo'); v.src = clipUrl; v.hidden = false; $('clipCanvas').hidden = true;
       $('clipRec').hidden = true; $('clipDone').hidden = false; $('clipSave').href = clipUrl; $('clipSave').download = name;
       v.play().catch(() => {});
@@ -378,12 +381,14 @@ async function makeClip() {
   syncPlay();
   if (!ok) { leaveClip(); toast("this browser can't make clips. try chrome or safari."); }
 }
+const canShareFile = () => !!(clipFile && navigator.canShare && navigator.canShare({ files: [clipFile] }));
 async function shareClip() {
   if (!clipFile) return;
   try {
-    if (navigator.canShare && navigator.canShare({ files: [clipFile] })) { await navigator.share({ files: [clipFile], title: 'adlib' }); return; }
+    // the file alone, no title or text: with anything else attached, iPhone drops "Save Video" from the sheet
+    if (canShareFile()) { await navigator.share({ files: [clipFile] }); return; }
   } catch (e) { if (e && e.name === 'AbortError') return; }
-  $('clipSave').click();
+  const a = document.createElement('a'); a.href = clipUrl; a.download = clipFile.name; a.click();   // no share sheet: download it
 }
 function leaveClip() {
   if (clipping()) cancelClip();
