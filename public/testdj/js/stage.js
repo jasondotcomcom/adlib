@@ -271,7 +271,7 @@ function frame(ts) {
 // records. It shows the toy, not the rap screen: the name, your phrase, the six pads lighting
 // with the beat (or with adlib's recitation on the words side, red where it's you), and adlib's
 // face below reacting when your phrase comes back. The main screen stops drawing meanwhile.
-const CW = 540, CH = 960, CDPR = 2;
+const CW = 540, CH = 960, CDPR = 4 / 3;    // 720 by 1280: as sharp as Instagram shows on a phone, and light enough that the phone keeps up while it records
 let clip = null;
 export function startClipScene(out, info) {
   const cv = document.createElement('canvas'); cv.width = CW * CDPR; cv.height = CH * CDPR;
