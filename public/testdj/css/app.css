@@ -229,6 +229,12 @@ body[data-mode='pads']:not([data-start]) #markSpace { height: 58px; }
 body[data-mode='pads']:not([data-start]) .pitch { display: none; }
 body[data-mode='pads']:not([data-start]) #build { gap: 12px; }
 #toy { display: grid; gap: 14px; }
+/* sixteen bars in four groups of four: one fills each bar, so you know where you are in a 16 */
+.bars { display: flex; justify-content: center; align-items: center; gap: 16px; height: 18px; }
+.bars .g { display: flex; gap: 9px; align-items: center; }
+.bars i { width: 7px; height: 7px; border-radius: 50%; background: var(--line); transition: background 0.15s, transform 0.15s; }
+.bars i.on { background: var(--yellow); transform: scale(1.25); }
+.bars i.now { box-shadow: 0 0 0 3px var(--bg), 0 0 0 4.5px var(--red); }
 .pads { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; justify-items: center; padding: 10px 6px; touch-action: none; }
 .pad {
   position: relative; width: 100%; max-width: 150px; aspect-ratio: 1; border-radius: 50%; padding: 0;
