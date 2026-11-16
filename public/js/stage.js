@@ -311,9 +311,12 @@ function clipFrame(now, dt) {
   c.lvl += (Math.min(1, levelOf() * 3.2) - c.lvl) * Math.min(1, dt * 14);
   ring(cx, -4000, 1, 0.1);                                     // ring 0 kept off-screen so his mouth stays ring 1
   const big = part === 'drop' || part === 'tag', fu = big ? 10 : 7;
-  const gap = drawFace(c.face, cx, big ? 790 : 830, fu);       // ring 1: his mouth
+  // Layout keeps clear of what the apps lay over a post (adlib-clip-export-brief.md, in 540 by 960
+  // units): the top 105 and bottom 160 are covered, the right 60 from the middle down holds TikTok's
+  // buttons, and 115 to 325 stays empty for the poster's own text.
+  const voiced = tl && tl.voice;
+  const gap = voiced ? drawFace(c.face, cx, big ? 610 : 635, fu) : drawFace(c.face, cx, 680, 8);   // ring 1: his mouth
   if (part === 'tag') wordmark(cx, 410 + 4.1 * 13, 13);
-  else if (!tl || !tl.voice) wordmark(cx, 128, 10);
   waves.forEach((w, i) => wavesU.set([w.r * dpr, w.strength, w.hue, w.from], i * 4));
   const dim = part === 'say' ? 0.18 : part === 'flip' ? 0.4 : part === 'tag' ? 0.6 : 1;
   g.viewport(0, 0, c.cv.width, c.cv.height);
@@ -327,7 +330,7 @@ function clipFrame(now, dt) {
   o.drawImage(c.cv, 0, 0);
   o.textAlign = 'center'; o.textBaseline = 'middle'; o.lineJoin = 'round';
   if (!tl || !tl.voice) {                                      // no voice, no trick: the pads clip, then the tag
-    if (part !== 'tag') { pillText(o, c.info.line(), cx * k, 318 * k, 17 * k); drawPads(o, c, now, k); }
+    if (part !== 'tag') { pillText(o, c.info.line(), cx * k, 342 * k, 17 * k); drawPads(o, c, now, k); }
   } else if (part !== 'tag') {
     const bottom = c.wordWave ? drawWordWave(o, c, now, part, k) : drawPhrase(o, c, now, part, k);
     if (part === 'flip') {
@@ -336,7 +339,18 @@ function clipFrame(now, dt) {
     } else if (part === 'drop' && c.info.heard) pillText(o, c.info.heard, cx * k, (bottom + 46) * k, 18 * k);
   }
   if (part === 'tag') pillText(o, 'say it loud. your voice is the beat.', cx * k, 540 * k, 19 * k);
-  pillText(o, 'adlib.live', cx * k, 918 * k, 22 * k);
+  if (part === 'drop' && tl) barDots(o, Math.min(16, Math.floor((now - tl.t2) / tl.bar) + 1), cx * k, 742 * k, k);
+  pillText(o, 'adlib.live', cx * k, 776 * k, 22 * k);
+}
+// sixteen bars as four groups of four: one fills at the start of each bar, so whoever's rapping knows where they are
+function barDots(o, filled, x, y, k) {
+  const step = 20 * k, group = 30 * k, w = 12 * step + 3 * group;
+  for (let i = 0; i < 16; i++) {
+    const on = i < filled;
+    const px = x - w / 2 + (i % 4) * step + Math.floor(i / 4) * (3 * step + group);
+    o.beginPath(); o.arc(px, y, (on ? 6 : 4) * k, 0, Math.PI * 2); o.fillStyle = on ? '#FEE601' : '#5d5a54'; o.fill();
+    if (i === filled - 1) { o.beginPath(); o.arc(px, y, 10 * k, 0, Math.PI * 2); o.lineWidth = 2 * k; o.strokeStyle = '#FD2D55'; o.stroke(); }
+  }
 }
 
 // ---- the phrase in the clip: syllables that light as they're said, jump as drums, flash on the hook
@@ -349,7 +363,7 @@ function phraseLayout(o, c) {
   const wordsP = split.map(ss => (match ? ss.map(t => ({ text: t, idx: idx++ })) : [{ text: ss.join(''), idx: -1 }]));
   const width = (str, px) => { o.font = `700 ${px * k}px Quicksand, sans-serif`; if ('letterSpacing' in o) o.letterSpacing = `${px * k * 0.14}px`; const w = o.measureText(str).width / k; if ('letterSpacing' in o) o.letterSpacing = '0px'; return w; };
   const lineW = (ws, px) => ws.reduce((a, w, i) => a + w.reduce((b, p) => b + width(p.text, px), 0) + (i ? width(' ', px) : 0), 0) + px * 0.67;
-  const room = CW * 0.9, MAX = 56;
+  const room = 420, MAX = 56;                                  // inside x 60 to 480: clear of TikTok's buttons on the right
   let lines = [wordsP], px = Math.min(MAX, (room / lineW(wordsP, 1)));
   if (px < 40 && wordsP.length > 1) {                          // too small on one line: break at the word gap nearest the middle
     let best = 1, d = Infinity; const total = lineW(wordsP, 1);
@@ -389,7 +403,8 @@ function drawPhrase(o, c, now, part, k) {
   const order = flip && L.match ? [...L.pieces].sort((a, b) => (a.idx === flip.k) - (b.idx === flip.k)) : L.pieces;
   for (const p of order) {
     let state = 'lit', scale = kick, alpha = 1;
-    if (part === 'say') {
+    if (part === 'say' && now < tl.t0) state = 'lit';                    // the cover: the first frames show the phrase lit
+    else if (part === 'say') {
       if (L.match) state = now >= tl.t0 + c.syl[p.idx] - 0.02 ? 'lit' : 'grey';
       else {                                                // cuts don't match: the whole phrase lights once the voice gets loud
         const e = c.env, i = Math.floor(((now - tl.t0) / e.dur) * e.peaks.length);
@@ -432,7 +447,7 @@ function drawWordWave(o, c, now, part, k) {
 }
 
 // the six pads, as on the site: yellow with the mark's rings when the beat plays one, red when you do
-const PAD_X = [105, 270, 435], PAD_Y = [462, 632], PAD_R = 68;
+const PAD_X = [120, 270, 420], PAD_Y = [432, 568], PAD_R = 56;
 function padWave(k) {
   const b = padBuf(k); if (!b) return null;
   const d = b.getChannelData(0), n = 16, step = Math.max(1, Math.floor(d.length / n)), out = []; let top = 0;
