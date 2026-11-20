@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Disallow: /testdj/
+Disallow: /testdj
+
+Sitemap: https://adlib.live/sitemap.xml
