@@ -4,7 +4,7 @@
 // syllable), the flip (a one-bar count-in of drums cut from your voice, each syllable jumping
 // in its drum's colour), the drop (the full beat from its drop, two or four bars) and the tag
 // (the name and the line, the beat stopped on one last kick and crash). The drop runs until
-// stop, up to a minute and a half.
+// stop, otherwise sixteen bars.
 // The picture is the scene stage.js draws from the timeline built here; the sound is the
 // engine's own output, recorded clean. Nothing is uploaded.
 import * as engine from './engine.js';
@@ -40,10 +40,9 @@ export function startClip({ out, phrase, heard, line, pads, onTick, onDone }) {
     for (const f of tl.flip) engine.adlibHit(f.r, f.t, 0.95);
     tl.t2 = tl.t1 + bar;
   }
-  // 3. the drop: the beat keeps going until you hit stop, so there's room to freestyle over it
-  // (Jason: long enough that people can take the audio on Instagram and rap on it). It ends on
-  // the bar after stop, or by itself on the last whole bar before the cap.
-  const bars = Math.max(2, Math.floor((MAX_SECS - (tl.t2 - t0) - TAG) / bar));
+  // 3. the drop: sixteen bars, because rappers count in 16s (long enough that people can take the
+  // audio on Instagram and rap on it). Stop ends it sooner, on the next bar line.
+  const bars = Math.max(2, Math.min(16, Math.floor((MAX_SECS - (tl.t2 - t0) - TAG) / bar)));
   tl.tEnd = tl.t2 + bars * bar; tl.tStop = tl.tEnd + TAG;
   if (!startClipScene(out, { phrase: hasVoice ? phrase : '', heard, line, pads, tl })) return false;
 
@@ -58,9 +57,9 @@ export function startClip({ out, phrase, heard, line, pads, onTick, onDone }) {
     const cancelled = r.cancelled; rec = null;
     if (!cancelled) onDone(new Blob(chunks, { type: type.split(';')[0] }), type.includes('mp4') ? 'mp4' : 'webm');
   };
-  mr.start(500);
   engine.playAt(tl.t2, { drop: !!hasVoice });
   plan(r);
+  requestAnimationFrame(() => requestAnimationFrame(() => { if (r.mr.state === 'inactive' && !r.cancelled) r.mr.start(500); }));   // a drawn first frame, never black
   r.timer = setInterval(() => onTick(Math.max(0, ctx.currentTime - t0)), 250);
   return true;
 }
@@ -81,4 +80,8 @@ export function stopClip() {
   const next = tl.t2 + Math.max(1, Math.ceil((now + 0.3 - tl.t2) / tl.bar)) * tl.bar;
   if (next < tl.tEnd) { tl.tEnd = next; tl.tStop = next + TAG; plan(rec); }
 }
-export function cancelClip() { if (!rec) return; rec.cancelled = true; if (rec.mr.state !== 'inactive') rec.mr.stop(); }
+export function cancelClip() {
+  if (!rec) return; rec.cancelled = true;
+  if (rec.mr.state !== 'inactive') { rec.mr.stop(); return; }
+  clearInterval(rec.timer); rec.ends.forEach(clearTimeout); stopClipScene(); if (engine.isPlaying()) engine.stop(); rec = null;   // left before it started recording
+}

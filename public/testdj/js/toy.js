@@ -319,10 +319,25 @@ function listen() {
   setInterval(updateFace, 120);
 }
 
+// ------------------------------------------------------------------ the bar count
+// Sixteen dots in fours under the pads. One fills at the start of each bar while the beat plays,
+// so whoever is playing or rapping knows where they are in a 16. Empty again when it stops.
+let barDots = [], barsLit = -1;
+function buildBars() {
+  const box = $('barDots'); box.textContent = ''; barDots = [];
+  for (let g = 0; g < 4; g++) { const grp = document.createElement('span'); grp.className = 'g'; for (let i = 0; i < 4; i++) { const d = document.createElement('i'); grp.appendChild(d); barDots.push(d); } box.appendChild(grp); }
+}
+function showBars(n) {
+  if (n === barsLit) return; barsLit = n;
+  barDots.forEach((d, i) => { d.classList.toggle('on', i < n); d.classList.toggle('now', i === n - 1); });
+}
+
 // ------------------------------------------------------------------ setup
 export function initToy(opts) {
   changed = opts.changed || changed; wake = opts.wake || wake;
-  buildPads(); wirePads(); wireFace(); listen(); drawFace('listening');
+  buildPads(); buildBars(); wirePads(); wireFace(); listen(); drawFace('listening');
+  engine.on('step', (abs, t) => { if (abs % 16 === 0) at(t, () => showBars((((abs / 16) % 16) + 16) % 16 + 1)); });
+  setInterval(() => { if (!engine.isPlaying()) showBars(0); }, 250);
   for (const b of $('flip').children) b.addEventListener('click', () => { if (b.hidden) return; side = b.dataset.side; built = ''; syncToy(); });
   $('keepBtn').addEventListener('click', keep);
   // desktop: Q W E over A S D plays the six pads
