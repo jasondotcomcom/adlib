@@ -43,7 +43,7 @@ export const VIBES = [
     pat: ['x.......x..x....', '....x.......x..x', '....x.......x...', 'x.x.x.x.x.x.x.x.', '.......x........', '...x............', 'x..x....x..x..x.'],
   },
   {
-    id: 'afro', name: 'Afro', bpm: 106, swing: 54, key: 55, scale: 'major', prog: [5, 3, 0, 4],
+    id: 'afro', name: 'Afrobeats', bpm: 106, swing: 54, key: 55, scale: 'major', prog: [5, 3, 0, 4],
     kit: 'clean', bass: 'round', lead: 'pluck', pad: false, leadDensity: 0.7,
     chords: 'pluck', comp: [[2, 2, 0.7], [6, 2, 0.6], [10, 2, 0.7], [14, 2, 0.6]],
     pat: ['x..x..x...x..x..', '....x.......x...', '................', 'x.x.x.x.x.x.x.x.', '.......x........', '..x......x.x....', 'x..x..x...x.....'],
