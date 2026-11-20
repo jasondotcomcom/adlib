@@ -318,7 +318,7 @@ function shapedMelody(shape, r, pitch, v) {
 const rowHex = row => parseInt(row.join(''), 2).toString(16).padStart(4, '0');
 export function encodeSong() {
   return ['2', song.vibe, song.bpm, song.swing, song.key + 12, song.seed.toString(36), KITS.indexOf(song.kit),
-    (song.keys ? 1 : 0) + (song.lead ? 2 : 0) + (song.bass ? 0 : 4) + (song.walk ? 8 : 0) + (song.vary ? 16 : 0), song.pat.map(rowHex).join('')].concat(song.tone === 'full' ? ['f'] : [], song.pads ? ['p' + song.pads.map(e => e ? (e[0]).toString(36) + (e[1] + 12).toString(36) : '00').join('')] : []).join('.');
+    (song.keys ? 1 : 0) + (song.lead ? 2 : 0) + (song.bass ? 0 : 4) + (song.walk ? 8 : 0) + (song.vary ? 16 : 0), song.pat.map(rowHex).join('')].concat(song.tone === 'full' ? ['f'] : [], song.pads ? ['p' + encodePads(song.pads)] : []).join('.');
 }
 export function decodeSong(str) {
   try {
@@ -338,7 +338,22 @@ export function decodeSong(str) {
   } catch { return false; }
 }
 
+// A kept words hook: per 16th, the pad and its pitch, plus (since the word bend) its length stop.
+// Hooks with any length stop use three characters a step; older two-character links still open.
+function encodePads(pads) {
+  const three = pads.some(e => e && e.length > 2);
+  return pads.map(e => (e ? e[0].toString(36) + (e[1] + 12).toString(36) + (three ? String((e[2] || 0) + 2) : '') : three ? '000' : '00')).join('');
+}
 function decodePads(x) {
+  if (x && x.length === 97) {
+    const out = []; let any = false;
+    for (let i = 0; i < 32; i++) {
+      const k = parseInt(x[1 + i * 3], 36), st = parseInt(x[2 + i * 3], 36) - 12, len = parseInt(x[3 + i * 3], 10) - 2;
+      if (Number.isNaN(k) || Number.isNaN(st) || Number.isNaN(len) || len < -2 || len > 2) return null;
+      out.push(k ? [k, Math.max(-12, Math.min(12, st)), len] : null); if (k) any = true;
+    }
+    return any ? out : null;
+  }
   if (!x || x.length !== 65) return null;
   const out = []; let any = false;
   for (let i = 0; i < 32; i++) {

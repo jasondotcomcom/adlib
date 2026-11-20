@@ -232,3 +232,29 @@ console.log('ok');
   const old = plain.replace(/\.f$/, ''); assert.ok(S.decodeSong(old)); assert.equal(S.song.tone, 'classic'); assert.equal(S.song.pads, null);
   console.log('ok pads link');
 }
+
+// the word bend: stops for a word's length, key steps, the stretch, and kept hooks with length stops in links
+{
+  const B = await import('../public/js/bend.js');
+  const sd = 60 / 90 / 4;                                   // a 16th at 90 bpm
+  const s = B.stopsFor(0.26, sd);
+  assert.equal(s[0], 0.26); assert.ok(s[1] > 0.26 && s[2] > s[1], 'two longer stops'); assert.ok(s[-1] < 0.26 && s[-2] < s[-1], 'two shorter stops');
+  for (const k of [-2, -1, 1, 2]) assert.ok([0.5, 1, 2, 4, 8].some(m => Math.abs(m * sd - s[k]) < 1e-9), 'each stop is a beat length');
+  const tiny = B.stopsFor(0.05, sd); assert.equal(tiny[-1], undefined, 'no shorter stop when nothing fits'); assert.equal(B.clampStop(-2, tiny), 0);
+  const minor = [0, 2, 3, 5, 7, 8, 10];
+  assert.equal(B.stepsToSemis(0, 140, 50, minor), 0, 'step 0 is the word as recorded');
+  for (let st = -7; st <= 7; st++) { const sm = B.stepsToSemis(st, 140, 50, minor); if (st) assert.ok(minor.includes((((49 + sm - 50) % 12) + 12) % 12), `step ${st} lands in key`); }
+  const sr = 48000, x = new Float32Array(sr * 0.3); for (let i = 0; i < x.length; i++) x[i] = Math.sin((2 * Math.PI * 200 * i) / sr);
+  const zc = y => { let z = 0; for (let i = 1; i < y.length; i++) if (y[i - 1] < 0 && y[i] >= 0) z++; return z / (y.length / sr); };
+  const long = B.render(x, sr, 0.6, 0); assert.equal(long.length, Math.round(0.6 * sr)); assert.ok(Math.abs(zc(long) - 200) < 12, 'stretched, same pitch');
+  const up = B.render(x, sr, 0.3, 5); assert.equal(up.length, x.length); assert.ok(Math.abs(zc(up) - 267) < 14, 'higher, same length');
+  const S = await import('../public/js/song.js');
+  S.loadVibe('trap'); S.song.kit = 'you';
+  const old = new Array(32).fill(null); old[0] = [1, 0]; old[8] = [2, 3]; S.song.pads = old;
+  const oldLink = S.encodeSong(); assert.ok(/\.p[0-9a-z]{64}(\.|$)/.test(oldLink), 'a hook without length stops keeps the old link shape');
+  const bentHook = new Array(32).fill(null); bentHook[0] = [1, 4, 2]; bentHook[4] = [3, -3, -1]; bentHook[12] = [2, 0, 0]; S.song.pads = bentHook;
+  const link = S.encodeSong(); assert.ok(/\.p[0-9a-z]{96}(\.|$)/.test(link), 'length stops ride along');
+  S.song.pads = null; assert.ok(S.decodeSong(link)); assert.deepEqual(S.song.pads, bentHook, 'pads, pitch and length survive the link');
+  assert.ok(S.decodeSong(oldLink)); assert.deepEqual(S.song.pads, old, 'old hooks open exactly as before');
+  console.log('ok word bend');
+}
