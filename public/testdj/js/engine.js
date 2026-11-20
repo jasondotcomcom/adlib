@@ -360,7 +360,7 @@ function scheduleStep(abs, time) {
     // comes back on the one every four bars: whole when the keys arrive and on the first
     // drop, then trading front half and whole. It stays out while someone is rapping.
     // a hook you played on the pads and kept takes the place of adlib's
-    if (song.pads && own.pad) { if (!decksHook.on) { const e = song.pads[abs % 32]; if (e) own.pad(e[0] - 1, t, e[1]); } }
+    if (song.pads && own.pad) { if (!decksHook.on) { const e = song.pads[abs % 32]; if (e) own.pad(e[0] - 1, t, e[1], e[2]); } }
     else if (s === 0 && !decksHook.on) {
       const c = ab >= A.full ? (ab - A.full) % A.cycle : -1;
       if (ab === 0 || bare) hook(t);

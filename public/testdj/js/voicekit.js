@@ -2,7 +2,8 @@
 // One short recording is cut into a drum kit: the sharp consonants become the
 // hats and snare, the hardest hit is pitched down into the kick, and the vowel
 // is stretched across notes for the bass and the melody. Nothing leaves the browser.
-import { getCtx, nodes as N, mtof , tuneRatio } from './engine.js';
+import { getCtx, nodes as N, mtof , tuneRatio, stepDur } from './engine.js';
+import { stopsFor, clampStop, render as bendRender } from './bend.js';
 import { song } from './song.js';
 
 // Things to say. Each has a hard hit (b p d g k t), something sharp (s sh ch t k z j f)
@@ -274,6 +275,7 @@ function chopBufs() {
     if (b - a > sr * 0.05) { out.push(cutBuf(data, a, b, sr, 'vowel')); at.push((a - voice.parts.word[0]) / sr); }
   }
   chops = out.length >= 2 ? out : []; chopStarts = chops.length ? at : [];
+  bent.clear();                                            // a new take: old renders are for old words
   return chops;
 }
 // ------------------------------------------------------------------ talkbox
@@ -412,11 +414,39 @@ export function drumSyllable(name) {
   let best = 0; st.forEach((v, k) => { if (Math.abs(v - x) < Math.abs(st[best] - x)) best = k; });
   return best;
 }
-export function playPad(k, t, semis = 0) {
+// The word bend: each syllable rendered to a length stop and a pitch with its length held
+// (bend.js). Renders are cached; the plain stops are rendered in the background after a take.
+const bent = new Map();
+export const padNatural = k => { const b = (chopBufs() || [])[k]; return b ? b.duration : 0; };
+export const padStops = k => stopsFor(padNatural(k), stepDur());
+export function padLength(k, stop) { const s = padStops(k); return s[clampStop(stop || 0, s)]; }
+function bentBuf(k, len, semis) {
+  const src = (chopBufs() || [])[k]; if (!src) return null;
+  const key = k + '|' + Math.round(len * 1000) + '|' + semis + '|' + src.length;
+  let b = bent.get(key);
+  if (!b) {
+    const out = bendRender(src.getChannelData(0), src.sampleRate, len, semis);
+    b = getCtx().createBuffer(1, out.length, src.sampleRate); b.copyToChannel(out, 0);
+    if (bent.size > 400) bent.clear();
+    bent.set(key, b);
+  }
+  return b;
+}
+let preJob = 0;
+export function prerenderPads() {
+  const job = ++preJob, set = chopBufs() || [], todo = [];
+  set.forEach((_, k) => { const s = padStops(k); for (const st of [-2, -1, 1, 2]) if (s[st] !== undefined) todo.push([k, s[st]]); });
+  const next = () => { if (job !== preJob || !todo.length) return; const [k, len] = todo.shift(); bentBuf(k, len, 0); setTimeout(next, 0); };
+  setTimeout(next, 0);
+}
+// stop undefined: the original pad (pitch by speed, as kept hooks from before the bend play).
+// stop a number: the word at that length stop with its pitch shifted and its length held.
+export function playPad(k, t, semis = 0, stop) {
   const set = chopBufs(); if (!set || !set.length) return;
   k = ((k % set.length) + set.length) % set.length;
-  const ctx = getCtx(), src = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain(), buf = set[k];
-  src.buffer = buf; src.playbackRate.value = Math.pow(2, semis / 12);
+  const ctx = getCtx(), src = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain();
+  const buf = stop === undefined ? set[k] : (stop === 0 && !semis ? set[k] : bentBuf(k, padLength(k, stop), semis) || set[k]);
+  src.buffer = buf; src.playbackRate.value = stop === undefined ? Math.pow(2, semis / 12) : 1;
   f.type = 'highpass'; f.frequency.value = 150;
   const len = buf.duration / src.playbackRate.value;
   g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.8, t + 0.003); g.gain.setValueAtTime(0.8, t + len * 0.85); g.gain.linearRampToValueAtTime(0, t + len);

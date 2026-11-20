@@ -4,8 +4,9 @@
 // as a small record: hold and turn him to scratch the phrase.
 // The brief is claude/adlib-toy-brief.md in the project.
 import * as engine from './engine.js';
-import { song, ROW_LABELS } from './song.js';
-import { voice, pads as padCount, playPad, onPadLight, padBuf } from './voicekit.js';
+import { song, ROW_LABELS, SCALES, vibe } from './song.js';
+import { voice, pads as padCount, playPad, onPadLight, padBuf, padStops, padLength, prerenderPads } from './voicekit.js';
+import { clampStop, stepsToSemis } from './bend.js';
 
 const $ = id => document.getElementById(id);
 const SLOTS = 6;
@@ -44,7 +45,7 @@ function buildPads() {
   const box = $('pads'); box.textContent = ''; els = [];
   for (let k = 0; k < SLOTS; k++) {
     const b = document.createElement('button'); b.type = 'button'; b.className = 'pad'; b.dataset.k = k;
-    b.innerHTML = '<span class="lab"></span><span class="semi"></span>';
+    b.innerHTML = '<span class="ptr"></span><span class="lab"></span><span class="semi"></span>';
     box.appendChild(b); els.push(b);
   }
 }
@@ -72,15 +73,41 @@ export function syncToy() {
     if (b.dataset.side === 'words') b.hidden = !wordsReady();
   }
   if (keptDrums && song.pat !== keptDrums.pat) keptDrums = null;     // the pattern was replaced (roll, new take, clear)
+  if (wordsReady() && Math.abs(engine.stepDur() - lastSd) > 1e-4) { lastSd = engine.stepDur(); prerenderPads(); }   // lengths re-fit to the tempo
+  drawBends();
   const kept = side === 'drums' ? !!keptDrums : !!song.pads;
   const any = side === 'drums' ? playedDrums.size : playedWords.size;
   $('keepBtn').setAttribute('aria-pressed', kept);
   $('keepBtn').disabled = !kept && !any;
 }
 // after a new take: a fresh phrase, nothing kept, back on drums (the busiest side)
+// ------------------------------------------------------------------ the word bend
+// On the words side every pad is also a knob for its own word (adlib-word-bend-brief.md): hold it
+// and drag, up and down for pitch (steps on the beat's key), sideways for length (five stops, left
+// longer). It stays where you leave it. A new take clears every bend.
+const bends = new Map();                                    // pad -> { steps, stop }
+const bendOf = k => bends.get(k) || { steps: 0, stop: 0 };
+const semisFor = steps => { const v = vibe(); return stepsToSemis(steps, voice.f0 || 140, v.key + song.key, SCALES[v.scale] || SCALES.minor); };
+const ANGLE = 34;                                           // degrees per length stop, left for longer
+function drawBend(k, released) {
+  const el = els[k]; if (!el) return;
+  const grabbed = !released && [...held.values()].some(h => h.el === el);
+  const b = side === 'words' ? bendOf(k) : { steps: 0, stop: 0 }, ptr = el.querySelector('.ptr');
+  ptr.style.transform = `rotate(${-b.stop * ANGLE}deg)`;
+  ptr.hidden = !(b.steps || b.stop);
+  el.style.setProperty('--rs', String(1 + 0.4 * b.stop));    // repeat rings spread wide when long, pack tight when short
+  if (side === 'words' && !grabbed) el.querySelector('.semi').textContent = b.steps ? (b.steps > 0 ? '+' : '') + b.steps : '';
+  else if (side === 'drums' && !grabbed) el.querySelector('.semi').textContent = '';
+}
+const drawBends = () => els.forEach((_, k) => drawBend(k));
+let lastSd = 0;
+export const toyBends = bends;
+
 export function newPhrase(text) {
+  bends.clear();
   phrase = text || ''; side = 'drums'; keptDrums = null; song.pads = null;
   playedDrums.clear(); playedWords.clear(); built = ''; syncToy();
+  lastSd = engine.stepDur(); setTimeout(prerenderPads, 400);
 }
 
 function flash(k, who, loud) {
@@ -101,7 +128,7 @@ const keptCell = (r, t) => keptDrums && keptDrums.cells.has(r + ':' + (((Math.ro
 function play(k, t, semis) {
   if (side === 'drums') engine.hitDrum(k, t, 0.9, semis);
   else {
-    playPad(k, t, semis);
+    const b = bendOf(k); playPad(k, t, semisFor(b.steps), b.stop);
     if (engine.isPlaying()) { stealUntil = (Math.floor(engine.posAt(t) / 16) + 1) * 16; engine.decksHook.on = true; }
   }
 }
@@ -109,7 +136,7 @@ function record(k, t, semis) {
   if (!engine.isPlaying()) return;
   const abs = Math.round(engine.posAt(t));
   if (side === 'drums') { if (!playedDrums.has(abs)) playedDrums.set(abs, new Set()); playedDrums.get(abs).add(k); prune(playedDrums, abs); }
-  else { playedWords.set(abs, [k + 1, semis]); prune(playedWords, abs); }
+  else { const b = bendOf(k); playedWords.set(abs, [k + 1, semisFor(b.steps), b.stop]); prune(playedWords, abs); }
   if ($('keepBtn').disabled) syncToy();
 }
 const prune = (m, abs) => { for (const a of m.keys()) if (a <= abs - 64) m.delete(a); };
@@ -119,23 +146,42 @@ function fire(k, semis) {
   play(k, t, semis); record(k, t, semis);
 }
 
+// a held word pad is grabbed after a quarter second; from then its finger is a knob
+const grab = h => { if (h.grabbed || side !== 'words') return; h.grabbed = true; h.gx = h.cx; h.gy = h.cy; h.moved = false; const b = bendOf(h.k); h.b0 = { ...b }; };
 function wirePads() {
   const box = $('pads');
   box.addEventListener('pointerdown', async e => {
     const el = e.target.closest('.pad'); if (!el || el.classList.contains('empty')) return;
     e.preventDefault(); try { box.setPointerCapture(e.pointerId); } catch {}
     await wake();
-    const h = { k: +el.dataset.k, el, y0: e.clientY, semis: 0, at: performance.now(), last: -1 };
+    const h = { k: +el.dataset.k, el, y0: e.clientY, cx: e.clientX, cy: e.clientY, semis: 0, at: performance.now(), last: -1, grabbed: false };
     held.set(e.pointerId, h); el.classList.add('held');
     fire(h.k, 0);
   });
+  const bendMove = h => {
+    const dx = h.cx - h.gx, dy = h.cy - h.gy;
+    if (!h.moved && Math.hypot(dx, dy) < 12) return;          // a dead zone, so holding to repeat doesn't detune
+    h.moved = true;
+    const rs = h.b0.steps - dy / 22, rl = h.b0.stop - dx / 40;  // up is higher, left is longer; both magnetic at the middle
+    const steps = Math.abs(rs) < 0.6 ? 0 : Math.max(-7, Math.min(7, Math.round(rs)));
+    const stops = padStops(h.k), stop = clampStop(Math.abs(rl) < 0.6 ? 0 : Math.max(-2, Math.min(2, Math.round(rl))), stops);
+    const was = bendOf(h.k);
+    if (steps === was.steps && stop === was.stop) return;
+    bends.set(h.k, { steps, stop });
+    h.el.querySelector('.semi').textContent = steps ? (steps > 0 ? '+' : '') + steps : '';
+    drawBend(h.k);
+    if (stop !== was.stop && !reduced) { h.el.classList.remove('click'); void h.el.offsetWidth; h.el.classList.add('click'); }   // a click between stops
+  };
   box.addEventListener('pointermove', e => {
     const h = held.get(e.pointerId); if (!h) return;
+    h.cx = e.clientX; h.cy = e.clientY;
+    if (side === 'words') { if (!h.grabbed && performance.now() - h.at >= 250) grab(h); if (h.grabbed) { bendMove(h); return; } }
     const over = document.elementFromPoint(e.clientX, e.clientY), el = over && over.closest('.pad');
     if (el && el !== h.el && box.contains(el) && !el.classList.contains('empty')) {     // slid across: play the next one
-      letGo(h); Object.assign(h, { k: +el.dataset.k, el, y0: e.clientY, semis: 0, at: performance.now(), last: -1 });
+      letGo(h); Object.assign(h, { k: +el.dataset.k, el, y0: e.clientY, semis: 0, at: performance.now(), last: -1, grabbed: false });
       el.classList.add('held'); fire(h.k, 0); return;
     }
+    if (side === 'words') return;                            // words bend only once grabbed
     const semis = Math.max(-12, Math.min(12, Math.round((h.y0 - e.clientY) / 22)));
     if (semis !== h.semis) { h.semis = semis; h.el.querySelector('.semi').textContent = semis ? (semis > 0 ? '+' : '') + semis : ''; }
   });
@@ -145,7 +191,7 @@ function wirePads() {
   // keyboard: Enter or Space on a focused pad plays it
   box.addEventListener('click', async e => { if (e.detail !== 0) return; const el = e.target.closest('.pad'); if (!el || el.classList.contains('empty')) return; await wake(); fire(+el.dataset.k, 0); });
 }
-const letGo = h => { h.el.classList.remove('held'); h.el.querySelector('.semi').textContent = ''; };
+const letGo = h => { h.el.classList.remove('held'); h.el.querySelector('.semi').textContent = ''; if (side === 'words') drawBend(+h.el.dataset.k, h.el); };
 
 // ------------------------------------------------------------------ keep it
 function keep() {
@@ -306,8 +352,10 @@ function listen() {
   engine.on('hook', (t, o) => at(t, () => showFace(o && o.half ? 'ooh' : 'hype', o && o.half ? 0.7 : 1.3)));
   engine.on('step', (abs, t) => {
     const now = performance.now();
-    for (const h of held.values()) {                        // held: roll on sixteenths
-      if (now - h.at > 250 && h.last !== abs) { h.last = abs; play(h.k, t, h.semis); record(h.k, t, h.semis); }
+    for (const h of held.values()) {                        // held: roll on sixteenths (words: at the word's length)
+      if (side === 'words' && now - h.at >= 250) grab(h);
+      const every = side === 'words' ? Math.max(1, Math.round((padLength(h.k, bendOf(h.k).stop) || 0) / engine.stepDur())) : 1;
+      if (now - h.at > 250 && (h.last < 0 || abs - h.last >= every)) { h.last = abs; play(h.k, t, h.semis); record(h.k, t, h.semis); }
     }
     if (rec.held && fwd) {                                  // scratching: the next slice of the phrase
       const sd = engine.stepDur(), n = fwd.duration, rate = rateFor(rec.speed), stut = isFlick(rec.speed);
