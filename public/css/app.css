@@ -247,10 +247,12 @@ body[data-mode='pads']:not([data-start]) #build { gap: 12px; }
 .pad.lit { background: var(--yellow); border-color: var(--yellow); color: var(--bg); box-shadow: 0 0 0 calc(3px * var(--rs, 1)) var(--bg), 0 0 0 calc(5px * var(--rs, 1)) var(--red), 0 0 0 calc(8px * var(--rs, 1)) var(--bg), 0 0 0 calc(10px * var(--rs, 1)) var(--blue); transition: none; }
 .pad.lit.loud { box-shadow: var(--rings), 0 0 0 13px var(--bg), 0 0 0 15px rgba(243, 239, 230, 0.55); }
 .pad.you { background: var(--red); border-color: var(--red); color: var(--bg); box-shadow: 0 0 0 calc(3px * var(--rs, 1)) var(--bg), 0 0 0 calc(5px * var(--rs, 1)) var(--yellow), 0 0 0 calc(8px * var(--rs, 1)) var(--bg), 0 0 0 calc(10px * var(--rs, 1)) var(--blue), 0 0 0 calc(13px * var(--rs, 1)) var(--bg), 0 0 0 calc(15px * var(--rs, 1)) rgba(243, 239, 230, 0.55); transition: none; }
-/* the word bend: a pointer from the centre (its angle is the length), the pitch as the small number */
-.pad .ptr { position: absolute; left: 50%; top: 5%; width: 3px; height: 19%; margin-left: -1.5px; border-radius: 2px; background: currentColor; opacity: 0.85; transform-origin: 50% 236.8%; pointer-events: none; transition: transform 0.12s; }
-.pad .ptr[hidden] { display: none; }
+/* the word bend: a handle low in each word pad (its width is the length), the pitch as the small number */
 .pad .lab { position: relative; }
+.pad .hdl { display: none; position: absolute; left: 50%; top: 76%; width: 30%; height: 3px; margin-top: -1.5px; border-radius: 2px; background: currentColor; opacity: 0.45; transform: translateX(-50%); pointer-events: none; transition: width 0.12s, opacity 0.12s; }
+.pad.word .hdl { display: block; }
+.pad.word.bent .hdl { opacity: 1; }
+.pad.word .lab { top: -7%; }
 .pad.click { animation: click 0.22s ease-out; }
 @keyframes click { 0% { box-shadow: 0 0 0 3px var(--bg), 0 0 0 7px var(--paper); } 100% { box-shadow: 0 0 0 3px var(--bg), 0 0 0 7px transparent; } }
 .pad.held { border-color: var(--paper); }

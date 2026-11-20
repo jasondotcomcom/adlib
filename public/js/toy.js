@@ -45,7 +45,7 @@ function buildPads() {
   const box = $('pads'); box.textContent = ''; els = [];
   for (let k = 0; k < SLOTS; k++) {
     const b = document.createElement('button'); b.type = 'button'; b.className = 'pad'; b.dataset.k = k;
-    b.innerHTML = '<span class="ptr"></span><span class="lab"></span><span class="semi"></span>';
+    b.innerHTML = '<span class="lab"></span><span class="hdl"></span><span class="semi"></span>';
     box.appendChild(b); els.push(b);
   }
 }
@@ -60,6 +60,7 @@ export function syncToy() {
     els.forEach((el, k) => {
       el.classList.remove('lit', 'you', 'loud', 'held');
       el.classList.toggle('empty', k >= n);
+      el.classList.toggle('word', side === 'words' && k < n);
       const lab = el.querySelector('.lab');
       if (k >= n) { lab.innerHTML = ''; el.setAttribute('aria-label', 'empty'); el.tabIndex = -1; return; }
       el.tabIndex = 0;
@@ -82,19 +83,20 @@ export function syncToy() {
 }
 // after a new take: a fresh phrase, nothing kept, back on drums (the busiest side)
 // ------------------------------------------------------------------ the word bend
-// On the words side every pad is also a knob for its own word (adlib-word-bend-brief.md): hold it
-// and drag, up and down for pitch (steps on the beat's key), sideways for length (five stops, left
-// longer). It stays where you leave it. A new take clears every bend.
+// On the words side every pad is also a knob for its own word (adlib-word-bend-brief.md, and the
+// handle update of 20 Nov): a line low in the pad is its handle. Drag from it (or hold anywhere and
+// drag), up and down for pitch (steps on the beat's key), sideways for length (five stops, right
+// longer; the line is the length). It stays where you leave it. A new take clears every bend.
 const bends = new Map();                                    // pad -> { steps, stop }
 const bendOf = k => bends.get(k) || { steps: 0, stop: 0 };
 const semisFor = steps => { const v = vibe(); return stepsToSemis(steps, voice.f0 || 140, v.key + song.key, SCALES[v.scale] || SCALES.minor); };
-const ANGLE = 34;                                           // degrees per length stop, left for longer
+const LINE = { '-2': 12, '-1': 20, 0: 30, 1: 42, 2: 56 };  // the handle's width per length stop, % of the pad
 function drawBend(k, released) {
   const el = els[k]; if (!el) return;
   const grabbed = !released && [...held.values()].some(h => h.el === el);
-  const b = side === 'words' ? bendOf(k) : { steps: 0, stop: 0 }, ptr = el.querySelector('.ptr');
-  ptr.style.transform = `rotate(${-b.stop * ANGLE}deg)`;
-  ptr.hidden = !(b.steps || b.stop);
+  const b = side === 'words' ? bendOf(k) : { steps: 0, stop: 0 };
+  el.querySelector('.hdl').style.width = LINE[b.stop] + '%';
+  el.classList.toggle('bent', !!(b.steps || b.stop));
   el.style.setProperty('--rs', String(1 + 0.4 * b.stop));    // repeat rings spread wide when long, pack tight when short
   if (side === 'words' && !grabbed) el.querySelector('.semi').textContent = b.steps ? (b.steps > 0 ? '+' : '') + b.steps : '';
   else if (side === 'drums' && !grabbed) el.querySelector('.semi').textContent = '';
@@ -144,25 +146,30 @@ function fire(k, semis) {
   const now = ctxNow();
   const t = engine.isPlaying() ? engine.nextGrid(now + 0.004, 1) : now;
   play(k, t, semis); record(k, t, semis);
+  return engine.isPlaying() ? Math.round(engine.posAt(t)) : -1;
 }
 
-// a held word pad is grabbed after a quarter second; from then its finger is a knob
-const grab = h => { if (h.grabbed || side !== 'words') return; h.grabbed = true; h.gx = h.cx; h.gy = h.cy; h.moved = false; const b = bendOf(h.k); h.b0 = { ...b }; };
+// a word pad is grabbed when a finger that started on its handle moves (no wait), or after a
+// quarter second held anywhere; from then its finger is a knob, measured from where it was then
+const grab = (h, now) => { if (h.grabbed || side !== 'words') return; h.grabbed = true; h.gx = h.cx; h.gy = h.cy; h.moved = !!now; const b = bendOf(h.k); h.b0 = { ...b }; };
+const ZONE = 40, ZONE_PART = 0.42, SLOP = 8;               // the handle's grab zone: the lower part of the pad, 40px tall at least
+const inZone = (el, y) => { const r = el.getBoundingClientRect(); return y >= r.bottom - Math.max(ZONE, r.height * ZONE_PART); };
 function wirePads() {
   const box = $('pads');
   box.addEventListener('pointerdown', async e => {
     const el = e.target.closest('.pad'); if (!el || el.classList.contains('empty')) return;
     e.preventDefault(); try { box.setPointerCapture(e.pointerId); } catch {}
     await wake();
-    const h = { k: +el.dataset.k, el, y0: e.clientY, cx: e.clientX, cy: e.clientY, semis: 0, at: performance.now(), last: -1, grabbed: false };
+    const h = { k: +el.dataset.k, el, x0: e.clientX, y0: e.clientY, cx: e.clientX, cy: e.clientY, semis: 0, at: performance.now(), last: -1, grabbed: false,
+      zone: side === 'words' && inZone(el, e.clientY) };
     held.set(e.pointerId, h); el.classList.add('held');
-    fire(h.k, 0);
+    const abs = fire(h.k, 0); if (side === 'words') h.last = abs;   // a grabbed word repeats at its own length from this hit
   });
   const bendMove = h => {
     const dx = h.cx - h.gx, dy = h.cy - h.gy;
     if (!h.moved && Math.hypot(dx, dy) < 12) return;          // a dead zone, so holding to repeat doesn't detune
     h.moved = true;
-    const rs = h.b0.steps - dy / 22, rl = h.b0.stop - dx / 40;  // up is higher, left is longer; both magnetic at the middle
+    const rs = h.b0.steps - dy / 22, rl = h.b0.stop + dx / 40;  // up is higher, right is longer; both magnetic at the middle
     const steps = Math.abs(rs) < 0.6 ? 0 : Math.max(-7, Math.min(7, Math.round(rs)));
     const stops = padStops(h.k), stop = clampStop(Math.abs(rl) < 0.6 ? 0 : Math.max(-2, Math.min(2, Math.round(rl))), stops);
     const was = bendOf(h.k);
@@ -175,11 +182,16 @@ function wirePads() {
   box.addEventListener('pointermove', e => {
     const h = held.get(e.pointerId); if (!h) return;
     h.cx = e.clientX; h.cy = e.clientY;
-    if (side === 'words') { if (!h.grabbed && performance.now() - h.at >= 250) grab(h); if (h.grabbed) { bendMove(h); return; } }
+    if (side === 'words') {
+      if (!h.grabbed && h.zone && Math.hypot(h.cx - h.x0, h.cy - h.y0) >= SLOP) grab(h, true);   // off the handle: grabbed at once
+      if (!h.grabbed && performance.now() - h.at >= 250) grab(h);
+      if (h.grabbed) { bendMove(h); return; }
+      if (h.zone) return;                                     // a touch that starts on the handle stays on its pad
+    }
     const over = document.elementFromPoint(e.clientX, e.clientY), el = over && over.closest('.pad');
     if (el && el !== h.el && box.contains(el) && !el.classList.contains('empty')) {     // slid across: play the next one
-      letGo(h); Object.assign(h, { k: +el.dataset.k, el, y0: e.clientY, semis: 0, at: performance.now(), last: -1, grabbed: false });
-      el.classList.add('held'); fire(h.k, 0); return;
+      letGo(h); Object.assign(h, { k: +el.dataset.k, el, x0: e.clientX, y0: e.clientY, semis: 0, at: performance.now(), last: -1, grabbed: false });
+      el.classList.add('held'); const abs = fire(h.k, 0); if (side === 'words') h.last = abs; return;
     }
     if (side === 'words') return;                            // words bend only once grabbed
     const semis = Math.max(-12, Math.min(12, Math.round((h.y0 - e.clientY) / 22)));
@@ -355,7 +367,7 @@ function listen() {
     for (const h of held.values()) {                        // held: roll on sixteenths (words: at the word's length)
       if (side === 'words' && now - h.at >= 250) grab(h);
       const every = side === 'words' ? Math.max(1, Math.round((padLength(h.k, bendOf(h.k).stop) || 0) / engine.stepDur())) : 1;
-      if (now - h.at > 250 && (h.last < 0 || abs - h.last >= every)) { h.last = abs; play(h.k, t, h.semis); record(h.k, t, h.semis); }
+      if ((h.grabbed || now - h.at > 250) && (h.last < 0 || abs - h.last >= every)) { h.last = abs; play(h.k, t, h.semis); record(h.k, t, h.semis); }
     }
     if (rec.held && fwd) {                                  // scratching: the next slice of the phrase
       const sd = engine.stepDur(), n = fwd.duration, rate = rateFor(rec.speed), stut = isFlick(rec.speed);
